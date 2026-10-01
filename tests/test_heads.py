@@ -64,6 +64,15 @@ CASES = [
     ("Bash", {"command": "cd x && echo $(pwd) && make"}, "Bash:make"),
     ("Bash", {"command": 'echo "start $(date)"; make'}, "Bash:make"),
     ("Bash", {"command": "$(which make)"}, "Bash:other"),
+    ("Bash", {"command": 'cd "$(a $(b))" && pytest'}, "Bash:pytest"),  # nested: innermost first
+    ("Bash", {"command": "cd $(a $(b)) && pytest"}, "Bash:pytest"),
+    # Quoting is shlex's: a quoted word is one word whatever it holds, and a
+    # builtin's arguments run to the next separator, never to a reserved word.
+    ("Bash", {"command": "echo if x; make"}, "Bash:make"),
+    ("Bash", {"command": 'echo "if x"; make'}, "Bash:make"),
+    ("Bash", {"command": 'echo "a; b"; make'}, "Bash:make"),
+    ("Bash", {"command": "echo 'unclosed; make"}, "Bash:other"),  # shlex cannot tokenize it
+    ("Bash", {"command": "cd x # to x\nmake"}, "Bash:make"),  # a comment is not modelled: a word
     # R5-BUILTINS: an output-less builtin and its arguments, to the next separator.
     ("Bash", {"command": 'for f in a b; do echo "== $f"; cat "$f"; done'}, "Bash:cat"),
     ("Bash", {"command": "echo hi && pytest"}, "Bash:pytest"),
@@ -123,6 +132,7 @@ CASES = [
     ("Bash", {"command": "time -p make"}, "Bash:make"),
     ("Bash", {"command": "time -f %e make"}, "Bash:make"),
     ("Bash", {"command": "sudo -u"}, "Bash:other"),
+    ("Bash", {"command": "sudo -R jail make"}, "Bash:jail"),  # known gap: an option not in VALUED
     # HEAD_SHAPE: a leading `-` is an option, never a command.
     ("Bash", {"command": "-n1 wc -l"}, "Bash:other"),
     ("Bash", {"command": "--version"}, "Bash:other"),

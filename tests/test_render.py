@@ -23,23 +23,29 @@ def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
     assert re.match(r"\+2 more rows\s+40\s+2\s+40\.0%", lines[2])
     assert [l.split()[0] for l in tables.table(table, M, limit=3, whole=False)[1:]] == [
         "a", "b", "c", tables.RESIDUAL_LABEL, schema.SHRINK]
-    for dim in tables.RESIDUAL_NOTES:
+    for dim, (meaning, _) in tables.RESIDUAL_NOTES.items():
         noted = tables.table(table._replace(dim=dim), M, limit=3, whole=False)
-        assert noted[-1] == tables.RESIDUAL_NOTES[dim]
+        assert noted[-1] == tables.residual_note(dim, ()) == tables.RESIDUAL_LABEL + ": " + meaning
         no_residual = tables.table(query.Table(dim, ROWS[:3], 100), M, 3, whole=False)
-        assert tables.RESIDUAL_NOTES[dim] not in no_residual
+        assert noted[-1] not in no_residual
 
 
 def test_every_dimension_a_view_can_group_with_a_residual_row_has_a_note(tmp_path):
     """The fixture carries every cause and reason, a main window and a
-    subagent's, so each dimension that can lack a value does so here."""
+    subagent's, so each dimension that can lack a value does so here, and
+    every fact in a residual row is read by a case of the row's note."""
     facts = fx.load_facts(fx.cli_corpus(tmp_path))[1]
-    with_residual = {dim for view in cli.VIEWS.values()
-                     for dim in schema.KIND_DIMENSIONS[schema.metric(view.metric).carrier]
-                     if any(r.kind == query.RESIDUAL for r in query.group(facts, dim, view.metric).rows)}
+    grouped = [query.group(facts, dim, view.metric) for view in cli.VIEWS.values()
+               for dim in schema.KIND_DIMENSIONS[schema.metric(view.metric).carrier]]
+    with_residual = {t.dim for t in grouped if t.residual}
     assert schema.REASON_DIM in with_residual and len(with_residual) > 1  # vacuity guard
     assert with_residual <= set(tables.RESIDUAL_NOTES), with_residual - set(tables.RESIDUAL_NOTES)
-    note = tables.RESIDUAL_NOTES[schema.REASON_DIM]
+    for t in grouped:
+        cases = tables.RESIDUAL_NOTES.get(t.dim, ("", []))[1]
+        if cases:
+            assert all(any(holds(dims) for _, holds in cases) for dims in t.residual), t.dim
+    note = tables.residual_note(schema.REASON_DIM, next(t.residual for t in grouped
+                                                        if t.dim == schema.REASON_DIM))
     assert all(c in note for c in schema.CAUSES if c not in (schema.AMBIGUOUS, schema.SHRINK))
     assert schema.SHRINK not in note  # it is the signed row, never the residual
 

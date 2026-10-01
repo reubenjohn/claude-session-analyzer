@@ -117,7 +117,7 @@ measured fact (exactly one tier per call; tier totals equal
 `cache_creation_input_tokens` on 47,419 of 47,419 calls, 0 mixed) moved into
 `usage_spend`'s docstring. CLAUDE.md no longer calls the module verbatim.
 Same pass, R5 amended: a head value carries its tool (`Bash:pytest`,
-`Read:py`), and `&&`/`||` are padded like `;`.
+`Read:py`), and `&&`/`||` separate like `;`.
 
 **D-AMBIGUOUS-TOOL — an ambiguous increment carries the tool its candidates
 share.** RULED 2026-10-01, second-opinion conditions applied. A
@@ -166,7 +166,7 @@ assignment does; each list is one declared tuple in `heads.py`. Amendment:
 a path-shaped first command word is its basename (`./check.sh` ->
 `Bash:check.sh`, `/usr/bin/python3` -> `Bash:python3`), still subject to
 `HEAD_SHAPE` and never a directory (`scripts/` -> `other`); it is one
-expression in `heads.bash_head`, revertible in one edit. Known gaps, logged
+expression in `heads.bash_head`. Known gaps, logged
 and not widened now: an interpreter followed by a script (`python3
 scripts/x.py`, `bash x.sh`) still yields the interpreter; and a loop whose
 body opens with a label (`for f in …; do echo "== $f"; cat "$f"; done`)
@@ -193,8 +193,7 @@ increments (the #2 Bash head) and `Bash:cat` 238,494 over 37; after,
 448,448 over 57 (48.0% of 935,044 with a head). One declared tuple in
 `heads.py`, `BUILTINS = ("echo", "printf", "true", "false", "set",
 "export", "unset", "shift")`: a builtin is skipped with its own arguments up
-to the next separator (`;`, `&&`, `||`, `|`, each padded into its own
-word), so the head is the next command word (`echo hi && pytest` ->
+to the next separator, so the head is the next command word (`echo hi && pytest` ->
 `Bash:pytest`, `printf '%s' x | sort` -> `Bash:sort`) and a command that is
 only builtins yields `Bash:other`. The interpreter-plus-script gap
 (`python3 scripts/x.py` -> `Bash:python3`) stays logged, not widened. Same
@@ -207,7 +206,12 @@ tuple `SILENT = ("mkdir", "touch", "mv", "cp", "rm", "chmod", "sleep",
 "ln")` is skipped the same way (`mkdir -p x && cat > f <<EOF` ->
 `Bash:cat`); measured basis, live corpus 2026-10-01: `Bash:mkdir` carried
 59,586 context tokens over 13 increments, one increment of 23,390 tokens
-that mkdir did not print.
+that mkdir did not print. Amended 2026-10-01 (fifteenth judge): the
+tokenizer is the standard library's `shlex` (posix; a run of `();|&` is
+one word), so quoting is modelled (`echo "a; b"; make` -> `Bash:make`), a
+nested `$(...)` collapses from the inside, and a builtin's arguments run to
+the next separator, never a reserved word (`echo if x; make` ->
+`Bash:make`); heredocs and function definitions are still not.
 
 **D-MESSAGE-ID-DEDUP — a call's identity is its `message.id`, deduplicated
 across files.** RULED 2026-10-01, on a fifth judge's rejection of ab20da2;

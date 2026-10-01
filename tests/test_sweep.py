@@ -5,18 +5,6 @@ import fixtures as fx
 from sa import schema, sweep
 
 
-def _batched_corpus(tmp_path):
-    """One call with two Read tool_uses whose results come back batched in
-    one record: two contributors sharing the tool, not the head."""
-    return fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": [
-        fx.assistant("uuid-0001", "msg-0001", fx.usage(1000, 50),
-                     [fx.tool_use("toolu_0001", "Read", file_path="/x/a.py"),
-                      fx.tool_use("toolu_0002", "Read", file_path="/x/b.md")]),
-        fx.tool_result("uuid-0002", "toolu_0001", "toolu_0002"),
-        fx.assistant("uuid-0003", "msg-0002", fx.usage(1300, 0)),
-    ]})
-
-
 def test_counts_over_the_cli_corpus(tmp_path):
     loaded, facts = fx.load_facts(fx.cli_corpus(tmp_path))
     assert sweep.batched_results(loaded) == (0, 12)  # four results in each of three windows
@@ -35,7 +23,7 @@ def test_each_zero_count_is_non_zero_on_the_corpus_built_for_it(tmp_path):
     assert sweep.reminted(loaded) == (1, call.metrics[schema.SPEND])
     # The fork's only call is the replay, so its live records carry no sessionId.
     assert sweep.key_disagreements(loaded) == (1, 2)
-    loaded, facts = fx.load_facts(_batched_corpus(tmp_path / "batched"))
+    loaded, facts = fx.load_facts(fx.batched_corpus(tmp_path / "batched"))
     assert sweep.batched_results(loaded) == (1, 1)
     assert sweep.shared(facts) == [(1, fx.EXACT_FIRST_DELTA), (1, fx.EXACT_FIRST_DELTA), (0, 0)]
     loaded, facts = fx.load_facts(fx.corpus(tmp_path / "interleaved",

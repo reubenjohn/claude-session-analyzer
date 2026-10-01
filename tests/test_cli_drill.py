@@ -37,6 +37,22 @@ def test_a_drill_prints_a_table_that_has_only_a_residual_row(tmp_path):
     assert "share of" not in out
 
 
+def test_a_pinned_table_notes_only_the_cases_its_residual_row_holds(tmp_path):
+    """Two Read results batched in one record: under ``--where tool=Read``
+    the head table's residual is one ambiguous increment sharing the tool,
+    so its note names that case alone, not ``no tool`` or a headless tool."""
+    root = fx.batched_corpus(tmp_path)
+    code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=Read" % TOOL,
+                                "--by", HEAD)
+    assert code == 0, err
+    notes = [l for l in out.splitlines() if l.startswith(tables.RESIDUAL_LABEL + ":")]
+    assert notes == [tables.residual_note(HEAD, ({CAUSE: schema.AMBIGUOUS, TOOL: "Read"},))]
+    assert schema.AMBIGUOUS in notes[0] and "no tool" not in notes[0] and "any but" not in notes[0]
+    code, out, err = fx.run_cli("context", "--root", str(root), "--by", HEAD)
+    unpinned = [l for l in out.splitlines() if l.startswith(tables.RESIDUAL_LABEL + ":")]
+    assert code == 0 and "no tool" in unpinned[0]  # vacuity guard: the pin removed the case
+
+
 def test_a_drill_prints_the_whole_window_reconciliation_once_as_a_pointer(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--where",

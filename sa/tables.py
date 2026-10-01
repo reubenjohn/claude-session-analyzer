@@ -1,5 +1,5 @@
 """Table and leaf rendering of a selection, and the number formats every line shares."""
-from typing import Iterator, List, Optional
+from typing import Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from . import heads, query, schema
 from .schema import Fact
@@ -15,19 +15,38 @@ UNSPLITTABLE = {schema.WINDOW_HEAD: "first call's context: boot prompt + first m
                 schema.AMBIGUOUS: "intervals not attributable to one contributor (by reason: %s);"
                                   " never spread; --by fact lists them" % ", ".join(schema.REASONS)}
 
-# Printed under a table that shows the residual row, saying what it holds.
-RESIDUAL_NOTES = {
-    schema.AGENT_DIM: "%s: main windows (no subagent)" % RESIDUAL_LABEL,
-    schema.TOOL_DIM: "%s: no tool: %s, %s, %s, %s whose candidates share no one tool, or a"
-                     " %s whose tool_use did not resolve"
-                     % (RESIDUAL_LABEL, schema.WINDOW_HEAD, schema.FEED_FORWARD,
-                        schema.USER_TEXT, schema.AMBIGUOUS, schema.TOOL_RESULT),
-    schema.HEAD_DIM: "%s: no head: no tool, a tool with no head (any but %s), or %s with"
-                     " mixed heads"
-                     % (RESIDUAL_LABEL, ", ".join(sorted(heads.EXTRACTORS)), schema.AMBIGUOUS),
-    schema.REASON_DIM: "%s: not %s: %s" % (RESIDUAL_LABEL, schema.AMBIGUOUS, ", ".join(
-        c for c in schema.CAUSES if c not in (schema.AMBIGUOUS, schema.SHRINK))),  # shrink is signed
+Case = Tuple[str, Callable[[dict], bool]]  # a reading of a residual fact, and the dims it holds for
+
+
+def _cause(cause: str) -> Callable[[dict], bool]:
+    return lambda dims: dims.get(schema.CAUSE_DIM) == cause
+
+
+# Printed under a table that shows the residual row: what the row means,
+# then the cases that some fact in it satisfies, read from their dimensions
+# so a drill (``--where tool=Bash --by head``) names no case it cannot hold.
+RESIDUAL_NOTES: Dict[str, Tuple[str, List[Case]]] = {
+    schema.AGENT_DIM: ("main windows (no subagent)", []),
+    schema.TOOL_DIM: ("no tool", [(c, _cause(c)) for c in (
+        schema.WINDOW_HEAD, schema.FEED_FORWARD, schema.USER_TEXT)] + [
+        ("%s whose candidates share no one tool" % schema.AMBIGUOUS, _cause(schema.AMBIGUOUS)),
+        ("a %s whose tool_use did not resolve" % schema.TOOL_RESULT, _cause(schema.TOOL_RESULT))]),
+    schema.HEAD_DIM: ("no head", [
+        ("no tool", lambda dims: schema.TOOL_DIM not in dims),
+        ("a %s of a tool with no head (any but %s)"
+         % (schema.TOOL_RESULT, ", ".join(sorted(heads.EXTRACTORS))),
+         lambda dims: schema.TOOL_DIM in dims and _cause(schema.TOOL_RESULT)(dims)),
+        ("%s whose candidates share a tool but no head" % schema.AMBIGUOUS,
+         lambda dims: schema.TOOL_DIM in dims and _cause(schema.AMBIGUOUS)(dims))]),
+    schema.REASON_DIM: ("not %s" % schema.AMBIGUOUS, [  # shrink is the signed row, never residual
+        (c, _cause(c)) for c in schema.CAUSES if c not in (schema.AMBIGUOUS, schema.SHRINK)]),
 }
+
+
+def residual_note(dim: str, residual: Sequence[dict]) -> str:
+    meaning, cases = RESIDUAL_NOTES[dim]
+    held = [text for text, holds in cases if any(holds(dims) for dims in residual)]
+    return "%s: %s%s" % (RESIDUAL_LABEL, meaning, ": " + ", ".join(held) if held else "")
 
 
 def count(n: int, singular: str, plural: Optional[str] = None) -> str:
@@ -86,7 +105,7 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool) -> List[st
             pct(grouped.share(r.mass) if r.kind == query.REGULAR else None)))
     lines += ["%s: %s" % (r.value, UNSPLITTABLE[r.value]) for r in shown if r.value in UNSPLITTABLE]
     if grouped.dim in RESIDUAL_NOTES and any(r.kind == query.RESIDUAL for r in shown):
-        lines.append(RESIDUAL_NOTES[grouped.dim])
+        lines.append(residual_note(grouped.dim, grouped.residual))
     return lines
 
 

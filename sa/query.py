@@ -86,6 +86,7 @@ class Table(NamedTuple):
     dim: str
     rows: List[Row]  # regular rows by descending mass, then residual, then signed
     base: float      # the regular rows' mass: the total less the other rows
+    residual: Tuple[dict, ...] = ()  # the dimensions of each fact in the residual row
 
     def share(self, mass: float) -> Optional[float]:
         """Of the regular rows' mass; None when there is none."""
@@ -110,6 +111,7 @@ def group(facts: List[Fact], dim: str, metric: str) -> Table:
     schema.check_dimension(dim, spec.carrier)
     mass: Dict[Tuple[Optional[str], str], float] = {}
     count: Dict[Tuple[Optional[str], str], int] = {}
+    residual = []
     for f in facts:
         if f.kind != spec.carrier:
             continue
@@ -117,6 +119,7 @@ def group(facts: List[Fact], dim: str, metric: str) -> Table:
             key = (schema.SHRINK, SIGNED)
         elif f.dims.get(dim) is None:
             key = (None, RESIDUAL)
+            residual.append(f.dims)
         else:
             key = (f.dims[dim], REGULAR)
         mass[key] = mass.get(key, 0) + f.metrics[metric]
@@ -124,7 +127,7 @@ def group(facts: List[Fact], dim: str, metric: str) -> Table:
     regular = sorted((k for k in mass if k[1] == REGULAR), key=lambda k: -mass[k])
     other = [k for k in ((None, RESIDUAL), (schema.SHRINK, SIGNED)) if k in mass]
     rows = [Row(k[0], mass[k], count[k], k[1]) for k in regular + other]
-    return Table(dim, rows, total(facts, metric) - sum(mass[k] for k in other))
+    return Table(dim, rows, total(facts, metric) - sum(mass[k] for k in other), tuple(residual))
 
 
 def largest(facts: Iterable[Fact], metric: str) -> Optional[Fact]:

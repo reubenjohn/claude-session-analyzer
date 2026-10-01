@@ -14,9 +14,12 @@ uuids in the Phase 0 sweep appear in more than one file; per-file reading
 inflates totals by 94%). A call's identity is its ``message.id``, deduplicated
 ACROSS files only (D-MESSAGE-ID-DEDUP): a fork re-mints its parent's last
 call under a new uuid (local sweep 2026-10-01 via ``scripts/local_sweep.py``:
-1 re-mint beside 1,423 live calls, 15,240 spend-equivalents, one phantom
+1 re-mint beside 1,597 live calls, 15,240 spend-equivalents, one phantom
 call and interval), while records
 sharing an id within one file are the split constituents of one call.
+A window is a file, never a ``parentUuid`` chain: no link names a uuid in
+another file (same sweep, ``sweep.cross_file_parents``: 0 of 11,817), so a
+continuation is joined by its replayed records, not by its parent.
 Files are read in owner order, so that the earliest-starting,
 longest-running copy of a window owns the records it shares with any other
 copy, and a replayed record in any later copy is MARKED duplicate rather

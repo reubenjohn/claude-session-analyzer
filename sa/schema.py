@@ -3,9 +3,10 @@
 A fact is one of two kinds. A ``call`` fact is one max-merged assistant
 message and carries what it cost; an ``increment`` fact is one booked change
 of context occupancy and carries where the context went. Each metric names
-the single kind that carries it, so the two can never be summed together
-(measured: ``context_delta`` read from both kinds totals exactly 2.000000x
-the truth).
+the one kind that carries it and ``fact`` refuses it on the other, so a
+total over one metric is never a sum over both kinds: a metric read from
+both would count every token twice (measured, on the carrier-less design
+this one replaced: exactly 2.000000x the truth).
 
 Adding a metric or a dimension is one line here; a cause is its entry in
 ``CAUSES`` plus the branch of ``walk`` that books it. An unknown name

@@ -90,7 +90,7 @@ def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
     assert re.search(r"; top %s=agent-fake1 [\d,]+ \(33\.3%% of the [\d,]+ total\)$"
                      % schema.AGENT_DIM, out.splitlines()[0])  # one of three like windows
     assert re.search(r"^%s\s+[\d,]+\s+14\s+-$" % re.escape(tables.RESIDUAL_LABEL), out, re.M)
-    assert tables.RESIDUAL_NOTES[schema.AGENT_DIM] in out
+    assert tables.residual_note(schema.AGENT_DIM, ()) in out
     assert "%s=main" % schema.AGENT_DIM not in out
     facts = fx.load_facts(root)[1]
     by_file = {f.locator.file: f.dims.get(schema.AGENT_DIM) for f in facts}

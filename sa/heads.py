@@ -1,56 +1,35 @@
 """The ``head`` dimension: ``<tool>:<summary>``, a low-cardinality summary of
 a tool call's input that carries its tool so a table over heads needs no
-second column.
-
-Ruled (DECISION_LOG R5, R5-BASENAME, R5-BUILTINS): a head is never a full
-command line and never a file path. For Bash the summary is the first
-COMMAND word that can produce the tokens, so what precedes one is skipped:
-leading ``VAR=value`` assignments; a ``KEYWORDS`` word with everything
-through the word(s) that open its body (``for f in x; do cmd`` is ``cmd``,
-not ``for``; ``case $x in a) cmd`` is ``cmd``); a ``WRAPPERS`` word with
-its ``-``-prefixed options, each skipped alone unless ``VALUED`` declares
-it takes the next word, and its ``OPERANDS`` (``timeout``'s duration); a
-``TESTS`` bracket through its closer; a bare separator; and a
-``BUILTINS`` or ``SILENT`` word (negligible output, ruling R5-BUILTINS as
-extended: the principle is the output, not the builtin list) with its
-arguments up to the next separator (``echo "==
-$f"; cat $f`` is ``cat``, ``cd -P /x && make`` is ``make``, ``mkdir -p x
-&& cat > f`` is ``cat``), so a command that is only such words (``cd /x``,
-``echo done``, ``rm -rf x``) is ``other``. A command substitution
-``$(...)`` is one argument, not a separator: ``cd "$(git rev-parse
---show-toplevel)" && pytest`` is ``pytest``, never ``git``. Separators
-are ``&&``, ``||``, ``;``, ``|``, a newline and either parenthesis, each
-padded into a word of its own, and the bare ``RESERVED`` words that open
-a condition (``if``, ``elif``, ``while``, ``until``: the condition is a
-command list, so ``if pytest; then echo ok; fi`` is ``pytest`` and ``while
-! make; do sleep 1; done`` is ``make``), open, close or switch a body
-(``then``, ``do``, ``done``, ``fi``, ``else``, ``}``) or background a
-command (``&``), so ``if [ -f x ]; then echo hi; fi; make`` is ``make``,
-never ``fi``.
-A path-shaped command word is its basename (``./check.sh`` is ``check.sh``,
-``/usr/bin/python3`` is ``python3``). For the tools whose input carries
-``file_path`` the summary is the file extension. A summary is kept only if
-it matches ``HEAD_SHAPE``, which admits no slash and no leading ``-``, so a
-directory (``scripts/``) and a stray option (``-n1``) degrade to ``other``.
-Known gap: a wrapper option that takes a value but is not in ``VALUED`` is
-skipped alone and its value becomes the head (``sudo -C 3 make`` is ``3``);
-the fix is one more entry in ``VALUED``, never a looser shape. Every other
-tool has no head: Glob and Grep take a pattern and a directory, and
-NotebookEdit's extension is always the same, so none of them would carry
-information.
+second column. Ruled (DECISION_LOG R5, R5-BASENAME, R5-BUILTINS): a head is
+never a full command line and never a file path. For Bash the summary is
+the basename of the first COMMAND word, the first ``shlex`` token (quotes
+resolved; a run of ``();|&`` is a separator of its own; a newline is ``;``;
+a ``$(...)`` substitution, however nested, is one argument) once what can
+produce no tokens is skipped: a leading assignment, a separator, a bare
+``RESERVED`` word, a ``KEYWORDS`` word through the opener(s) of its body, a
+``WRAPPERS`` word with its options (a ``VALUED`` one with its word) and
+``OPERANDS``, a ``TESTS`` bracket through its closer, and a ``BUILTINS`` or
+``SILENT`` word with its arguments up to the next separator. For the tools
+whose input carries ``file_path`` the summary is the file extension. A
+summary is kept only if it matches ``HEAD_SHAPE`` (no slash, no leading
+``-``), else ``other``, as is a command shlex cannot tokenize (an unclosed
+quote). Known gap: a wrapper option that takes a value but is not in
+``VALUED`` leaves its value as the head; the fix is one more entry, never a
+looser shape. Every other tool has no head: Glob and Grep take a pattern
+and a directory, and NotebookEdit's extension is always the same. The cases
+are ``tests/test_heads.py``.
 """
 import re
+import shlex
 from pathlib import PurePosixPath
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional
 
 HEAD_SHAPE = re.compile(r"^[A-Za-z0-9_.+][A-Za-z0-9_.+-]{0,31}$")  # never an option
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-_SEPARATORS = ("&&", "||", ";", "|", "(", ")")  # ``||`` before ``|``: the regex tries them in order
-_SEPARATOR = re.compile("(%s)" % "|".join(map(re.escape, _SEPARATORS)))  # padded into its own word
-_SUBSTITUTION = re.compile(r"\$\([^()]*\)")  # ``$(cmd)``: one argument, before ``(`` could separate
+_SUBSTITUTION = re.compile(r"\$\([^()]*\)")  # an innermost ``$(cmd)``
+_PUNCTUATION = set("();|&")  # a word of these alone (``&&``, ``;;``, ``)``…) ends a command
 RESERVED = ("if", "elif", "while", "until",  # open a condition: a command list
-            "do", "then", "else", "done", "fi", "esac", "}", "&")  # bare, ends a command like ``;``
-_ENDS = _SEPARATORS + RESERVED
+            "do", "then", "else", "done", "fi", "esac", "}")  # bare, ends a command like ``;``
 # The command is in the body a keyword opens, past each opener in turn:
 # ``case``'s past ``in`` and then past the first pattern's ``)``.
 KEYWORDS = {"for": ("do",), "case": ("in", ")")}
@@ -77,16 +56,32 @@ def _guard(head: str) -> str:
     return head if HEAD_SHAPE.match(head) else OTHER
 
 
-def _past(words: List[str], stop: Tuple[str, ...]) -> int:
-    """The index just past the first ``stop`` word, or past the end."""
-    return next((i for i, word in enumerate(words) if word in stop), len(words)) + 1
+def _separator(word: str) -> bool:
+    return bool(word) and set(word) <= _PUNCTUATION
+
+
+def _past(words: List[str], stop: Callable[[str], bool]) -> int:
+    """The index just past the first word ``stop`` accepts, or past the end."""
+    return next((i for i, word in enumerate(words) if stop(word)), len(words)) + 1
+
+
+def _words(command: str) -> List[str]:
+    command = command.replace("\n", ";")
+    while _SUBSTITUTION.search(command):
+        command = _SUBSTITUTION.sub("$_", command)
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""  # a comment is not modelled: ``#`` is a word
+    try:
+        return list(lexer)
+    except ValueError:  # an unclosed quote
+        return []
 
 
 def bash_head(tool_input: dict) -> str:
-    command = str(tool_input.get("command", "")).replace("\n", ";")  # a newline ends a command
-    words = _SEPARATOR.sub(r" \1 ", _SUBSTITUTION.sub("$_", command)).split()
+    words = _words(str(tool_input.get("command", "")))
     while words:
-        if _ASSIGNMENT.match(words[0]) or words[0] in _ENDS:
+        if _ASSIGNMENT.match(words[0]) or words[0] in RESERVED or _separator(words[0]):
             del words[0]
         elif words[0] in WRAPPERS:
             wrapper = words.pop(0)
@@ -95,11 +90,11 @@ def bash_head(tool_input: dict) -> str:
             del words[:OPERANDS.get(wrapper, 0)]
         elif words[0] in KEYWORDS:
             for opener in KEYWORDS[words[0]]:
-                del words[:_past(words, (opener,))]
+                del words[:_past(words, opener.__eq__)]
         elif words[0] in TESTS:
-            del words[:_past(words, (TESTS[words[0]],))]
+            del words[:_past(words, TESTS[words[0]].__eq__)]
         elif words[0] in BUILTINS + SILENT:
-            del words[:_past(words, _ENDS)]
+            del words[:_past(words, _separator)]
         else:
             break
     return _guard(words[0].rpartition("/")[2]) if words else OTHER  # R5-BASENAME: the basename

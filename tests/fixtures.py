@@ -176,6 +176,18 @@ def remint_corpus(tmp_path):
     return root, fork_ref, parent, copy
 
 
+def batched_corpus(tmp_path):
+    """One call with two Read tool_uses whose results come back batched in
+    one record: two contributors sharing the tool, not the head."""
+    return corpus(tmp_path, {"proj-a/sess-0001.jsonl": [
+        assistant("uuid-0001", "msg-0001", usage(1000, 50),
+                  [tool_use("toolu_0001", "Read", file_path="/x/a.py"),
+                   tool_use("toolu_0002", "Read", file_path="/x/b.md")]),
+        tool_result("uuid-0002", "toolu_0001", "toolu_0002"),
+        assistant("uuid-0003", "msg-0002", usage(1300, 0)),
+    ]})
+
+
 def interleaved_records():
     """Parallel tool use: constituent, result, constituent, result, next
     call. Both results sit between the call's first constituent and the

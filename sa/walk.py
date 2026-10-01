@@ -17,7 +17,7 @@ still resolves to its tool. A file whose first calls are replays books
 
 Every figure below marked "local sweep 2026-10-01" is a line of
 ``scripts/local_sweep.py`` run that day over this machine's live corpus
-(55 files, 47 windows, 1,423 calls, 1,376 intervals): a dated snapshot, not
+(63 files, 55 windows, 1,597 calls, 1,542 intervals): a dated snapshot, not
 reproducible elsewhere. The Phase 0 figures name their own population.
 """
 from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
@@ -60,18 +60,20 @@ def calls(records: List[Record], usages: Usages) -> List[Call]:
     ``<synthetic>`` zero-usage record is not a call and does not advance
     the chain.
     """
-    groups: Dict[object, List[int]] = {}
+    found, seen = [], set()
     for index, record in enumerate(records):
         if record.data.get("type") != "assistant":
             continue
         key = message_id(record.data)
-        groups.setdefault(key if key is not None else ("line", record.line), []).append(index)
-    found = []
-    for key, indices in groups.items():
-        merged = usage.max_merge_usage(
-            usages.get(key) or [_message(records[i].data).get("usage") for i in indices])
+        if key in seen:
+            continue  # a later constituent of a call already found
+        if key is None:
+            merged = usage.max_merge_usage([_message(record.data).get("usage")])
+        else:
+            seen.add(key)
+            merged = usage.max_merge_usage(usages[key])
         if usage.usage_context(merged) or merged.get("output_tokens"):
-            found.append(Call(indices[0], records[indices[0]], merged))
+            found.append(Call(index, record, merged))
     return found
 
 
@@ -106,7 +108,7 @@ def contributors(records: List[Record], uses: ToolUses) -> Iterator[Contributor]
     tool_result block of a user record, and every other user record as user
     text. A record batching several results names several tools, so booking
     it to its first block would be exact to one tool by silent choice; none
-    is observed (local sweep 2026-10-01: 0 of 2,107 tool_result records carry
+    is observed (local sweep 2026-10-01: 0 of 2,420 tool_result records carry
     more than one block), which is why per-block is the fail-closed reading.
 
     Attachments, system records and bookkeeping types are not contributors.
@@ -133,9 +135,9 @@ def shared_dims(found: List[Contributor]) -> dict:
     the only ambiguity is which of several calls of one tool it is still
     answerable by tool. A user_text candidate or a tool_result whose tool_use
     did not resolve has no tool, so it unsets both; the head ``other`` is a
-    value, not an absence. Local sweep 2026-10-01: 155 of 294 multi_contributor
-    intervals (957,561 of 1,569,862 context tokens) share one tool, and 74 of
-    them (518,629 tokens) share the head as well."""
+    value, not an absence. Local sweep 2026-10-01: 183 of 344 multi_contributor
+    intervals (1,253,677 of 1,928,743 context tokens) share one tool, and 93
+    of them (770,101 tokens) share the head as well."""
     out = {}
     for dim in (schema.TOOL_DIM, schema.HEAD_DIM):
         values = {c.dims.get(dim) for c in found}
@@ -173,7 +175,7 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
     previous call's FIRST constituent and the current call's first. A split
     call's constituents interleave with their results (parallel tool use:
     constituent, result, constituent, result, next call; local sweep
-    2026-10-01: 119 user records sit inside 77 of 1,423 calls' spans, counted
+    2026-10-01: 136 user records sit inside 86 of 1,597 calls' spans, counted
     by ``scripts/local_sweep.py``), so slicing from the previous call's last
     constituent hides the earlier result and books a two-contributor
     interval as exact.
@@ -182,7 +184,7 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
     live = [record for record in source.records if not record.duplicate]
     # The window dimensions come from the live records, the ones that mint
     # the facts: a replayed prefix owned by another file names that file's
-    # window (local sweep 2026-10-01: 0 of 55 files whose first record and
+    # window (local sweep 2026-10-01: 0 of 63 files whose first record and
     # first live record disagree on either key).
     window = {schema.PROJECT_DIM: source.project,
               schema.SESSION_DIM: first_value(live, "sessionId"),
