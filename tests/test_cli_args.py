@@ -1,12 +1,14 @@
 """What ``python3 -m sa`` refuses and how it narrows: every refusal is exit
 status 2 with nothing on stdout, and sits beside the accepted form of the
 same argument so the refusal is never vacuous."""
+import os
 import re
+import time
 
 import pytest
 
 import fixtures as fx
-from sa import cli, query, render, schema
+from sa import cli, corpus, query, render, schema
 
 CONTEXT = cli.VIEWS["context"]
 CAUSE, TOOL = schema.CAUSE_DIM, schema.TOOL_DIM
@@ -118,6 +120,28 @@ def test_since_selects_files_by_mtime_and_zero_days_selects_none(tmp_path):
     assert ", 4 files (modified within 1d), " in out and "\nkept: 3 windows (files with a call), " in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since=-1d")
     assert code == 2 and not out and "number of days" in err
+
+
+def test_since_excludes_a_parent_before_dedup_so_its_continuation_owns_the_replayed_prefix(tmp_path):
+    """Dedup runs over the kept files only: once the parent is too old, the
+    continuation's replayed prefix is live and its window is booked from its
+    first record (occupancy 1,000), not from its first unshared one (1,500)."""
+    original = fx.stamped(fx.window_records(), 0)  # runs longest, so it owns the shared prefix
+    continuation = fx.stamped(fx.window_records()[:5], 0) + fx.stamped(fx.window_records("c-")[5:10], 5)
+    root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": original, "proj-a/sess-0002.jsonl": continuation})
+    args = ("context", "--root", str(root), "--since", "1d", "--where", "%s=%s" % (CAUSE, schema.WINDOW_HEAD))
+    headline = "%s: %%s %s over %%s where %s=%s in %%s\n" % (
+        CONTEXT.metric, fx.unit(CONTEXT.metric), CAUSE, schema.WINDOW_HEAD)
+    code, out, err = fx.run_cli(*args)  # vacuity guard: both kept, the prefix is duplicate
+    assert code == 0, err
+    assert out.startswith(headline % ("2,500", "2 increment facts", "2 windows"))
+    assert ", 2 files (modified within 1d), " in out and ", 5 duplicate records excluded\n" in out
+    stale = time.time() - 2 * corpus.DAY
+    os.utime(root / "proj-a" / "sess-0001.jsonl", (stale, stale))
+    code, out, err = fx.run_cli(*args)
+    assert code == 0, err
+    assert out.startswith(headline % ("1,000", "1 increment fact", "1 window"))
+    assert ", 1 file (modified within 1d), " in out and ", 0 duplicate records excluded\n" in out
 
 
 @pytest.mark.parametrize("limit", ["0", "-1"])

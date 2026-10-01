@@ -109,10 +109,11 @@ def report(loaded: Corpus) -> List[str]:
          (len(loaded.files), rec.windows, rec.calls, rec.intervals)),
         ("batched tool_result records: %s of %s", batched_results(loaded)),
         ("user records inside call spans: %s, in %s of %s calls", inside_spans(loaded)),
-        ("multi_contributor intervals: %s (%s context tokens); sharing one tool %s (%s);"
-         " sharing the head too %s (%s)", (multi, multi_mass, tool, tool_mass, head, head_mass)),
-        ("message.id re-mints across files: %s (%s spend-equivalents) beside %s live calls",
-         reminted(loaded) + (rec.calls,)),
+        ("multi_contributor intervals: %s (%s " + schema.metric(schema.CONTEXT_DELTA).unit
+         + "); sharing one tool %s (%s); sharing the head too %s (%s)",
+         (multi, multi_mass, tool, tool_mass, head, head_mass)),
+        ("message.id re-mints across files: %s (%s " + schema.metric(schema.SPEND).unit
+         + ") beside %s live calls", reminted(loaded) + (rec.calls,)),
         ("first-record vs live-record window-key disagreements: %s of %s files with a live record",
          key_disagreements(loaded)),
         ("parentUuid links naming a uuid in another file: %s of %s", cross_file_parents(loaded)),

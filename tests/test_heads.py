@@ -148,6 +148,12 @@ CASES = [
     ("Bash", {"command": "./check.sh"}, "Bash:check.sh"),
     ("Bash", {"command": "/usr/bin/python3 -V"}, "Bash:python3"),
     ("Bash", {"command": "cd /x && ./check.sh"}, "Bash:check.sh"),
+    # ...and a path-shaped wrapper or silent word is skipped like its basename.
+    ("Bash", {"command": "/usr/bin/time -f %e make"}, "Bash:make"),
+    ("Bash", {"command": "/usr/bin/env python3 x.py"}, "Bash:python3"),
+    ("Bash", {"command": "/usr/bin/sudo make"}, "Bash:make"),
+    ("Bash", {"command": "/bin/rm -rf b && make"}, "Bash:make"),
+    ("Bash", {"command": "PYTHONPATH=/x pytest"}, "Bash:pytest"),  # an assignment's value is a path
     ("Bash", {"command": "scripts/"}, "Bash:other"),
     ("Bash", {"command": "./" + "x" * 33}, "Bash:other"),
     ("Bash", {"command": "x" * 33}, "Bash:other"),

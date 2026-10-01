@@ -44,7 +44,7 @@ def test_group_refuses_every_peak_and_sums_every_additive(facts):
     peaks = [n for n, s in schema.METRICS.items() if s.aggregation == schema.PEAK]
     assert peaks
     for name in peaks:
-        with pytest.raises(ValueError, match="peak"):
+        with pytest.raises(schema.SchemaError, match="peak"):
             query.group(facts, schema.CAUSE_DIM, name)
         assert query.largest(facts, name).metrics[name] == fx.FINAL_OCCUPANCY
     for name, spec in schema.METRICS.items():

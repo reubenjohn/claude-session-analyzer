@@ -108,7 +108,7 @@ def group(facts: List[Fact], dim: str, metric: str) -> Table:
     """
     spec = schema.metric(metric)
     if spec.aggregation == schema.PEAK:
-        raise ValueError("%s is a peak; it has no sum. Use largest()." % metric)
+        raise schema.SchemaError("%s is a peak; it has no sum. Use largest()." % metric)
     schema.check_dimension(dim, spec.carrier)
     mass: Dict[Tuple[Optional[str], str], float] = {}
     count: Dict[Tuple[Optional[str], str], int] = {}

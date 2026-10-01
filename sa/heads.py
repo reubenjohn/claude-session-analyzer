@@ -2,7 +2,8 @@
 a tool call's input that carries its tool so a table over heads needs no
 second column. Ruled (DECISION_LOG R5, R5-BASENAME, R5-BUILTINS): a head is
 never a full command line and never a file path. For Bash the summary is
-the basename of the first COMMAND word, the first ``shlex`` token (quotes
+the basename of the first COMMAND word (a path-shaped word is classed by
+its basename, so ``/usr/bin/env`` is a wrapper), the first ``shlex`` token (quotes
 resolved; a run of ``();|&`` is a separator of its own; a newline is ``;``;
 a ``$(...)`` substitution, however nested, or a ``$((...))`` arithmetic
 expansion is one argument) once what can produce no tokens is skipped: a
@@ -87,24 +88,24 @@ def _words(command: str) -> List[str]:
 def bash_head(tool_input: dict) -> str:
     words = _words(str(tool_input.get("command", "")))
     while words:
-        if _ASSIGNMENT.match(words[0]) or words[0] in RESERVED or _separator(words[0]):
+        word = words[0].rpartition("/")[2]  # R5-BASENAME: every class is tested against the basename
+        if _ASSIGNMENT.match(words[0]) or word in RESERVED or _separator(word):  # ``A=/x`` is one word
             del words[0]
-        elif words[0] in WRAPPERS:
-            wrapper = words.pop(0)
+        elif word in WRAPPERS:
+            del words[0]
             while words and words[0].startswith("-"):
-                del words[:2 if words[0] in VALUED.get(wrapper, ()) else 1]
-            del words[:OPERANDS.get(wrapper, 0)]
-        elif words[0] in KEYWORDS:
-            for opener in KEYWORDS[words[0]]:
+                del words[:2 if words[0] in VALUED.get(word, ()) else 1]
+            del words[:OPERANDS.get(word, 0)]
+        elif word in KEYWORDS:
+            for opener in KEYWORDS[word]:
                 del words[:_past(words, lambda w: w == opener)]
-        elif words[0] in TESTS:
-            closer = TESTS[words[0]]
-            del words[:_past(words, lambda w: w == closer)]
-        elif words[0] in NO_OUTPUT:
+        elif word in TESTS:
+            del words[:_past(words, lambda w: w == TESTS[word])]
+        elif word in NO_OUTPUT:
             del words[:_past(words, _separator)]
         else:
-            break
-    return _guard(words[0].rpartition("/")[2]) if words else OTHER  # R5-BASENAME: the basename
+            return _guard(word)
+    return OTHER
 
 
 def extension_head(tool_input: dict) -> str:

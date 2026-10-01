@@ -219,7 +219,7 @@ opus agreed with four conditions, all applied. Call identity had been
 `message.id` grouped per file, so a message.id already minted in an
 earlier-owned file was minted again under a new uuid in another file: a
 fork re-mints its parent's last call. Measured basis (live local corpus,
-2026-10-01): 1 of ~888 live calls, 15,240 spend-equivalents, one phantom
+2026-10-01): 1 of ~888 live calls, 15,240 input-side base-token-equivalents, one phantom
 call and one phantom interval; it scales with fork fan-out. Now `corpus`
 marks an assistant record whose `message.id` was already seen in an
 EARLIER-OWNED file as a duplicate exactly like a repeated uuid: the owner
