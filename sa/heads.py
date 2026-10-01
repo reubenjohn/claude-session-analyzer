@@ -16,9 +16,12 @@ whose input carries ``file_path`` the summary is the file extension. A
 summary is kept only if it matches ``HEAD_SHAPE`` (no slash, no leading
 ``-``), else ``other``. A quote shlex cannot close ends the words there:
 the head stands when it comes before (an apostrophe in an argument or a
-heredoc body), else ``other``. Known gap: a wrapper option that takes a
-value but is not in ``VALUED`` leaves its value as the head; the fix is one
-more entry, never a looser shape. Every other tool has no head: Glob and
+heredoc body), else ``other``. So ``other`` is one bucket, not three: a
+rejected shape, a command of skipped words alone (``cd /x``, ``rm -rf x``,
+the empty command) and a quote unclosed before any command word. Known
+gap: a wrapper option that takes a value but is not in ``VALUED`` leaves
+its value as the head; the fix is one more entry, never a looser shape.
+Every other tool has no head: Glob and
 Grep take a pattern and a directory, and NotebookEdit's extension is always
 the same. The cases are ``tests/test_heads.py``.
 """

@@ -84,7 +84,7 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
         sub.add_argument("--root", type=_directory, default=str(corpus.default_root()),
                          help="corpus root, an existing directory (default: ~/.claude/projects)")
         sub.add_argument("--since", type=_days, metavar="Nd",
-                         help="files modified within the last N days")
+                         help="select files modified within the last N days, before dedup")
         sub.add_argument("--where", action="append", default=[], type=_pair,
                          metavar="DIM=VALUE", help="repeatable; dims: %s"
                          % ", ".join(schema.DIMENSIONS))
@@ -99,7 +99,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     view = VIEWS[args.view]
     loaded = corpus.load(args.root, args.since)
     try:
-        sel = query.selection(walk.forest(loaded), args.where, view.metric)
+        sel = query.selection(walk.forest(loaded), args.where, view.metric, view.reconciles)
         lines = render.report(view, sel, loaded, args.by, args.limit)
     except schema.SchemaError as error:
         print("sa %s: error: %s" % (args.view, error), file=sys.stderr)

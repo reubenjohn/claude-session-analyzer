@@ -107,5 +107,10 @@ def test_a_reconciliation_mismatch_is_exit_status_1(tmp_path, monkeypatch, capsy
     assert cli.main(["context", "--root", str(root)] + drill) == 1
     out = capsys.readouterr().out
     assert ": MISMATCH" in out and ": OK" not in out
+    first = out.splitlines()[0]
+    assert "final occupanc" not in first  # the headline no longer claims the sum it failed to match
+    if not drill:
+        assert " booked over 3 windows (reconciliation MISMATCH below); top " in first
     monkeypatch.undo()
     assert cli.main(["context", "--root", str(root)] + drill) == 0  # vacuity guard
+    assert ("final occupancies summed" in capsys.readouterr().out.splitlines()[0]) == (not drill)

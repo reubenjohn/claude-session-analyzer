@@ -18,7 +18,7 @@ class View(NamedTuple):
     then checks."""
     metric: str
     tables: Tuple[str, ...]  # printed by default
-    levers: Tuple[str, ...]  # the headline walks down these, general to specific (``_top``)
+    levers: Tuple[str, ...]  # the headline walks down these; a value lies under one of the lever above
     reconciles: bool
     notes: Tuple[str, ...]   # printed under the headline
 
@@ -60,11 +60,13 @@ def headline(view: View, sel: Selection) -> List[str]:
     is never the answer (D-HEADLINE-SPECIFIC as amended)."""
     spec = schema.metric(view.metric)
     line = "%s: %s %s" % (view.metric, num(sel.total), spec.unit)
-    if view.reconciles and not sel.drill:
+    if not view.reconciles or sel.drill:
+        line += " " + _over(sel, spec.carrier)
+    elif sel.reconciliation.mass_holds:
         line += " = the " + count(sel.n_windows, "window's final occupancy",
                                    "windows' final occupancies summed")
     else:
-        line += " " + _over(sel, spec.carrier)
+        line += " booked over %s (reconciliation MISMATCH below)" % count(sel.n_windows, "window")
     levers = _open(sel, view.levers, spec.carrier)
     return [line + _top(sel.facts, levers, view.metric, sel.total)] + _peaks(sel) + list(view.notes)
 
@@ -117,9 +119,9 @@ def _top(facts: List[Fact], levers: List[str], metric: str, total: float) -> str
                 top.value, pct(within.mass / total))
         overall = _largest(query.group(facts, dim, metric))
         if overall is not None and overall.mass > (within.mass if within else 0):
-            # Exact: a head implies its tool (walk books it only beside one); a lever
-            # spanning several upper values would silently get the largest here.
-            under = query.values(query.select(facts, [(dim, overall.value)]), above, metric)[0]
+            # A lever's value implies one value of the lever above (a head its tool,
+            # as walk books it); a View whose levers do not nest fails to unpack here.
+            (under,) = query.values(query.select(facts, [(dim, overall.value)]), above, metric)
             text += "; top %s=%s %s (%s of the total) under %s=%s" % (
                 dim, overall.value, num(overall.mass), pct(overall.mass / total), above, under)
         if within is None:

@@ -206,7 +206,7 @@ class Selection(NamedTuple):
     window_facts: List[Fact]        # whole windows kept by ``window_where``
     facts: List[Fact]               # the windows' facts kept by ``drill`` too
     total: float                    # the view's metric over ``facts``, summed once
-    reconciliation: Reconciliation  # over ``window_facts``: a drill never changes it
+    reconciliation: Optional[Reconciliation]  # over ``window_facts`` (a drill never changes it), or None
 
     @property
     def where(self) -> List[Tuple[str, str]]:
@@ -218,12 +218,13 @@ class Selection(NamedTuple):
         return window_count(self.window_facts)
 
 
-def selection(facts: List[Fact], where: Where, metric: str) -> Selection:
+def selection(facts: List[Fact], where: Where, metric: str, reconciles: bool) -> Selection:
     """The view's population: the window pins narrow first and keep whole
     windows, the drill pins narrow within them; the total is over the
-    drilled facts, the reconciliation over the whole windows."""
+    drilled facts, the reconciliation (for a view that reconciles) over the
+    whole windows."""
     window_where, drill = split(where)
     window_facts = narrow(facts, window_where, metric)
     kept = narrow(window_facts, drill, metric)
-    return Selection(window_where, drill, window_facts, kept,
-                     total(kept, metric), reconcile(window_facts))
+    return Selection(window_where, drill, window_facts, kept, total(kept, metric),
+                     reconcile(window_facts) if reconciles else None)

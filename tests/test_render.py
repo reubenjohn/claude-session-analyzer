@@ -3,6 +3,8 @@ truncation, the rows that never hide, the headline share of the total, and
 the leaf order."""
 import re
 
+import pytest
+
 import fixtures as fx
 from sa import cli, query, render, schema, tables
 from sa.schema import Locator
@@ -121,6 +123,8 @@ def test_a_top_row_under_another_lead_follows_the_refinement_naming_what_it_lies
         " (60.0%% of Bash, 35.3%% of the total); top %s=Read:py 70 (41.2%% of the total)"
         " under %s=Read" % (TOOL, HEAD, HEAD, TOOL))
     assert "under" not in render._top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
+    with pytest.raises(ValueError):  # Bash lies under two heads: the levers must nest
+        render._top(other, [HEAD, TOOL], fx.DELTA, total=170)
 
 
 def test_an_equal_head_under_another_tool_is_not_named_as_the_top():
