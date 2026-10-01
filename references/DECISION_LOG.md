@@ -59,7 +59,7 @@ reworded to "measured per run".
 
 **R5 — `tool_input_head` normalization.** RULED: option (a) with a mechanical
 guard. Bash head = first token after stripping leading `VAR=value`
-assignments and `cd <dir> &&` prefixes; kept only if it matches
+assignments and `cd <dir>` prefixes ended by `&&`, `;` or `||`; kept only if it matches
 `^[A-Za-z0-9_.+-]{1,32}$` and contains no slash, else `other`. File tools ->
 extension only. One declared extractor mapping. Rationale: output goes to the
 user's own terminal from their own transcripts; the privacy gate governs

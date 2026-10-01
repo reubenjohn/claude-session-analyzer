@@ -1,11 +1,6 @@
-"""Smoke tests for lib_usage: the module imports cleanly and each helper
+"""Smoke tests for sa.usage: the module imports cleanly and each helper
 honours its docstring on a minimal synthetic usage dict."""
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts" / "lib"))
-
-import lib_usage as L  # noqa: E402
+from sa import usage as L
 
 
 def test_usage_context_sums_three_input_classes():
