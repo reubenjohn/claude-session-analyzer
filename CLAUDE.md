@@ -86,13 +86,10 @@ measurement, plus an opus second opinion). The recorded failure mode is the conf
 - Contributors are token-relevant only (tool_result + user text), one per
   tool_result block; counting 2.1.28x bookkeeping attachments collapses the
   exact rate from 84% to under 1%; their text folds into the remainder.
-- parentUuid links never cross files (0 of 1,523; 21 files, 2026-09-30):
-  no parentUuid-chain window model.
-- Local corpus (33 files, 2026-10-01): 67 user records sit inside 44 of 588
-  calls' spans, so contributors come from the previous call's FIRST
-  constituent; 0 of 808 tool_result records batch blocks; 79 of 127
-  multi_contributor intervals (404k of 634k ambiguous tokens) share one
-  tool, which `ambiguous` carries (D-AMBIGUOUS-TOOL).
+- The local figures (batched results, user records inside call spans,
+  shared-tool ambiguity, message.id re-mints, window keys, parentUuid links
+  never crossing files): `python3 scripts/local_sweep.py`, a dated snapshot
+  of this machine's live corpus that `sa/` docstrings cite by date.
 
 ## Clean-room boundary — binds every session and subagent
 

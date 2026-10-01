@@ -140,7 +140,7 @@ class Locator(NamedTuple):
 
 class Fact(NamedTuple):
     kind: str
-    dims: dict      # dimension name -> value, only the dimensions this fact has
+    dims: dict      # dimension name -> str value (ids, names, declared constants), only those this fact has
     metrics: dict   # metric name -> number, only metrics of this fact's kind
     locator: Locator
     evidence: dict  # drill material that is not a dimension: candidates, parent ids

@@ -5,14 +5,14 @@ from . import schema
 from .schema import Fact
 
 Where = Iterable[Tuple[str, str]]
+LISTED = 20  # values a refusal names before counting the rest
 
 
 def select(facts: Iterable[Fact], where: Where) -> List[Fact]:
     """Facts whose dimensions equal every ``(dim, value)`` pair. The plain
     filter; ``narrow`` is the checked one."""
     pairs = list(where)
-    return [f for f in facts
-            if all(dim in f.dims and str(f.dims[dim]) == value for dim, value in pairs)]
+    return [f for f in facts if all(f.dims.get(dim) == value for dim, value in pairs)]
 
 
 def narrow(facts: List[Fact], where: Where, metric: str) -> List[Fact]:
@@ -26,8 +26,10 @@ def narrow(facts: List[Fact], where: Where, metric: str) -> List[Fact]:
         schema.check_value(schema.check_dimension(dim, carrier), value)
         present = values(facts, dim, metric)
         if value not in present:
-            raise schema.SchemaError("no facts carry %s=%s; present: %s"
-                                     % (dim, value, ", ".join(present[:20]) or "none"))
+            listed = ", ".join(present[:LISTED]) or "none"
+            if len(present) > LISTED:
+                listed += " (+%d more; --by %s lists them all)" % (len(present) - LISTED, dim)
+            raise schema.SchemaError("no facts carry %s=%s; present: %s" % (dim, value, listed))
         facts = select(facts, [(dim, value)])
     return facts
 
@@ -49,7 +51,7 @@ def values(facts: Iterable[Fact], dim: str, metric: str) -> List[str]:
     mass: Dict[str, float] = {}
     for f in facts:
         if f.kind == carrier and f.dims.get(dim) is not None:
-            value = str(f.dims[dim])
+            value = f.dims[dim]
             mass[value] = mass.get(value, 0) + abs(f.metrics[metric])
     return sorted(mass, key=lambda v: -mass[v])
 
@@ -115,7 +117,7 @@ def group(facts: List[Fact], dim: str, metric: str) -> Table:
         elif f.dims.get(dim) is None:
             key = (None, RESIDUAL)
         else:
-            key = (str(f.dims[dim]), REGULAR)
+            key = (f.dims[dim], REGULAR)
         mass[key] = mass.get(key, 0) + f.metrics[metric]
         count[key] = count.get(key, 0) + 1
     regular = sorted((k for k in mass if k[1] == REGULAR), key=lambda k: -mass[k])

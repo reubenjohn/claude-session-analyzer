@@ -5,16 +5,17 @@ Layout: ``<root>/<project>/<session>.jsonl`` for a main session and
 project is the first path component; it is the only identity taken from a
 path. Session and agent come from the records: in the Phase 0 sweep (1,845
 files, 2026-07-28, ``references/PHASE0_MEASUREMENT.md``; the population of
-every file-count figure in this package) 1,588 files have a non-UUID
-filename stem and carry the parent's sessionId.
+every Phase 0 figure in this package) 1,588 files have a non-UUID filename
+stem and carry the parent's sessionId.
 
 Identity is the record ``uuid``, deduplicated across the whole forest: a
 resumed or forked session replays its parent's records (2,767 of 205,003
 uuids in the Phase 0 sweep appear in more than one file; per-file reading
 inflates totals by 94%). A call's identity is its ``message.id``, deduplicated
 ACROSS files only (D-MESSAGE-ID-DEDUP): a fork re-mints its parent's last
-call under a new uuid (local corpus, 2026-10-01: 1 of ~888 live calls,
-15,240 spend-equivalents, one phantom call and interval), while records
+call under a new uuid (local sweep 2026-10-01 via ``scripts/local_sweep.py``:
+1 re-mint beside 1,423 live calls, 15,240 spend-equivalents, one phantom
+call and interval), while records
 sharing an id within one file are the split constituents of one call.
 Files are read in owner order, so that the earliest-starting,
 longest-running copy of a window owns the records it shares with any other

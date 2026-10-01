@@ -37,7 +37,7 @@ def report(view: View, sel: Selection, population: str, by: Optional[str], limit
         dims = [by] if by else _open(sel, view.tables, spec.carrier)
         tables = [query.group(sel.facts, dim, view.metric) for dim in dims]
         body = [line for t in tables if t.rows
-                for line in table(t, view.metric, spec.carrier, limit, whole=bool(by)) + [""]]
+                for line in table(t, view.metric, limit, whole=bool(by)) + [""]]
     return headline(view, sel) + [population, ""] + body + footer(view, sel)
 
 

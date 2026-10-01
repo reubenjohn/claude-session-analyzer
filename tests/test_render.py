@@ -4,48 +4,58 @@ the leaf order."""
 import re
 
 import fixtures as fx
-from sa import query, render, schema, tables
+from sa import cli, query, render, schema, tables
 from sa.schema import Locator
 
 ROWS = [query.Row("a", 60, 2, query.REGULAR), query.Row("b", 30, 1, query.REGULAR),
         query.Row("c", 10, 1, query.REGULAR), query.Row(None, 5, 1, query.RESIDUAL),
         query.Row(schema.SHRINK, -7, 1, query.SIGNED)]
-M, K = "m", schema.INCREMENT  # a metric name and its carrier kind
-DIM = schema.REASON_DIM  # declared, with no residual note
+M = fx.DELTA  # the increment metric; its carrier kind names the count column
+DIM = schema.PROJECT_DIM  # declared, with no residual note
 TOOL, HEAD = schema.TOOL_DIM, schema.HEAD_DIM
 
 
 def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
     table = query.Table(DIM, ROWS, 100)
-    lines = tables.table(table, M, K, limit=1, whole=False)
+    lines = tables.table(table, M, limit=1, whole=False)
     assert lines[0].startswith("by " + DIM) and lines[0].endswith("share of 100")
     assert [l.split()[0] for l in lines[1:]] == ["a", "+2", tables.RESIDUAL_LABEL, schema.SHRINK]
     assert re.match(r"\+2 more rows\s+40\s+2\s+40\.0%", lines[2])
-    assert [l.split()[0] for l in tables.table(table, M, K, limit=3, whole=False)[1:]] == [
+    assert [l.split()[0] for l in tables.table(table, M, limit=3, whole=False)[1:]] == [
         "a", "b", "c", tables.RESIDUAL_LABEL, schema.SHRINK]
     for dim in tables.RESIDUAL_NOTES:
-        noted = tables.table(table._replace(dim=dim), M, K, limit=3, whole=False)
+        noted = tables.table(table._replace(dim=dim), M, limit=3, whole=False)
         assert noted[-1] == tables.RESIDUAL_NOTES[dim]
-        no_residual = tables.table(query.Table(dim, ROWS[:3], 100), M, K, 3, whole=False)
+        no_residual = tables.table(query.Table(dim, ROWS[:3], 100), M, 3, whole=False)
         assert tables.RESIDUAL_NOTES[dim] not in no_residual
+
+
+def test_every_dimension_a_view_can_group_with_a_residual_row_has_a_note(tmp_path):
+    """The fixture carries every cause and reason, a main window and a
+    subagent's, so each dimension that can lack a value does so here."""
+    facts = fx.load_facts(fx.cli_corpus(tmp_path))[1]
+    with_residual = {dim for view in cli.VIEWS.values()
+                     for dim in schema.KIND_DIMENSIONS[schema.metric(view.metric).carrier]
+                     if any(r.kind == query.RESIDUAL for r in query.group(facts, dim, view.metric).rows)}
+    assert schema.REASON_DIM in with_residual and len(with_residual) > 1  # vacuity guard
+    assert with_residual <= set(tables.RESIDUAL_NOTES), with_residual - set(tables.RESIDUAL_NOTES)
+    note = tables.RESIDUAL_NOTES[schema.REASON_DIM]
+    assert all(c in note for c in schema.CAUSES if c not in (schema.AMBIGUOUS, schema.SHRINK))
+    assert schema.SHRINK not in note  # it is the signed row, never the residual
 
 
 def test_the_mass_column_is_the_metric_and_the_count_column_its_carrier_kind():
     table = query.Table(DIM, ROWS, 100)
-    for kind in schema.KINDS:
-        header = tables.table(table, M, kind, limit=3, whole=False)[0].split()
-        assert header == ["by", DIM, M, kind + "s", "share", "of", "100"]
-    header = tables.table(table, M, K, limit=3, whole=False)[0]
-    assert "count" not in header
     for name, spec in schema.METRICS.items():  # the unit never heads the mass column
-        assert tables.table(table, name, spec.carrier, limit=3, whole=False)[0].split() == [
-            "by", DIM, name, spec.carrier + "s", "share", "of", "100"]
-        assert spec.unit != name  # vacuity guard: the two are distinguishable
+        header = tables.table(table, name, limit=3, whole=False)[0].split()
+        assert header == ["by", DIM, name, spec.carrier + "s", "share", "of", "100"]
+        assert spec.unit != name and "count" not in header  # vacuity guard: distinguishable
+    assert {spec.carrier for spec in schema.METRICS.values()} == set(schema.KINDS)  # both kinds seen
 
 
 def test_a_zero_base_table_truncates_without_a_share():
     zero = query.Table(DIM, [r._replace(mass=0) for r in ROWS[:3]], 0)
-    lines = tables.table(zero, M, K, limit=1, whole=False)
+    lines = tables.table(zero, M, limit=1, whole=False)
     assert lines[0].endswith("  share") and "share of" not in lines[0]
     assert re.match(r"\+2 more rows\s+0\s+2\s+-$", lines[2])
     facts = [f._replace(metrics={fx.DELTA: 0}) for f in FACTS[:3]]
@@ -118,13 +128,13 @@ def test_a_long_label_keeps_its_tail_behind_an_ellipsis_unless_the_table_is_whol
     assert len(long) > tables.LABEL_WIDTH  # vacuity guard
     rows = [query.Row(long, 60, 2, query.REGULAR), query.Row("short", 30, 1, query.REGULAR)]
     table = query.Table(schema.WINDOW_DIM, rows, 90)
-    lines = tables.table(table, M, K, limit=3, whole=False)
+    lines = tables.table(table, M, limit=3, whole=False)
     label = lines[1].split()[0]
     assert label == "…" + long[1 - tables.LABEL_WIDTH:] and len(label) == tables.LABEL_WIDTH
     assert lines[2].startswith("short" + " " * (tables.LABEL_WIDTH - 5) + "  ")  # the column is capped
     at_cap = "y" * tables.LABEL_WIDTH
     assert tables._label(query.Row(at_cap, 1, 1, query.REGULAR), whole=False) == at_cap  # at the cap
-    whole = tables.table(table, M, K, limit=3, whole=True)
+    whole = tables.table(table, M, limit=3, whole=True)
     assert whole[1].split()[0] == long and whole[2].startswith("short" + " " * (len(long) - 5) + "  ")
 
 

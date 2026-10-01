@@ -25,6 +25,8 @@ RESIDUAL_NOTES = {
     schema.HEAD_DIM: "%s: no head: no tool, a tool with no head (any but %s), or %s with"
                      " mixed heads"
                      % (RESIDUAL_LABEL, ", ".join(sorted(heads.EXTRACTORS)), schema.AMBIGUOUS),
+    schema.REASON_DIM: "%s: not %s: %s" % (RESIDUAL_LABEL, schema.AMBIGUOUS, ", ".join(
+        c for c in schema.CAUSES if c not in (schema.AMBIGUOUS, schema.SHRINK))),  # shrink is signed
 }
 
 
@@ -57,7 +59,7 @@ def _label(row: query.Row, whole: bool) -> str:
     return label if whole or len(label) <= LABEL_WIDTH else "…" + label[1 - LABEL_WIDTH:]
 
 
-def table(grouped: query.Table, metric: str, carrier: str, limit: int, whole: bool) -> List[str]:
+def table(grouped: query.Table, metric: str, limit: int, whole: bool) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
     still adds up, then the residual and signed rows, which are never hidden.
     A label is cut to ``LABEL_WIDTH`` unless ``whole``, which an asked-for
@@ -75,12 +77,12 @@ def table(grouped: query.Table, metric: str, carrier: str, limit: int, whole: bo
     shown += [r for r in grouped.rows if r.kind != query.REGULAR]
     labels = [_label(r, whole) for r in shown]
     width = max(len(label) for label in labels + [title])
-    counts = carrier + "s"
+    counts = schema.metric(metric).carrier + "s"
     share = "share of %s" % num(grouped.base) if grouped.base else "share"
     lines = ["%-*s  %16s  %s  %s" % (width, title, metric, counts, share)]
     for label, r in zip(labels, shown):
-        lines.append("%-*s  %16s  %*d  %*s" % (
-            width, label, num(r.mass), len(counts), r.count, len(share),
+        lines.append("%-*s  %16s  %*s  %*s" % (
+            width, label, num(r.mass), len(counts), num(r.count), len(share),
             pct(grouped.share(r.mass) if r.kind == query.REGULAR else None)))
     lines += ["%s: %s" % (r.value, UNSPLITTABLE[r.value]) for r in shown if r.value in UNSPLITTABLE]
     if grouped.dim in RESIDUAL_NOTES and any(r.kind == query.RESIDUAL for r in shown):

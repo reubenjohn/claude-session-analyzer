@@ -108,6 +108,21 @@ def test_narrow_refuses_an_undeclared_value_and_one_no_fact_carries(facts):
     assert not query.select(facts, [(schema.TOOL_DIM, "bogus")])  # the plain filter just matches nothing
 
 
+def test_a_refusal_names_the_first_values_present_and_counts_the_rest():
+    def booked(tool):
+        return schema.fact(schema.INCREMENT, {schema.CAUSE_DIM: schema.TOOL_RESULT, schema.TOOL_DIM: tool},
+                           {fx.DELTA: 1}, Locator("f", 1, None))
+    many = [booked("t%02d" % i) for i in range(query.LISTED + 3)]
+    with pytest.raises(schema.SchemaError) as refused:
+        query.narrow(many, [(schema.TOOL_DIM, "bogus")], fx.DELTA)
+    message = refused.value.args[0]
+    assert message.endswith("t%02d (+3 more; --by %s lists them all)" % (query.LISTED - 1, schema.TOOL_DIM))
+    assert "t%02d" % query.LISTED not in message
+    with pytest.raises(schema.SchemaError) as refused:
+        query.narrow(many[:query.LISTED], [(schema.TOOL_DIM, "bogus")], fx.DELTA)
+    assert refused.value.args[0].endswith("t%02d" % (query.LISTED - 1))  # at the cap, every value is named
+
+
 def test_select_matches_every_pair_regardless_of_order(facts):
     where = [(schema.HEAD_DIM, "Bash:pytest"), (schema.CAUSE_DIM, schema.TOOL_RESULT)]
     hits = query.select(facts, where)

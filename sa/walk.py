@@ -15,9 +15,10 @@ join index spans every record so a tool_result whose tool_use was replayed
 still resolves to its tool. A file whose first calls are replays books
 ``window_head`` at its first live call, the ruled inherited-context row.
 
-Every figure below marked "local corpus" was measured by this package over
-the live local corpus, 33 files, 2026-10-01; the Phase 0 figures name their
-own population.
+Every figure below marked "local sweep 2026-10-01" is a line of
+``scripts/local_sweep.py`` run that day over this machine's live corpus
+(55 files, 47 windows, 1,423 calls, 1,376 intervals): a dated snapshot, not
+reproducible elsewhere. The Phase 0 figures name their own population.
 """
 from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
 
@@ -105,8 +106,8 @@ def contributors(records: List[Record], uses: ToolUses) -> Iterator[Contributor]
     tool_result block of a user record, and every other user record as user
     text. A record batching several results names several tools, so booking
     it to its first block would be exact to one tool by silent choice; none
-    is observed (local corpus: 0 of 808 tool_result records carry more than
-    one block), which is why per-block is the fail-closed reading.
+    is observed (local sweep 2026-10-01: 0 of 2,107 tool_result records carry
+    more than one block), which is why per-block is the fail-closed reading.
 
     Attachments, system records and bookkeeping types are not contributors.
     Measured over 51,960 intervals (2026-07-28): counting them collapses the
@@ -132,9 +133,9 @@ def shared_dims(found: List[Contributor]) -> dict:
     the only ambiguity is which of several calls of one tool it is still
     answerable by tool. A user_text candidate or a tool_result whose tool_use
     did not resolve has no tool, so it unsets both; the head ``other`` is a
-    value, not an absence. Local corpus: 79 of 127 multi_contributor
-    intervals (404k of 634k ambiguous tokens) share one tool, and 36 of them
-    (206k tokens) share the head as well."""
+    value, not an absence. Local sweep 2026-10-01: 155 of 294 multi_contributor
+    intervals (957,561 of 1,569,862 context tokens) share one tool, and 74 of
+    them (518,629 tokens) share the head as well."""
     out = {}
     for dim in (schema.TOOL_DIM, schema.HEAD_DIM):
         values = {c.dims.get(dim) for c in found}
@@ -171,8 +172,8 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
     An interval's contributors are the user records strictly between the
     previous call's FIRST constituent and the current call's first. A split
     call's constituents interleave with their results (parallel tool use:
-    constituent, result, constituent, result, next call; local corpus: 67
-    user records sit inside 44 of 588 calls' spans), so slicing from the
+    constituent, result, constituent, result, next call; local sweep
+    2026-10-01: 119 user records sit inside 77 of 1,423 calls' spans), so slicing from the
     previous call's last constituent hides the earlier result and books a
     two-contributor interval as exact.
     """
@@ -180,8 +181,8 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
     live = [record for record in source.records if not record.duplicate]
     # The window dimensions come from the live records, the ones that mint
     # the facts: a replayed prefix owned by another file names that file's
-    # window (local corpus, 46 files, 2026-10-01: 0 files whose first record
-    # and first live record disagree on either key).
+    # window (local sweep 2026-10-01: 0 of 55 files whose first record and
+    # first live record disagree on either key).
     window = {schema.PROJECT_DIM: source.project,
               schema.SESSION_DIM: _first_value(live, "sessionId"),
               schema.AGENT_DIM: _first_value(live, "agentId"),  # None: a main window
