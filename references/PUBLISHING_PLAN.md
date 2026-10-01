@@ -99,3 +99,23 @@ Rejected options:
   `public_artifacts.json`.
 - **Installing someone else's skill or plugin:** run the owner's
   `skill-install-review` checklist first.
+
+## Judge verdict and open follow-ups
+
+The build was accepted three times by an independent judge reading only
+PURPOSE.md and the code (commits 58a771a, d83f3d8, 1e2ffa6). The last
+verdict's passing mentions, none a defect, are the open follow-ups:
+
+- The headline's "of the total" base is the net total, so a window with
+  heavy compaction could print a lever share above 100%; say "net" when
+  shrink is non-zero.
+- The ambiguous note lists all three reasons under every pin; point at the
+  reconciliation line instead.
+- `heads.py`'s module docstring would read better as a bulleted list of the
+  skip classes.
+- `render._top` is written as a general loop for what is a two-level walk.
+- Docstrings cite decision-log ids that cannot be resolved from inside `sa/`.
+- A few CLI tests parse rendered columns; `tests/conftest.py` puts the repo
+  on `sys.path` rather than installing the package.
+- Spend can only be sliced by window dimensions (ruled D-SPEND-BY-INCREMENT,
+  deferred); the exact decomposition design is in DECISION_LOG.md.
