@@ -1,5 +1,5 @@
 """``python3 -m sa`` end to end against a fixture corpus. Metric names,
-units and dimensions come from ``cli.VIEWS`` and the schema."""
+units and dimensions come from ``render.VIEWS`` and the schema."""
 import re
 import subprocess
 import sys
@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 
 import fixtures as fx
-from sa import cli, query, schema, walk
+from sa import cli, query, render, schema, walk
 from sa.schema import CALL, INCREMENT
 
 REPO = Path(__file__).resolve().parents[1]
-CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
+CONTEXT, SPEND = render.VIEWS["context"], render.VIEWS["spend"]
 CAUSE, TOOL, HEAD = CONTEXT.tables[:3]
 FORK_PARENT = "sess-0000"
 
@@ -67,7 +67,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     (drillable,) = set(schema.KIND_DIMENSIONS[INCREMENT]) - set(CONTEXT.tables)
     assert "by " + drillable not in out
     assert "by " + drillable in _run("context", "--root", str(root), "--by", drillable)[1]
-    assert "%s: %s" % (schema.WINDOW_HEAD, cli.NOTES[schema.WINDOW_HEAD]) in out
+    assert "%s: %s" % (schema.WINDOW_HEAD, render.NOTES[schema.WINDOW_HEAD]) in out
     assert re.search(r"^%s\s" % schema.AMBIGUOUS, out, re.M)
     assert re.search(r"^%s \(signed\)\s+-300\s" % schema.SHRINK, out, re.M)
     assert re.search(r"^by %s\s+%s\s+count\s+share of [\d,]+$" % (CAUSE, _unit(CONTEXT.metric)),
@@ -81,7 +81,7 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     first, note = out.splitlines()[:2]
     assert first.startswith("%s: " % SPEND.metric) and _unit(SPEND.metric) in first
     assert "over 14 call facts in 2 windows; top %s=%s 100.0%%" % (SPEND.tables[1], fx.SESSION) in first
-    assert note == cli.SPEND_NOTE
+    assert note == render.SPEND_NOTE
     assert "duplicate records excluded; where project=proj-a" in out
     assert re.search(r"^single-call peak %s over the 2 whole windows: %s %s at proj-a/sess-0001\.jsonl:14$"
                      % (fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), _unit(fx.PEAK)), out, re.M)
@@ -207,15 +207,15 @@ def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
             query.Row("c", 10, 1, 0.1, query.REGULAR),
             query.Row(schema.RESIDUAL_LABEL, 5, 1, None, query.RESIDUAL),
             query.Row(schema.SHRINK, -7, 1, None, query.SIGNED)]
-    lines = cli._table("x", rows, "u", limit=1, total=98)  # 98 = 100 regular + 5 residual - 7 shrink
+    lines = render._table("x", rows, "u", limit=1, total=98)  # 98 = 100 regular + 5 residual - 7 shrink
     assert lines[0].startswith("by x") and lines[0].endswith("share of 100")
     assert [l.split()[0] for l in lines[1:]] == ["a", "+2", schema.RESIDUAL_LABEL, schema.SHRINK]
     assert re.match(r"\+2 more rows\s+40\s+2\s+40\.0%", lines[2])
-    assert [l.split()[0] for l in cli._table("x", rows, "u", limit=3, total=98)[1:]] == [
+    assert [l.split()[0] for l in render._table("x", rows, "u", limit=3, total=98)[1:]] == [
         "a", "b", "c", schema.RESIDUAL_LABEL, schema.SHRINK]
-    for dim in cli.RESIDUAL_NOTES:
-        assert cli._table(dim, rows, "u", limit=3, total=98)[-1] == cli.RESIDUAL_NOTES[dim]
-        assert cli.RESIDUAL_NOTES[dim] not in cli._table(dim, rows[:3], "u", 3, 100)  # no ∅ row
+    for dim in render.RESIDUAL_NOTES:
+        assert render._table(dim, rows, "u", limit=3, total=98)[-1] == render.RESIDUAL_NOTES[dim]
+        assert render.RESIDUAL_NOTES[dim] not in render._table(dim, rows[:3], "u", 3, 100)  # no ∅ row
 
 
 def test_a_drill_reports_the_peak_over_the_whole_windows_it_names(tmp_path):
@@ -243,7 +243,7 @@ def test_headline_total_and_table_base_are_one_sum(tmp_path):
                                        fx.usage(4 + cache_read, 0), session=session)], start)
         for name, (start, cache_read, session) in files.items()})
     a, b, c = [f.metrics[SPEND.metric] for f in fx.load_facts(root)[1] if f.kind == CALL]
-    assert cli._num((a + b) + c) != cli._num((a + c) + b)  # the two orders really straddle a .5
+    assert render._num((a + b) + c) != render._num((a + c) + b)  # the two orders really straddle a .5
     code, out, err = _run("spend", "--root", str(root), "--by", SPEND.tables[1])
     assert code == 0, err
     headline = re.match(r"%s: ([\d,]+) " % SPEND.metric, out).group(1)
