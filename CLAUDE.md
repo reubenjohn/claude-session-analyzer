@@ -16,8 +16,8 @@ capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
 
 Package `sa/`, one module per stage (`corpus` read+dedup, `walk`
 attribution, `heads`, `schema` the one METRICS table and vocabularies,
-`query`, `cli`, `usage` the ported helpers); each module's docstring is its
-spec. The parser IS the product: probes import it, never copy it.
+`query`, `render`, `cli`, `usage` the ported helpers); each docstring is
+its spec. The parser IS the product: probes import it, never copy it.
 
 One data model, `Fact`, specified in `schema.py`: `kind` is `call` or
 `increment`; `metrics`; `dims`; `locator` `file:line:uuid` with `file`
@@ -26,15 +26,18 @@ increment's `candidates` locators, a fork's parent ids). Every metric
 names its one carrier kind (`spend` -> call,
 `context_delta` -> increment) and is read only from that kind, so
 double-counting is impossible. Window dimensions `project`,
-`session`, `agent` are on both kinds; `cause`, `tool`, `head`, `reason` on
-increments only. A head is `<tool>:<summary>` (`Bash:pytest`, `Read:py`; R5
-as amended), never a path. Unknown names fail closed. A window IS a file
-(R2): `window_head` is the first usage-carrying call's occupancy — inherited
-for a fork, boot context for a fresh session — its own row, never spread.
+`session`, `agent` are on both kinds (a main window has no `agent`,
+D-AGENT-DIM); `cause`, `tool`, `head`, `reason` on increments only. A head
+is `<tool>:<summary>` (`Bash:pytest`, `Read:py`; R5 as amended), never a
+path. Unknown names and undeclared `cause`/`reason` values fail closed. A
+window IS a file (R2): `window_head` is the first usage-carrying call's
+occupancy — inherited for a fork, boot context for a fresh session — its
+own row, never spread, never the headline.
 
-CLI surface and output format: `python3 -m sa context --help`, README.md and
-`skills/session-analyzer/SKILL.md` (kept in sync with live output). The
-headline names the top regular row of the first table shown (or of `--by`).
+CLI surface: `python3 -m sa context --help`; README.md and SKILL.md mirror
+live output. The headline names
+the top splittable row of the first table shown, its mass, and its share's
+base when that is not the total.
 
 ## Non-negotiables
 
@@ -52,7 +55,7 @@ headline names the top regular row of the first table shown (or of `--by`).
 - Never sum a peak; a peak reports no value at a node. Never quote dollars.
 - Shrink is a signed row: excluded from shares, always in the reconciliation
   footer. The residual row `∅` and signed rows never hide behind `--limit`;
-  a table with no regular rows prints `share` with no base.
+  a table with no base prints `share` alone.
 
 ## Measured corrections — stay pinned by tests
 
@@ -88,9 +91,9 @@ second opinion). The recorded failure mode is the confident in-place
 
 ## Clean-room boundary — binding on every session and subagent
 
-v1 is frozen: `git show v1-legacy:<path>` once that branch is pushed, until
-then the installed `~/.claude/skills/session-analyzer/`. The ONLY files you
-may open there:
+v1 is frozen: `git show v1-legacy:<path>` (until that branch is pushed, the
+installed `~/.claude/skills/session-analyzer/`). The ONLY files you may open
+there:
 `references/PURPOSE.md`, `references/ENGINE_CONTRACT.md`,
 `references/glossary.md` (never invent synonyms for its terms), v1's
 own `CLAUDE.md`, `scripts/lib/lib_drill.py`, `scripts/sa_schema.py`,
@@ -105,19 +108,18 @@ reader to build what its tests forbid. Need another file? STOP AND ASK.
 Pre-commit warns on `.py` > 15,000 bytes and `.md` > 20,000. Privacy gate
 FAILS CLOSED (`tests/test_privacy.py`): no literal `/home/...` or
 `/Users/...` paths, no real-looking UUIDs, no transcript text in any tracked
-file. `.githooks/pre-push` does not fire while the global `core.hooksPath`
-is set, so run `python3 -m pytest -q tests/` before every push. Doc caps:
-README ≤ 5,000, SKILL.md ≤ 6,000, this file ≤ 7,000; their example lines
-must match live CLI output (placeholder ids), so resync them after any
-output change.
+file. `.githooks/pre-push` does not fire under the global `core.hooksPath`:
+run `python3 -m pytest -q tests/` before every push. Doc caps: README ≤
+5,000, SKILL.md ≤ 6,000, this file ≤ 7,000; example lines match live CLI
+output (placeholder ids), so resync after any output change.
 
 ## Pointers, never copies
 
-- `references/DESIGN_BRIEF.md` — §2 (the attribution walk) is still the
-  spec; the rest, its 94.98% exact rate included, is dated.
+- `references/DESIGN_BRIEF.md` — §2 (the attribution walk) is the spec;
+  the rest, 94.98% exact rate included, is dated.
 - `references/DECISION_LOG.md` — rulings and status table;
-  `references/DECISION_LOG_HISTORY.md` — the rows as originally proposed.
-- `references/DESIGN_COMPETITION.md`, `references/designs/` — the design
-  phase's charter, competing designs and panel report.
+  `DECISION_LOG_HISTORY.md` beside it — the rows as proposed.
+- `references/DESIGN_COMPETITION.md`, `references/designs/` — design
+  charter, competing designs, panel report.
 - `references/PHASE0_MEASUREMENT.md` — what the raw transcripts carry.
-- `references/PUBLISHING_PLAN.md` — extraction steps and distribution.
+- `references/PUBLISHING_PLAN.md` — extraction and distribution.

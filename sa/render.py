@@ -1,5 +1,5 @@
 """Plain-text rendering of a selection: headline, population, tables, leaves, footer."""
-import argparse
+from pathlib import Path
 from typing import Iterator, List, NamedTuple, Optional, Tuple
 
 from . import corpus, heads, query, schema
@@ -9,41 +9,54 @@ from .schema import Fact
 class View(NamedTuple):
     metric: str
     tables: Tuple[str, ...]  # printed by default; the first one not pinned by --where leads
+    reconciles: bool         # the total is the windows' final occupancies, and the footer checks it
+    notes: Tuple[str, ...]   # printed under the headline
 
+
+SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What put"
+              " the tokens there is answered by `sa context` (--by tool, --by head).")
 
 VIEWS = {"context": View(schema.CONTEXT_DELTA, (schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM)
-                         + schema.WINDOW_DIMENSIONS[::-1]),
-         "spend": View(schema.SPEND, schema.WINDOW_DIMENSIONS)}
+                         + schema.WINDOW_DIMENSIONS[::-1], True, ()),
+         "spend": View(schema.SPEND, schema.WINDOW_DIMENSIONS, False, (SPEND_NOTE,))}
 
 
 class Selection(NamedTuple):
+    root: Path
+    since: Optional[float]          # days, when --since narrowed the files read
+    where: List[Tuple[str, str]]    # every --where pair
     loaded: corpus.Corpus
     window_facts: List[Fact]        # whole windows kept by the window-dimension filters
     facts: List[Fact]               # the windows' facts kept by the drill filters too
-    drill: List[Tuple[str, str]]    # the --where pairs that are not window dimensions
     total: float                    # the view's metric over ``facts``, summed once
+
+    @property
+    def drill(self) -> List[Tuple[str, str]]:
+        """The ``--where`` pairs that select within a window, not whole windows."""
+        return [p for p in self.where if p[0] not in schema.WINDOW_DIMENSIONS]
 
     @property
     def n_windows(self) -> int:
         return len({f.locator.file for f in self.window_facts})
 
 
-SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What put"
-              " the tokens there is answered by `sa context` (--by tool, --by head).")
+RESIDUAL_LABEL = "∅"  # the row for facts that lack the grouped dimension
 
-# Printed under a table whose row needs saying what it is.
-NOTES = {schema.WINDOW_HEAD: "first call's context: boot prompt + first message, or"
-                             " inherited parent context for a fork; not splittable by"
-                             " content"}
+# Rows whose mass is not splittable by content: each prints its note under
+# its table, and the headline never names it.
+UNSPLITTABLE = {schema.WINDOW_HEAD: "first call's context: boot prompt + first message, or"
+                                    " inherited parent context for a fork; not splittable by"
+                                    " content"}
 
 # Printed under a table that shows the residual row, saying what it holds.
 RESIDUAL_NOTES = {
+    schema.AGENT_DIM: "%s: main windows (no subagent)" % RESIDUAL_LABEL,
     schema.TOOL_DIM: "%s: no tool: %s, %s, %s, and %s whose candidates share no one tool"
-                     % (schema.RESIDUAL_LABEL, schema.WINDOW_HEAD, schema.FEED_FORWARD,
+                     % (RESIDUAL_LABEL, schema.WINDOW_HEAD, schema.FEED_FORWARD,
                         schema.USER_TEXT, schema.AMBIGUOUS),
     schema.HEAD_DIM: "%s: no head: everything %s holds under `by %s`, %s whose candidates share"
                      " a tool but not its head, and every tool without a head (all but %s)"
-                     % (schema.RESIDUAL_LABEL, schema.RESIDUAL_LABEL, schema.TOOL_DIM,
+                     % (RESIDUAL_LABEL, RESIDUAL_LABEL, schema.TOOL_DIM,
                         schema.AMBIGUOUS, ", ".join(sorted(heads.EXTRACTORS))),
 }
 
@@ -68,36 +81,50 @@ def _tags(dims: dict) -> str:
     return " ".join("%s=%s" % (d, dims[d]) for d in schema.DIMENSIONS if d in dims)
 
 
-def _headline_dimension(args: argparse.Namespace, view: View) -> Optional[str]:
-    """The dimension the headline names: ``--by`` when it is one, else the
-    first default table not pinned by ``--where`` (whose top row would be
-    the filter itself)."""
-    if args.by and args.by != "fact":
-        return args.by
-    pinned = {dim for dim, _ in args.where}
-    return next((dim for dim in view.tables if dim not in pinned), None)
+def report(view: View, sel: Selection, by: Optional[str], limit: int) -> Tuple[List[str], bool]:
+    """Every line of the view, and whether its reconciliation held. The
+    headline names the top row of the first table shown that ``--where``
+    did not pin (its top row would be the filter itself)."""
+    if by == "fact":
+        lead, body = None, _leaves(sel.facts, view.metric, limit)
+    else:
+        shown = [query.group(sel.facts, dim, view.metric) for dim in ([by] if by else view.tables)]
+        pinned = {dim for dim, _ in sel.where}
+        lead = next((t for t in shown if t.dim not in pinned), None)
+        unit = schema.metric(view.metric).unit
+        body = [line for t in shown if t.rows for line in _table(t, unit, limit) + [""]]
+    closing, holds = footer(view, sel)
+    return headline(view, sel, lead) + [population(sel), ""] + body + closing, holds
 
 
-def headline(args: argparse.Namespace, view: View, sel: Selection) -> List[str]:
+def headline(view: View, sel: Selection, lead: Optional[query.Table]) -> List[str]:
     spec = schema.metric(view.metric)
-    total = "%s: %s %s" % (view.metric, _num(sel.total), spec.unit)
-    if args.view == "context" and not sel.drill:
-        total += " = the %d windows' final occupancies summed" % sel.n_windows
+    line = "%s: %s %s" % (view.metric, _num(sel.total), spec.unit)
+    if view.reconciles and not sel.drill:
+        line += " = the %d windows' final occupancies summed" % sel.n_windows
     else:
-        total += " over %d %s facts in %d windows" % (
+        line += " over %d %s facts in %d windows" % (
             sum(f.kind == spec.carrier for f in sel.facts), spec.carrier, sel.n_windows)
-    dim = _headline_dimension(args, view)
-    if dim:
-        top = next((r for r in query.group(sel.facts, dim, view.metric)
-                    if r.kind == query.REGULAR), None)
-        if top:
-            total += "; top %s=%s %s" % (dim, top.value, _pct(top.share))
-    lines = [total]
-    if args.view == "context":
-        lines += _peaks(sel)
-    else:
-        lines.append(SPEND_NOTE)
-    return lines
+    if lead:
+        line += _top(lead)
+    return [line] + _peaks(sel) + list(view.notes)
+
+
+def _top(table: query.Table) -> str:
+    """The top splittable row with its mass and share; the share's base is
+    named by what the other rows lack when it is not the total."""
+    top = next((r for r in table.rows
+                if r.kind == query.REGULAR and r.value not in UNSPLITTABLE), None)
+    if top is None or table.share(top.mass) is None:
+        return ""
+    share = _pct(table.share(top.mass))
+    kinds = {r.kind for r in table.rows}
+    base = ["added"] if query.SIGNED in kinds else []
+    if query.RESIDUAL in kinds:
+        base.append("with a%s %s" % ("n" if table.dim[0] in "aeiou" else "", table.dim))
+    if base:
+        share += " of %s %s" % (_num(table.base), " ".join(base))
+    return "; top %s=%s %s (%s)" % (table.dim, top.value, _num(top.mass), share)
 
 
 def _peaks(sel: Selection) -> List[str]:
@@ -115,55 +142,46 @@ def _peaks(sel: Selection) -> List[str]:
     return lines
 
 
-def population(args: argparse.Namespace, sel: Selection) -> str:
+def population(sel: Selection) -> str:
     return ("population: root %s; %d files read%s, %d windows, %d call facts, %d increment"
             " facts; %d lines skipped, %d duplicate records excluded%s"
-            % (args.root, len(sel.loaded.files),
-               "" if args.since is None else " (modified within %gd)" % args.since,
+            % (sel.root, len(sel.loaded.files),
+               "" if sel.since is None else " (modified within %gd)" % sel.since,
                sel.n_windows, sum(f.kind == schema.CALL for f in sel.window_facts),
                sum(f.kind == schema.INCREMENT for f in sel.window_facts),
                sel.loaded.skipped_lines, sel.loaded.duplicate_records,
-               "".join("; where %s=%s" % p for p in args.where)))
+               "".join("; where %s=%s" % p for p in sel.where)))
 
 
-def _table(dim: str, rows: List[query.Row], unit: str, limit: int, total: float) -> List[str]:
+def _label(row: query.Row) -> str:
+    if row.kind == query.RESIDUAL:
+        return RESIDUAL_LABEL
+    return row.value + (" (signed)" if row.kind == query.SIGNED else "")
+
+
+def _table(table: query.Table, unit: str, limit: int) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
     still adds up, then the residual and signed rows, which are never hidden.
-    Shares are of the regular rows' mass: the headline ``total`` less the
-    residual and signed rows, one sum, so the two never disagree by a
-    rounding. A table with no regular rows has no base."""
-    title = "by " + dim
-    regular = [r for r in rows if r.kind == query.REGULAR]
-    base = total - sum(r.mass for r in rows if r.kind != query.REGULAR)
+    A table with no base (no regular mass) prints ``share`` alone."""
+    title = "by " + table.dim
+    regular = [r for r in table.rows if r.kind == query.REGULAR]
     shown = regular[:limit]
     hidden = regular[limit:]
     if hidden:
         shown.append(query.Row("+%d more rows" % len(hidden), sum(r.mass for r in hidden),
-                               sum(r.count for r in hidden),
-                               sum(r.share for r in hidden), query.REGULAR))
-    shown += [r for r in rows if r.kind != query.REGULAR]
-    labels = [r.value + (" (signed)" if r.kind == query.SIGNED else "") for r in shown]
+                               sum(r.count for r in hidden), query.REGULAR))
+    shown += [r for r in table.rows if r.kind != query.REGULAR]
+    labels = [_label(r) for r in shown]
     width = max(len(label) for label in labels + [title])
-    share = "share of %s" % _num(base) if regular else "share"
+    share = "share of %s" % _num(table.base) if table.base else "share"
     lines = ["%-*s  %16s  %7s  %s" % (width, title, unit, "count", share)]
     for label, r in zip(labels, shown):
-        lines.append("%-*s  %16s  %7d  %*s"
-                     % (width, label, _num(r.mass), r.count, len(share), _pct(r.share)))
-    lines += ["%s: %s" % (r.value, NOTES[r.value]) for r in shown if r.value in NOTES]
-    if dim in RESIDUAL_NOTES and any(r.kind == query.RESIDUAL for r in shown):
-        lines.append(RESIDUAL_NOTES[dim])
-    return lines
-
-
-def tables(args: argparse.Namespace, view: View, sel: Selection) -> List[str]:
-    unit = schema.metric(view.metric).unit
-    if args.by == "fact":
-        return _leaves(sel.facts, view.metric, args.limit)
-    lines = []
-    for dim in [args.by] if args.by else view.tables:
-        rows = query.group(sel.facts, dim, view.metric)
-        if rows:
-            lines += _table(dim, rows, unit, args.limit, sel.total) + [""]
+        lines.append("%-*s  %16s  %7d  %*s" % (
+            width, label, _num(r.mass), r.count, len(share),
+            _pct(table.share(r.mass) if r.kind == query.REGULAR else None)))
+    lines += ["%s: %s" % (r.value, UNSPLITTABLE[r.value]) for r in shown if r.value in UNSPLITTABLE]
+    if table.dim in RESIDUAL_NOTES and any(r.kind == query.RESIDUAL for r in shown):
+        lines.append(RESIDUAL_NOTES[table.dim])
     return lines
 
 
@@ -183,14 +201,14 @@ def _leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:
 
 
 def _evidence(evidence: dict) -> Iterator[str]:
-    """Each key once; candidates one per line under theirs, each with its
-    line, uuid and the dimensions it would have booked."""
+    """Each key once; the candidates one per line under theirs, each with
+    its line, uuid and the dimensions it would have booked."""
     for key, value in evidence.items():
-        if isinstance(value, list):
+        if key == schema.CANDIDATES:
             yield "%18s%s:%s" % ("", key, "" if value else " none")
-            for item in value:
-                yield "%20s%s %s  %s" % ("", _at(item.locator), item.locator.uuid,
-                                         _tags(item.dims))
+            for candidate in value:
+                yield "%20s%s %s  %s" % ("", _at(candidate.locator), candidate.locator.uuid,
+                                         _tags(candidate.dims))
         else:
             yield "%18s%s: %s" % ("", key, value)
 
@@ -216,20 +234,16 @@ def _reconciliation(r: query.Reconciliation) -> List[str]:
 
 
 def _call_totals(sel: Selection, headline_metric: str) -> List[str]:
-    """Every other call-carried metric: additive ones as totals, peaks as
-    the single largest call."""
-    lines = []
-    for name, spec in schema.METRICS.items():
-        if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE \
-                and name != headline_metric:
-            total = sum(f.metrics[name] for f in sel.facts if f.kind == schema.CALL)
-            lines.append("%s: %s %s" % (name, _num(total), spec.unit))
-    return lines + _peaks(sel)
+    """Every other additive call-carried metric as a total over the selection."""
+    return ["%s: %s %s" % (name, _num(query.total(sel.facts, name)), spec.unit)
+            for name, spec in schema.METRICS.items()
+            if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE
+            and name != headline_metric]
 
 
-def footer(args: argparse.Namespace, view: View, sel: Selection) -> Tuple[List[str], bool]:
+def footer(view: View, sel: Selection) -> Tuple[List[str], bool]:
     """The closing lines and whether the reconciliation held."""
-    if args.view != "context":
+    if not view.reconciles:
         return _call_totals(sel, view.metric), True
     reconciliation = query.reconcile(sel.window_facts)
     if sel.drill:

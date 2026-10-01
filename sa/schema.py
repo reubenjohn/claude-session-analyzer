@@ -11,7 +11,9 @@ Adding a metric, a cause or a dimension is one line here. An unknown name
 raises rather than skipping: a silent skip is how a wrong number stays
 plausible.
 """
-from typing import Dict, NamedTuple, Optional
+from typing import Callable, Dict, NamedTuple, Optional
+
+from . import usage
 
 ADDITIVE = "additive"
 PEAK = "peak"
@@ -25,6 +27,13 @@ class Metric(NamedTuple):
     aggregation: str  # ADDITIVE sums; PEAK is a high-water mark and never sums
     carrier: str      # the one fact kind that carries it
     unit: str
+    # A call metric is read from the call's max-merged usage dict; an
+    # increment metric is booked by the walk and has no reader.
+    read: Optional[Callable[[dict], float]] = None
+
+
+def _tier(key: str) -> Callable[[dict], int]:
+    return lambda u: int((u.get("cache_creation") or {}).get(key, 0) or 0)
 
 
 # The two metrics the reconciliation joins: every booked increment against
@@ -35,11 +44,11 @@ SPEND = "spend"
 
 METRICS: Dict[str, Metric] = {
     CONTEXT_DELTA: Metric(ADDITIVE, INCREMENT, "context tokens"),
-    SPEND: Metric(ADDITIVE, CALL, "input-side base-token-equivalents"),
-    "output_tokens": Metric(ADDITIVE, CALL, "tokens"),
-    "cache_write_1h_tokens": Metric(ADDITIVE, CALL, "tokens"),
-    "cache_write_5m_tokens": Metric(ADDITIVE, CALL, "tokens"),
-    CONTEXT_TOKENS: Metric(PEAK, CALL, "context tokens"),
+    SPEND: Metric(ADDITIVE, CALL, "input-side base-token-equivalents", usage.usage_spend),
+    "output_tokens": Metric(ADDITIVE, CALL, "tokens", lambda u: u["output_tokens"]),
+    "cache_write_1h_tokens": Metric(ADDITIVE, CALL, "tokens", _tier("ephemeral_1h_input_tokens")),
+    "cache_write_5m_tokens": Metric(ADDITIVE, CALL, "tokens", _tier("ephemeral_5m_input_tokens")),
+    CONTEXT_TOKENS: Metric(PEAK, CALL, "context tokens", usage.usage_context),
 }
 
 # Causes of an increment. The first five book non-negative mass; ``shrink``
@@ -65,16 +74,22 @@ REASONS = (MULTI_CONTRIBUTOR, NEGATIVE_REMAINDER, NO_CONTRIBUTOR)
 # A window is a file. The first three dimensions are constant over a window
 # (no file in the Phase 0 sweep named in ``corpus`` mixes assistant records
 # from two agentIds), so a filter on them selects whole windows and the
-# reconciliation footer still telescopes.
-WINDOW_DIMENSIONS = ("project", "session", "agent")
+# reconciliation footer still telescopes. A main window has no ``agent``
+# (D-AGENT-DIM): only a subagent's window carries one.
+PROJECT_DIM = "project"
+SESSION_DIM = "session"
+AGENT_DIM = "agent"
+WINDOW_DIMENSIONS = (PROJECT_DIM, SESSION_DIM, AGENT_DIM)
 CAUSE_DIM = "cause"
 TOOL_DIM = "tool"
 HEAD_DIM = "head"
 REASON_DIM = "reason"
 DIMENSIONS = WINDOW_DIMENSIONS + (CAUSE_DIM, TOOL_DIM, HEAD_DIM, REASON_DIM)
 KIND_DIMENSIONS = {CALL: WINDOW_DIMENSIONS, INCREMENT: DIMENSIONS}
+VOCABULARY = {CAUSE_DIM: CAUSES, REASON_DIM: REASONS}  # dimensions whose values are declared
 
-RESIDUAL_LABEL = "∅"  # the row for facts that lack the grouped dimension
+# The evidence key under which an ambiguous increment lists its contributors.
+CANDIDATES = "candidates"
 
 
 class SchemaError(KeyError):
@@ -87,13 +102,6 @@ def metric(name: str) -> Metric:
     except KeyError:
         raise SchemaError("unknown metric %r; declared: %s"
                           % (name, ", ".join(sorted(METRICS))))
-
-
-def check_cause(cause: str) -> str:
-    if cause not in CAUSES:
-        raise SchemaError("unknown cause %r; declared: %s"
-                          % (cause, ", ".join(CAUSES)))
-    return cause
 
 
 def check_dimension(dim: str, kind: Optional[str] = None) -> str:
@@ -109,6 +117,15 @@ def check_dimension(dim: str, kind: Optional[str] = None) -> str:
     return dim
 
 
+def check_value(dim: str, value: Optional[str]) -> Optional[str]:
+    """``value`` is declared, when ``dim`` has a vocabulary: a filter on a
+    misspelt cause would print a confident zero."""
+    if dim in VOCABULARY and value not in VOCABULARY[dim]:
+        raise SchemaError("unknown %s %r; declared: %s"
+                          % (dim, value, ", ".join(VOCABULARY[dim])))
+    return value
+
+
 class Locator(NamedTuple):
     file: str
     line: int
@@ -120,7 +137,14 @@ class Fact(NamedTuple):
     dims: dict      # dimension name -> value, only the dimensions this fact has
     metrics: dict   # metric name -> number, only metrics of this fact's kind
     locator: Locator
-    evidence: dict  # drill material that is not a dimension: locators, parent ids
+    evidence: dict  # drill material that is not a dimension: candidates, parent ids
+
+
+class Candidate(NamedTuple):
+    """Evidence of one contributor of an ambiguous increment: where it is
+    and the dimensions it would have booked."""
+    locator: Locator
+    dims: dict
 
 
 def fact(kind: str, dims: dict, metrics: dict, locator: Locator,
@@ -134,7 +158,7 @@ def fact(kind: str, dims: dict, metrics: dict, locator: Locator,
             raise SchemaError("%s is carried by %s facts, not %s"
                               % (name, metric(name).carrier, kind))
     for dim in dims:
-        check_dimension(dim, kind)
+        check_value(check_dimension(dim, kind), dims[dim])
     if kind == INCREMENT:
-        check_cause(dims.get(CAUSE_DIM))
+        check_value(CAUSE_DIM, dims.get(CAUSE_DIM))
     return Fact(kind, dims, metrics, locator, evidence or {})

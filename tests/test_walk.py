@@ -214,7 +214,10 @@ def test_fork_context_ref_is_evidence_on_the_window_head(tmp_path):
     assert len(head) == 1
     assert head[0].evidence == {"parent_session": "sess-0000",
                                 "parent_last_uuid": "uuid-0000"}
-    assert head[0].dims["agent"] == "agent-fake1"
+    assert head[0].dims[schema.AGENT_DIM] == "agent-fake1"
+    (main_head,) = [f for f in _one_window(tmp_path / "main")
+                    if f.dims.get(schema.CAUSE_DIM) == schema.WINDOW_HEAD]
+    assert schema.AGENT_DIM not in main_head.dims  # a main window is no agent (D-AGENT-DIM)
 
 
 READ_A = fx.tool_use("toolu_0001", "Read", file_path="/x/a.py")
@@ -269,7 +272,7 @@ def test_ambiguous_carries_the_tool_and_head_every_candidate_shares(tmp_path):
     when they also agree on it, with ``other`` a value like any."""
     def closing(name, uses, between):
         facts = _after_one_call(tmp_path / name, uses, between)
-        return _ambiguous(facts), query.group(facts, schema.TOOL_DIM, fx.DELTA)
+        return _ambiguous(facts), query.group(facts, schema.TOOL_DIM, fx.DELTA).rows
 
     same_tool, rows = closing("same-tool", [READ_A, READ_MD], _results("toolu_0001", "toolu_0003"))
     assert (same_tool.dims[schema.TOOL_DIM], schema.HEAD_DIM in same_tool.dims) == ("Read", False)

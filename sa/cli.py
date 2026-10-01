@@ -19,11 +19,11 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from . import corpus, query, render, schema, walk
-from .render import VIEWS, Selection, View
+from .render import VIEWS, Selection
 
 
 def _days(text: str) -> float:
-    if not text.endswith("d"):
+    if not text.endswith("d") or not text[:-1].replace(".", "", 1).isdigit():
         raise argparse.ArgumentTypeError("expected a number of days like 7d")
     return float(text[:-1])
 
@@ -51,7 +51,7 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
         sub.add_argument("--root", type=Path, default=corpus.default_root(),
                          help="corpus root (default: ~/.claude/projects)")
         sub.add_argument("--since", type=_days, metavar="Nd",
-                         help="only files modified in the last N days (0d: none)")
+                         help="files modified within the last N days")
         sub.add_argument("--where", action="append", default=[], type=_pair,
                          metavar="DIM=VALUE", help="repeatable; dims: %s"
                          % ", ".join(schema.DIMENSIONS))
@@ -60,12 +60,13 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
         sub.add_argument("--limit", type=_rows, default=10, help="rows per table (at least 1)")
     args = parser.parse_args(argv)
     carrier = schema.metric(VIEWS[args.view].metric).carrier
-    tables = [args.by] if args.by and args.by != "fact" else []
-    for dim in [dim for dim, _ in args.where] + tables:
-        try:
-            schema.check_dimension(dim, carrier)
-        except schema.SchemaError as error:
-            parser.error(error.args[0])
+    try:
+        for dim, value in args.where:
+            schema.check_value(schema.check_dimension(dim, carrier), value)
+        if args.by and args.by != "fact":
+            schema.check_dimension(args.by, carrier)
+    except schema.SchemaError as error:
+        parser.error(error.args[0])
     return args
 
 
@@ -74,26 +75,23 @@ def _modified_within(days: Optional[float]) -> Optional[corpus.Keep]:
     if days is None:
         return None
     cutoff = time.time() - days * 86400
-    return lambda path, project: path.stat().st_mtime >= cutoff
+    return lambda path: path.stat().st_mtime >= cutoff
 
 
-def _select(args: argparse.Namespace, view: View) -> Selection:
-    loaded = corpus.load(args.root, _modified_within(args.since))
+def _select(root: Path, since: Optional[float], where: List[Tuple[str, str]],
+            metric: str) -> Selection:
+    loaded = corpus.load(root, _modified_within(since))
     facts = [f for source in loaded.files for f in walk.walk(source)]
-    whole = [p for p in args.where if p[0] in schema.WINDOW_DIMENSIONS]
-    drill = [p for p in args.where if p[0] not in schema.WINDOW_DIMENSIONS]
+    whole = [p for p in where if p[0] in schema.WINDOW_DIMENSIONS]
     window_facts = query.select(facts, whole)
-    kept = query.select(window_facts, drill)
-    carrier = schema.metric(view.metric).carrier
-    total = sum(f.metrics[view.metric] for f in kept if f.kind == carrier)
-    return Selection(loaded, window_facts, kept, drill, total)
+    kept = query.select(window_facts, where)
+    return Selection(root, since, where, loaded, window_facts, kept, query.total(kept, metric))
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     view = VIEWS[args.view]
-    sel = _select(args, view)
-    footer, holds = render.footer(args, view, sel)
-    print("\n".join(render.headline(args, view, sel) + [render.population(args, sel), ""]
-                    + render.tables(args, view, sel) + footer))
+    sel = _select(args.root, args.since, args.where, view.metric)
+    lines, holds = render.report(view, sel, args.by, args.limit)
+    print("\n".join(lines))
     return 0 if holds else 1

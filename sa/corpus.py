@@ -24,7 +24,7 @@ import json
 from pathlib import Path
 from typing import Callable, Iterator, List, NamedTuple, Optional, Tuple
 
-Keep = Callable[[Path, str], bool]
+Keep = Callable[[Path], bool]
 
 
 def default_root() -> Path:
@@ -54,13 +54,13 @@ def find_files(root: Path, keep: Optional[Keep] = None) -> Iterator[Tuple[Path, 
     """``(path, root-relative name, project)`` for each transcript file, in
     sorted-path order.
 
-    ``keep(path, project)`` narrows the population before reading; dedup then
+    ``keep(path)`` narrows the population before reading; dedup then
     runs over the kept files only, so the population line names exactly the
     files whose records were counted.
     """
     for path in sorted(root.rglob("*.jsonl"), key=str):
         relative = path.relative_to(root)
-        if keep is None or keep(path, relative.parts[0]):
+        if keep is None or keep(path):
             yield path, relative.as_posix(), relative.parts[0]
 
 

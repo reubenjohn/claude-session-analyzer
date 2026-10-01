@@ -8,10 +8,19 @@ Where = Iterable[Tuple[str, str]]
 
 
 def select(facts: Iterable[Fact], where: Where) -> List[Fact]:
-    """Facts whose dimensions equal every ``(dim, value)`` pair."""
-    pairs = [(schema.check_dimension(dim), value) for dim, value in where]
+    """Facts whose dimensions equal every ``(dim, value)`` pair; a pair the
+    schema does not declare is refused rather than matching nothing."""
+    pairs = [(schema.check_dimension(dim), schema.check_value(dim, value))
+             for dim, value in where]
     return [f for f in facts
             if all(dim in f.dims and str(f.dims[dim]) == value for dim, value in pairs)]
+
+
+def total(facts: List[Fact], metric: str) -> float:
+    """The metric summed once, in fact order, over its carrier kind: the one
+    figure a headline and every table's base are taken from."""
+    carrier = schema.metric(metric).carrier
+    return sum(f.metrics[metric] for f in facts if f.kind == carrier)
 
 
 # The three kinds of row a table has. Only regular rows take part in shares.
@@ -21,48 +30,54 @@ SIGNED = "signed"      # shrink: its mass is negative by definition
 
 
 class Row(NamedTuple):
-    value: str
+    value: Optional[str]  # None for the residual row
     mass: float
     count: int
-    share: Optional[float]  # of the regular rows' mass; None when there is none
     kind: str
 
 
-def group(facts: Iterable[Fact], dim: str, metric: str) -> List[Row]:
-    """One row per value of ``dim``, regular rows by descending mass, then
-    the residual row for facts that lack ``dim``, then the signed shrink row.
+class Table(NamedTuple):
+    dim: str
+    rows: List[Row]  # regular rows by descending mass, then residual, then signed
+    base: float      # the regular rows' mass: the total less the other rows
+
+    def share(self, mass: float) -> Optional[float]:
+        """Of the regular rows' mass; None when there is none."""
+        return mass / self.base if self.base else None
+
+
+def group(facts: List[Fact], dim: str, metric: str) -> Table:
+    """One row per value of ``dim``, then the residual row for facts that
+    lack ``dim``, then the signed shrink row.
 
     The metric is read only from facts of its carrier kind. A peak metric
     refuses to be grouped (``usage.usage_context`` has the measurement).
     Shrink increments always land in their own signed row whatever ``dim``
     is, so no other row mixes signed mass and every share is a share of mass
-    that was added.
+    that was added. The base is the total less the residual and signed rows,
+    so it and the headline total never disagree by a rounding.
     """
     spec = schema.metric(metric)
     if spec.aggregation == schema.PEAK:
         raise ValueError("%s is a peak; it has no sum. Use largest()." % metric)
     schema.check_dimension(dim)
-    mass: Dict[Tuple[str, str], float] = {}
-    count: Dict[Tuple[str, str], int] = {}
+    mass: Dict[Tuple[Optional[str], str], float] = {}
+    count: Dict[Tuple[Optional[str], str], int] = {}
     for f in facts:
         if f.kind != spec.carrier:
             continue
         if f.dims.get(schema.CAUSE_DIM) == schema.SHRINK:
             key = (schema.SHRINK, SIGNED)
         elif f.dims.get(dim) is None:
-            key = (schema.RESIDUAL_LABEL, RESIDUAL)
+            key = (None, RESIDUAL)
         else:
             key = (str(f.dims[dim]), REGULAR)
         mass[key] = mass.get(key, 0) + f.metrics[metric]
         count[key] = count.get(key, 0) + 1
     regular = sorted((k for k in mass if k[1] == REGULAR), key=lambda k: -mass[k])
-    base = sum(mass[k] for k in regular)
-    rows = [Row(k[0], mass[k], count[k], mass[k] / base if base else None, REGULAR)
-            for k in regular]
-    for key in ((schema.RESIDUAL_LABEL, RESIDUAL), (schema.SHRINK, SIGNED)):
-        if key in mass:
-            rows.append(Row(key[0], mass[key], count[key], None, key[1]))
-    return rows
+    other = [k for k in ((None, RESIDUAL), (schema.SHRINK, SIGNED)) if k in mass]
+    rows = [Row(k[0], mass[k], count[k], k[1]) for k in regular + other]
+    return Table(dim, rows, total(facts, metric) - sum(mass[k] for k in other))
 
 
 def largest(facts: Iterable[Fact], metric: str) -> Optional[Fact]:

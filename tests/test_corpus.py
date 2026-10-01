@@ -29,7 +29,7 @@ def test_project_is_the_first_path_component_for_agents_too(tmp_path):
     assert [(s.project, s.path.name) for s in loaded.files] == [
         ("proj-a", "sess-0002.jsonl"), ("proj-b", "sess-0001.jsonl"),
         ("proj-b", "agent-fake1.jsonl")]
-    kept = corpus.load(root, keep=lambda path, project: project == "proj-a")
+    kept = corpus.load(root, keep=lambda path: "proj-a" in path.parts)
     assert [s.project for s in kept.files] == ["proj-a"]
 
 

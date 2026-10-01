@@ -137,6 +137,23 @@ tool_result blocks yields one contributor per block (0 of 808 observed
 locally; the one-per-record reading was a silent exact booking to the first
 block's tool), and `walk.py`'s local measurements name one population.
 
+**D-AGENT-DIM — a main window carries no `agent`.** RULED 2026-10-01, on a
+third judge's rejection of e861c48. The walk had set `agent=main` on every
+main window, so `--by agent` summed every session's main window into one
+row named like an agent (local corpus, 28 windows: 9 main windows, 985,920
+of 3,285,308 context tokens, under one `main`). Now only a subagent's window
+carries `agent` (its `agentId`); main windows lack the dimension and land
+in the residual row, whose note under `by agent` reads "∅: main windows
+(no subagent)". `--where agent=main` therefore selects nothing; main windows
+are selected by session or project. Same ruling pass: the headline names
+the top SPLITTABLE row (`window_head`, declared unsplittable, keeps its
+table row and note but never leads), prints that row's mass, and names the
+share's base whenever a residual or signed row makes it less than the total
+("top tool=Bash 926,819 (58.6% of 1,587,809 with a tool)"; "(34.9%)" when
+the base is the total); and a `--where` value of a closed-vocabulary
+dimension (`cause`, `reason`) is validated at parse time, since
+`--where cause=bogus` had printed a confident zero.
+
 ---
 
 ## Phase 3 synthesis — the rows as proposed (history)

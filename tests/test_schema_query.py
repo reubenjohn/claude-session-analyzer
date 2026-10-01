@@ -9,7 +9,11 @@ from sa.schema import Locator
 
 @pytest.fixture
 def facts(tmp_path):
-    root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": fx.window_records()})
+    """A main window and a subagent's: only the latter carries ``agent``."""
+    fork = {"type": "fork-context-ref", "agentId": "agent-fake1"}
+    root = fx.corpus(tmp_path, {
+        "proj-a/sess-0001.jsonl": fx.window_records(),
+        "proj-a/sess-0001/subagents/agent-fake1.jsonl": [fork] + fx.window_records("fork-")})
     return fx.load_facts(root)[1]
 
 
@@ -45,8 +49,8 @@ def test_group_refuses_every_peak_and_sums_every_additive(facts):
         assert query.largest(facts, name).metrics[name] == fx.FINAL_OCCUPANCY
     for name, spec in schema.METRICS.items():
         if spec.aggregation == schema.ADDITIVE:
-            rows = query.group(facts, "session", name)
-            assert sum(r.mass for r in rows) == sum(
+            table = query.group(facts, schema.SESSION_DIM, name)
+            assert sum(r.mass for r in table.rows) == query.total(facts, name) == sum(
                 f.metrics[name] for f in facts if f.kind == spec.carrier)
 
 
@@ -65,26 +69,37 @@ def test_unknown_names_fail_closed(facts):
 
 
 def test_group_keeps_residual_and_signed_rows_out_of_shares(facts):
-    rows = query.group(facts, schema.TOOL_DIM, fx.DELTA)
+    table = query.group(facts, schema.TOOL_DIM, fx.DELTA)
+    rows = table.rows
     assert [r.kind for r in rows[-2:]] == [query.RESIDUAL, query.SIGNED]
     residual, shrink = rows[-2], rows[-1]
-    assert (residual.value, shrink.value) == (schema.RESIDUAL_LABEL, schema.SHRINK)
-    assert residual.share is None and shrink.share is None
+    assert (residual.value, shrink.value) == (None, schema.SHRINK)
     assert shrink.mass < 0 and residual.mass > 0
     regular = rows[:-2]
     assert regular and all(r.kind == query.REGULAR for r in regular)
     assert regular == sorted(regular, key=lambda r: -r.mass)
-    assert abs(sum(r.share for r in regular) - 1.0) < 1e-9
+    assert table.base == sum(r.mass for r in regular) == query.total(facts, fx.DELTA) \
+        - residual.mass - shrink.mass
+    assert abs(sum(table.share(r.mass) for r in regular) - 1.0) < 1e-9
     # The shrink increment has no tool, yet it never lands in the residual.
     assert residual.count == sum(1 for f in facts if f.kind == schema.INCREMENT
                                  and schema.TOOL_DIM not in f.dims
                                  and f.dims[schema.CAUSE_DIM] != schema.SHRINK)
 
 
-def test_a_zero_base_leaves_rows_regular(facts):
+def test_a_zero_base_leaves_rows_regular_with_no_share(facts):
     head = next(f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.WINDOW_HEAD)
-    (row,) = query.group([head._replace(metrics={fx.DELTA: 0})], schema.CAUSE_DIM, fx.DELTA)
-    assert (row.kind, row.share, row.mass) == (query.REGULAR, None, 0)
+    table = query.group([head._replace(metrics={fx.DELTA: 0})], schema.CAUSE_DIM, fx.DELTA)
+    (row,) = table.rows
+    assert (row.kind, row.mass, table.base, table.share(row.mass)) == (query.REGULAR, 0, 0, None)
+
+
+def test_select_refuses_an_undeclared_value_of_a_closed_vocabulary(facts):
+    for dim, vocabulary in schema.VOCABULARY.items():
+        with pytest.raises(schema.SchemaError):
+            query.select(facts, [(dim, "bogus")])
+        assert query.select(facts, [(dim, vocabulary[0])])  # vacuity guard
+    assert not query.select(facts, [(schema.TOOL_DIM, "bogus")])  # an open dimension matches nothing
 
 
 def test_select_matches_every_pair_regardless_of_order(facts):

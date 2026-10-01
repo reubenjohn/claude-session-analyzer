@@ -23,7 +23,7 @@ from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
 
 from . import heads, schema, usage
 from .corpus import Record, SourceFile
-from .schema import Fact, Locator
+from .schema import Candidate, Fact, Locator
 
 ToolUses = Dict[str, Tuple[str, dict]]
 
@@ -141,12 +141,6 @@ def shared_dims(found: List[Contributor]) -> dict:
     return out
 
 
-class Candidate(NamedTuple):
-    """Evidence of one contributor of an ambiguous increment."""
-    locator: Locator
-    dims: dict
-
-
 def fork_evidence(records: List[Record]) -> dict:
     """A forked agent file opens with a ``fork-context-ref`` naming the
     parent; its first call's occupancy is inherited, not booted, and the
@@ -178,11 +172,10 @@ def walk(source: SourceFile) -> Iterator[Fact]:
     previous call's last constituent hides the earlier result and books a
     two-contributor interval as exact.
     """
-    window = {
-        "project": source.project,
-        "session": _first_value(source.records, "sessionId"),
-        "agent": _first_value(source.records, "agentId") or "main",
-    }
+    window = {schema.PROJECT_DIM: source.project,
+              schema.SESSION_DIM: _first_value(source.records, "sessionId"),
+              schema.AGENT_DIM: _first_value(source.records, "agentId")}  # None: a main window
+    window = {k: v for k, v in window.items() if v is not None}
     uses = tool_uses(source.records)
     live = [record for record in source.records if not record.duplicate]
 
@@ -215,19 +208,14 @@ def walk(source: SourceFile) -> Iterator[Fact]:
         yield increment(
             remainder, current.record, cause=schema.AMBIGUOUS,
             reason=schema.MULTI_CONTRIBUTOR if found else schema.NO_CONTRIBUTOR,
-            evidence={"candidates": [Candidate(locator(c.record), c.dims) for c in found]},
+            evidence={schema.CANDIDATES: [Candidate(locator(c.record), c.dims) for c in found]},
             **shared_dims(found))
 
     previous = None
     for call in calls(live):
-        tiers = call.usage.get("cache_creation") or {}
         yield schema.fact(schema.CALL, dict(window), {
-            schema.SPEND: usage.usage_spend(call.usage),
-            "output_tokens": call.usage["output_tokens"],
-            "cache_write_1h_tokens": tiers.get("ephemeral_1h_input_tokens", 0),
-            "cache_write_5m_tokens": tiers.get("ephemeral_5m_input_tokens", 0),
-            schema.CONTEXT_TOKENS: usage.usage_context(call.usage),
-        }, locator(call.record))
+            name: spec.read(call.usage) for name, spec in schema.METRICS.items()
+            if spec.carrier == schema.CALL}, locator(call.record))
         if previous is None:
             yield increment(usage.usage_context(call.usage), call.record,
                             evidence=fork_evidence(source.records), cause=schema.WINDOW_HEAD)
