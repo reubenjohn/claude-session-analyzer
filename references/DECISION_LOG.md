@@ -266,7 +266,7 @@ Levers are declared per view (`render.View.levers`): context `tool` and
 `head`, spend `agent`; never `cause` (categories) nor a window dimension
 (local corpus, 46 files, 2026-10-01: the top project row is 81.0% of the
 context total; on a window drill each window table's one row is 100%).
-AMENDED again, eighth judge: `--by` had made its table the lever, so
+AMENDED (judge 8): `--by` had made its table the lever, so
 `spend --by session` and `context --by window` led with a population row
 and `--by cause` with a category. Now the headline is grouped from the
 levers alone, whatever `--by` shows (`fact` too), and since a head row
