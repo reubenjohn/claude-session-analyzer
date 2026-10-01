@@ -1,13 +1,16 @@
 """The local sweep's counts: every local figure the ``sa/`` docstrings cite,
 measured by the package over one loaded corpus. A measuring module, not
-engine: nothing here mints a fact. ``scripts/local_sweep.py`` runs it over
-the live corpus and prints aggregate counts only: no transcript text, no
-ids, no paths.
+engine: nothing here mints a fact. ``python3 -m sa.sweep`` runs it over the
+live corpus under ``~/.claude/projects``, which changes with every session,
+so the figures are a snapshot of one machine at one minute, stamped on the
+first line, which a docstring cites. Aggregate counts only: no transcript
+text, no ids, no paths.
 """
+import datetime
 from typing import Dict, List, Tuple
 
 from . import query, schema, usage, walk
-from .corpus import Corpus, Record, message_id
+from .corpus import Corpus, Record, default_root, load, message_id
 from .schema import Fact
 
 
@@ -113,3 +116,9 @@ def report(loaded: Corpus) -> List[str]:
         ("parentUuid links naming a uuid in another file: %s of %s", cross_file_parents(loaded)),
     ]
     return [text % tuple(format(int(round(c)), ",d") for c in counts) for text, counts in lines]
+
+
+if __name__ == "__main__":
+    first, *rest = report(load(default_root()))
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    print("\n".join(["LOCAL SWEEP %s: %s" % (stamp, first)] + rest))

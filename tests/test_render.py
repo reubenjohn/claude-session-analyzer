@@ -136,6 +136,39 @@ def test_an_equal_head_under_another_tool_is_not_named_as_the_top():
         "; top %s=Read:py 61 (37.9%% of the total) under %s=Read" % (HEAD, TOOL))
 
 
+def test_a_top_tool_with_no_head_still_names_the_top_head_under_its_tool():
+    """Agent 90 carries no head, so nothing is within it; the top head
+    anywhere, Bash:cat 60 under Bash, is still named. With no head anywhere
+    the tool clause stands alone."""
+    headless = [_inc(90, 1, "Agent"), _inc(60, 2, "Bash", "Bash:cat")]
+    assert render._top(headless, [TOOL, HEAD], fx.DELTA, total=150) == (
+        "; top %s=Agent 90 (60.0%% of the 150 total); top %s=Bash:cat 60 (40.0%% of the total)"
+        " under %s=Bash" % (TOOL, HEAD, TOOL))
+    assert render._top(headless[:1], [TOOL, HEAD], fx.DELTA, total=90) == (
+        "; top %s=Agent 90 (100.0%% of the 90 total)" % TOOL)
+    assert "within it" in render._top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
+
+
+def test_limit_never_hides_a_row_whose_note_prints_under_the_table(tmp_path):
+    """``--limit 1`` on the cause table keeps window_head and ambiguous,
+    each with its note; the folded line counts only the other rows."""
+    root = fx.cli_corpus(tmp_path)
+
+    def rows(*args):
+        out = fx.run_cli("context", "--root", str(root), "--by", schema.CAUSE_DIM, *args)[1]
+        return out, [l.split() for l in out.splitlines() if l.endswith("%")]
+
+    full = rows()[1]
+    others = [r for r in full if r[0] not in tables.UNSPLITTABLE]
+    assert [r[0] for r in full].index(schema.AMBIGUOUS) >= 1 and len(others) > 1  # vacuity guard
+    out, shown = rows("--limit", "1")
+    assert [r[0] for r in shown] == [schema.WINDOW_HEAD, schema.AMBIGUOUS, "+%d" % len(others)]
+    assert shown[-1][3:5] == [tables.num(sum(int(r[1].replace(",", "")) for r in others)),
+                              tables.num(sum(int(r[2]) for r in others))]
+    for value, note in tables.UNSPLITTABLE.items():
+        assert "%s: %s" % (value, note) in out
+
+
 def test_the_ambiguous_note_names_every_declared_reason():
     note = tables.UNSPLITTABLE[schema.AMBIGUOUS]
     assert len(schema.REASONS) > 1 and all(reason in note for reason in schema.REASONS)

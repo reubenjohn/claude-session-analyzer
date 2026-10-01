@@ -84,7 +84,8 @@ def _label(row: query.Row, whole: bool) -> str:
 
 def table(grouped: query.Table, metric: str, limit: int, whole: bool) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
-    still adds up, then the residual and signed rows, which are never hidden.
+    still adds up, then the residual and signed rows. Those, and a regular
+    row whose note prints under the table (``UNSPLITTABLE``), are never hidden.
     A label is cut to ``LABEL_WIDTH`` unless ``whole``, which an asked-for
     (``--by``) table is, so its labels can be copied into ``--where``.
     The mass column is named for the metric (its unit is stated once, on the
@@ -92,8 +93,8 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool) -> List[st
     kind. A table with no base (no regular mass) prints ``share`` alone."""
     title = "by " + grouped.dim
     regular = [r for r in grouped.rows if r.kind == query.REGULAR]
-    shown = regular[:limit]
-    hidden = regular[limit:]
+    shown = regular[:limit] + [r for r in regular[limit:] if r.value in UNSPLITTABLE]
+    hidden = [r for r in regular[limit:] if r.value not in UNSPLITTABLE]
     if hidden:
         shown.append(query.Row("+" + count(len(hidden), "more row"), sum(r.mass for r in hidden),
                                sum(r.count for r in hidden), query.REGULAR))

@@ -16,7 +16,7 @@ still resolves to its tool. A file whose first calls are replays books
 ``window_head`` at its first live call, the ruled inherited-context row.
 
 Every figure below marked "local sweep 2026-10-01T11:50Z" is a line of
-``scripts/local_sweep.py`` run at that minute over this machine's live
+``python3 -m sa.sweep`` run at that minute over this machine's live
 corpus (67 files, 59 windows, 1,672 calls, 1,613 intervals): one snapshot
 of a corpus that grows hourly, not reproducible elsewhere. The Phase 0
 figures name their own population.

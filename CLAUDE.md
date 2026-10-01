@@ -90,7 +90,7 @@ measurement, plus an opus second opinion). The recorded failure mode is the conf
   exact rate from 84% to under 1%; their text folds into the remainder.
 - The local figures (batched results, user records inside call spans,
   shared-tool ambiguity, message.id re-mints, window keys, parentUuid links
-  never crossing files): `python3 scripts/local_sweep.py`, a dated snapshot
+  never crossing files): `python3 -m sa.sweep`, a dated snapshot
   of this machine's live corpus that `sa/` docstrings cite by date.
 
 ## Clean-room boundary — binds every session and subagent

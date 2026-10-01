@@ -96,8 +96,9 @@ def _top(facts: List[Fact], levers: List[str], metric: str, total: float) -> str
     of that row and of the total (``within it head=Bash:cat 60 (66.7% of
     Bash, 61.2% of the total)``); when a row of the lever elsewhere is
     strictly larger, it follows with what it lies under (``top head=Read:py
-    70 (41.2% of the total) under tool=Read``), never silent. A lever with
-    no regular row ends the walk."""
+    70 (41.2% of the total) under tool=Read``), never silent. A row with
+    none of the lever within it (a top tool with no head: Agent, MCP tools)
+    still has the largest row elsewhere named, then ends the walk."""
     if not total or not levers:
         return ""
     top = _largest(query.group(facts, levers[0], metric))
@@ -108,18 +109,19 @@ def _top(facts: List[Fact], levers: List[str], metric: str, total: float) -> str
     lead = query.select(facts, [(levers[0], top.value)])
     for above, dim in zip(levers, levers[1:]):
         within = _largest(query.group(lead, dim, metric))
-        if within is None:
-            break
-        text += "; within it %s=%s %s (%s of %s, %s of the total)" % (
-            dim, within.value, num(within.mass), pct(within.mass / top.mass if top.mass else None),
-            top.value, pct(within.mass / total))
+        if within is not None:
+            text += "; within it %s=%s %s (%s of %s, %s of the total)" % (
+                dim, within.value, num(within.mass), pct(within.mass / top.mass if top.mass else None),
+                top.value, pct(within.mass / total))
         overall = _largest(query.group(facts, dim, metric))
-        if overall.mass > within.mass:
+        if overall is not None and overall.mass > (within.mass if within else 0):
             # Exact: a head implies its tool (walk books it only beside one); a lever
             # spanning several upper values would silently get the largest here.
             under = query.values(query.select(facts, [(dim, overall.value)]), above, metric)[0]
             text += "; top %s=%s %s (%s of the total) under %s=%s" % (
                 dim, overall.value, num(overall.mass), pct(overall.mass / total), above, under)
+        if within is None:
+            break
         top, lead = within, query.select(lead, [(dim, within.value)])
     return text
 

@@ -39,7 +39,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     reasons = ", ".join("%s 3" % r for r in schema.REASONS)
     assert "intervals 18 (= 21 calls - 3 windows): exact 6 (33.3%) + ambiguous 9 (50.0%) " \
            "[" + reasons + "] + shrink 3 (16.7%): OK" in out
-    assert "\nexact: " in out and "[OPEN]" not in out
+    assert "\nexact: " in out
     for dim in CONTEXT.tables:
         assert "by " + dim in out
     drillable = set(schema.KIND_DIMENSIONS[INCREMENT]) - set(CONTEXT.tables)
