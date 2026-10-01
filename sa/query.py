@@ -18,14 +18,15 @@ def select(facts: Iterable[Fact], where: Where) -> List[Fact]:
 def narrow(facts: List[Fact], where: Where, metric: str) -> List[Fact]:
     """Select pair by pair, refusing any pair that would print a confident
     zero: an undeclared dimension or value, a dimension the metric's carrier
-    never has, or a value no fact still carries, named with the values
-    present by descending |mass| (the data's own vocabulary, given the pairs
-    before it)."""
+    never has, or an open-vocabulary value no fact still carries, named
+    with the values present by descending |mass| (the data's own
+    vocabulary, given the pairs before it). A declared value no fact
+    carries is a measured zero, not a typo, and is answered."""
     carrier = schema.metric(metric).carrier
     for dim, value in where:
         schema.check_value(schema.check_dimension(dim, carrier), value)
         kept = select(facts, [(dim, value)])
-        if not any(f.kind == carrier for f in kept):
+        if dim not in schema.VOCABULARY and not any(f.kind == carrier for f in kept):
             present = values(facts, dim, metric)  # built for the refusal only
             listed = ", ".join(present[:LISTED]) or "none"
             if len(present) > LISTED:

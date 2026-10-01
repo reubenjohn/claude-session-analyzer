@@ -66,6 +66,10 @@ def at(locator: schema.Locator) -> str:
     return "%s:%d" % (locator.file, locator.line)
 
 
+def uuid(locator: schema.Locator) -> str:
+    return locator.uuid or "-"  # a bookkeeping record has none
+
+
 def tags(dims: dict) -> str:
     """Every dimension but ``window``, which the locator beside it names."""
     return " ".join("%s=%s" % (d, dims[d]) for d in schema.DIMENSIONS
@@ -119,7 +123,7 @@ def leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:
     lines = ["%16s  file:line  uuid  dimensions" % metric]  # the metric, as in the tables
     for f in largest:
         lines.append("%16s  %s  %s  %s" % (num(f.metrics[metric]), at(f.locator),
-                                           f.locator.uuid, tags(f.dims)))
+                                           uuid(f.locator), tags(f.dims)))
         lines += list(_evidence(f.evidence))
     return lines
 
@@ -131,7 +135,7 @@ def _evidence(evidence: dict) -> Iterator[str]:
         if key == schema.CANDIDATES:
             yield "%18s%s:%s" % ("", key, "" if value else " none")
             for candidate in value:
-                yield "%20s%s %s  %s" % ("", at(candidate.locator), candidate.locator.uuid,
+                yield "%20s%s %s  %s" % ("", at(candidate.locator), uuid(candidate.locator),
                                          tags(candidate.dims))
         else:
             yield "%18s%s: %s" % ("", key, value)

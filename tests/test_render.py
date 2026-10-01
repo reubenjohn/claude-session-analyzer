@@ -164,6 +164,18 @@ def test_leaves_are_ordered_by_magnitude_so_a_large_shrink_is_not_hidden_by_limi
     exact, shrink = leaf(schema.USER_TEXT, 100, 1), leaf(schema.SHRINK, -500, 2)
     assert abs(shrink.metrics[fx.DELTA]) > exact.metrics[fx.DELTA]  # the shrink is the larger
     lines = tables.leaves([exact, shrink], fx.DELTA, limit=1)
-    assert len(lines) == 2 and lines[1].split()[:2] == ["-500", "f:2"]
+    assert len(lines) == 2 and lines[1].split()[:3] == ["-500", "f:2", "u-2"]
     both = tables.leaves([exact, shrink], fx.DELTA, limit=2)
     assert [l.split()[0] for l in both[1:]] == ["-500", "100"]
+
+
+def test_a_leaf_without_a_uuid_prints_a_dash_in_the_uuid_column():
+    """A bookkeeping record carries no uuid; its locator still has a line."""
+    with_uuid = FACTS[0]._replace(locator=Locator("f", 1, "u-1"), evidence={
+        schema.CANDIDATES: [schema.Candidate(Locator("f", 2, None), {})]})
+    lines = tables.leaves([with_uuid, FACTS[1]], fx.DELTA, limit=2)
+    assert lines[1].split()[:3] == ["60", "f:1", "u-1"]  # vacuity guard: a uuid prints
+    assert lines[2].split() == [schema.CANDIDATES + ":"]
+    assert lines[3].split()[:2] == ["f:2", "-"]           # the candidate without one
+    assert lines[4].split()[:3] == ["30", "f:2", "-"]     # the leaf without one
+    assert "None" not in "\n".join(lines)

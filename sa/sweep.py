@@ -4,10 +4,10 @@ engine: nothing here mints a fact. ``scripts/local_sweep.py`` runs it over
 the live corpus and prints aggregate counts only: no transcript text, no
 ids, no paths.
 """
-from typing import Dict, Iterator, List, Tuple
+from typing import Dict, List, Tuple
 
 from . import query, schema, usage, walk
-from .corpus import Corpus, Record, SourceFile, message_id
+from .corpus import Corpus, Record, message_id
 from .schema import Fact
 
 
@@ -27,15 +27,10 @@ def span(last_of: Dict[str, int], call: walk.Call) -> Tuple[int, int]:
     return call.first, last_of.get(message_id(call.record.data), call.first)
 
 
-def live_records(loaded: Corpus) -> Iterator[Tuple[SourceFile, List[Record]]]:
-    for source in loaded.files:
-        yield source, [r for r in source.records if not r.duplicate]
-
-
 def batched_results(loaded: Corpus) -> Tuple[int, int]:
     """tool_result records carrying more than one block, and all of them."""
     blocks = [sum(b.get("type") == "tool_result" for b in walk.blocks(r.data))
-              for _, live in live_records(loaded) for r in live if r.data.get("type") == "user"]
+              for source in loaded.files for r in source.live if r.data.get("type") == "user"]
     return sum(n > 1 for n in blocks), sum(n > 0 for n in blocks)
 
 
@@ -43,7 +38,8 @@ def inside_spans(loaded: Corpus) -> Tuple[int, int, int]:
     """User records strictly inside a split call's span (first to last
     constituent), the calls holding any, and every call."""
     records = calls = holding = 0
-    for _, live in live_records(loaded):
+    for source in loaded.files:
+        live = source.live
         users = [i for i, r in enumerate(live) if r.data.get("type") == "user"]
         last_of = last_constituents(live)
         for call in walk.calls(live, loaded.usages):
@@ -81,7 +77,7 @@ def key_disagreements(loaded: Corpus) -> Tuple[int, int]:
     """Files whose first record and first live record disagree on sessionId
     or agentId, of the files with a live record."""
     keys = ("sessionId", "agentId")
-    with_live = [(s.records, live) for s, live in live_records(loaded) if live]
+    with_live = [(s.records, s.live) for s in loaded.files if s.live]
     return sum(any(walk.first_value(every, k) != walk.first_value(live, k) for k in keys)
                for every, live in with_live), len(with_live)
 

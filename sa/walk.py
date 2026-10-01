@@ -15,10 +15,11 @@ join index spans every record so a tool_result whose tool_use was replayed
 still resolves to its tool. A file whose first calls are replays books
 ``window_head`` at its first live call, the ruled inherited-context row.
 
-Every figure below marked "local sweep 2026-10-01" is a line of
-``scripts/local_sweep.py`` run that day over this machine's live corpus
-(63 files, 55 windows, 1,597 calls, 1,542 intervals): a dated snapshot, not
-reproducible elsewhere. The Phase 0 figures name their own population.
+Every figure below marked "local sweep 2026-10-01T11:50Z" is a line of
+``scripts/local_sweep.py`` run at that minute over this machine's live
+corpus (67 files, 59 windows, 1,672 calls, 1,613 intervals): one snapshot
+of a corpus that grows hourly, not reproducible elsewhere. The Phase 0
+figures name their own population.
 """
 from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
 
@@ -108,8 +109,9 @@ def contributors(records: List[Record], uses: ToolUses) -> Iterator[Contributor]
     tool_result block of a user record, and every other user record as user
     text. A record batching several results names several tools, so booking
     it to its first block would be exact to one tool by silent choice; none
-    is observed (local sweep 2026-10-01: 0 of 2,420 tool_result records carry
-    more than one block), which is why per-block is the fail-closed reading.
+    is observed (local sweep 2026-10-01T11:50Z: 0 of 2,615 tool_result
+    records carry more than one block), which is why per-block is the
+    fail-closed reading.
 
     Attachments, system records and bookkeeping types are not contributors.
     Measured over 51,960 intervals (2026-07-28): counting them collapses the
@@ -135,9 +137,10 @@ def shared_dims(found: List[Contributor]) -> dict:
     the only ambiguity is which of several calls of one tool it is still
     answerable by tool. A user_text candidate or a tool_result whose tool_use
     did not resolve has no tool, so it unsets both; the head ``other`` is a
-    value, not an absence. Local sweep 2026-10-01: 183 of 344 multi_contributor
-    intervals (1,253,677 of 1,928,743 context tokens) share one tool, and 93
-    of them (770,101 tokens) share the head as well."""
+    value, not an absence. Local sweep 2026-10-01T11:50Z: 203 of 375
+    multi_contributor intervals (1,567,663 of 2,284,391 context tokens)
+    share one tool, and 104 of them (937,714 tokens) share the head as
+    well."""
     out = {}
     for dim in (schema.TOOL_DIM, schema.HEAD_DIM):
         values = {c.dims.get(dim) for c in found}
@@ -175,17 +178,16 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
     previous call's FIRST constituent and the current call's first. A split
     call's constituents interleave with their results (parallel tool use:
     constituent, result, constituent, result, next call; local sweep
-    2026-10-01: 136 user records sit inside 86 of 1,597 calls' spans, counted
-    by ``scripts/local_sweep.py``), so slicing from the previous call's last
-    constituent hides the earlier result and books a two-contributor
-    interval as exact.
+    2026-10-01T11:50Z: 143 user records sit inside 89 of 1,672 calls'
+    spans), so slicing from the previous call's last constituent hides the
+    earlier result and books a two-contributor interval as exact.
     """
     uses = tool_uses(source.records)
-    live = [record for record in source.records if not record.duplicate]
+    live = source.live
     # The window dimensions come from the live records, the ones that mint
     # the facts: a replayed prefix owned by another file names that file's
-    # window (local sweep 2026-10-01: 0 of 63 files whose first record and
-    # first live record disagree on either key).
+    # window (local sweep 2026-10-01T11:50Z: 0 of 67 files whose first
+    # record and first live record disagree on either key).
     window = {schema.PROJECT_DIM: source.project,
               schema.SESSION_DIM: first_value(live, "sessionId"),
               schema.AGENT_DIM: first_value(live, "agentId"),  # None: a main window

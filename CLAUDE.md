@@ -95,8 +95,8 @@ measurement, plus an opus second opinion). The recorded failure mode is the conf
 
 ## Clean-room boundary — binds every session and subagent
 
-v1 is frozen: `git show v1-legacy:<path>` (until pushed, the
-installed `~/.claude/skills/session-analyzer/`). The ONLY files you may open
+v1 is frozen at the installed `~/.claude/skills/session-analyzer/` (a
+`v1-legacy` branch is a pending owner step, PUBLISHING_PLAN step 1). The ONLY files you may open
 there:
 `references/PURPOSE.md`, `references/ENGINE_CONTRACT.md`,
 `references/glossary.md` (never invent synonyms for its terms), v1's

@@ -97,11 +97,14 @@ def test_a_zero_base_leaves_rows_regular_with_no_share(facts):
     assert (row.kind, row.mass, table.base, table.share(row.mass)) == (query.REGULAR, 0, 0, None)
 
 
-def test_narrow_refuses_an_undeclared_value_and_one_no_fact_carries(facts):
+def test_narrow_refuses_an_undeclared_value_and_an_open_one_no_fact_carries(facts):
     for dim, vocabulary in schema.VOCABULARY.items():
         with pytest.raises(schema.SchemaError, match="unknown %s" % dim):
             query.narrow(facts, [(dim, "bogus")], fx.DELTA)
         assert query.narrow(facts, [(dim, vocabulary[0])], fx.DELTA)  # vacuity guard
+        without = [f for f in facts if f.dims.get(dim) != vocabulary[0]]
+        assert len(without) < len(facts)  # vacuity guard: the value was carried
+        assert query.narrow(without, [(dim, vocabulary[0])], fx.DELTA) == []  # declared: a zero, answered
     with pytest.raises(schema.SchemaError) as refused:
         query.narrow(facts, [(schema.TOOL_DIM, "bogus")], fx.DELTA)
     assert refused.value.args[0].endswith("present: Bash")  # the one tool an exact increment carries

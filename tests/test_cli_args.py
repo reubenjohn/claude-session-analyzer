@@ -6,7 +6,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, schema
+from sa import cli, query, schema
 
 CONTEXT = cli.VIEWS["context"]
 CAUSE, TOOL = schema.CAUSE_DIM, schema.TOOL_DIM
@@ -68,6 +68,25 @@ def test_a_value_no_fact_carries_is_refused_naming_the_values_present(tmp_path, 
     assert code == 2 and not out
     assert "no facts carry %s\n" % message in err
     _answers(*fx.run_cli("context", "--root", str(root), *_where(good)))  # vacuity guard
+
+
+def test_a_declared_value_no_fact_carries_is_a_measured_zero(tmp_path):
+    """The batched corpus books one ambiguous increment, a multi_contributor:
+    the other declared reasons are present in no fact, which is a measured
+    zero over the population named, like ``--since 0d``, not a typo."""
+    root = fx.batched_corpus(tmp_path)
+    facts = fx.load_facts(root)[1]
+    absent = [r for r in schema.REASONS if not query.select(facts, [(schema.REASON_DIM, r)])]
+    assert absent and len(absent) < len(schema.REASONS)  # vacuity guard: one is carried
+    for reason in absent:
+        code, out, err = fx.run_cli("context", "--root", str(root), "--where",
+                                    "%s=%s" % (schema.REASON_DIM, reason))
+        assert code == 0, err
+        assert out.startswith("%s: 0 %s over 0 increment facts where %s=%s in 0 of 1 window\n" % (
+            CONTEXT.metric, fx.unit(CONTEXT.metric), schema.REASON_DIM, reason))
+        assert "\nkept: 1 window (a file with a call), " in out
+    code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=bogus" % schema.REASON_DIM)
+    assert code == 2 and not out and "unknown %s" % schema.REASON_DIM in err  # a typo is still refused
 
 
 def test_root_must_be_an_existing_directory(tmp_path):

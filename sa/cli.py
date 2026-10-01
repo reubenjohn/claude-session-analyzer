@@ -11,16 +11,15 @@ Filters: ``--root`` must be an existing directory (a typo is a refusal,
 never a zero headline); ``--since`` selects FILES by modification time
 before reading, so dedup runs over the selected files only, and a day
 count that keeps no file is a legitimate empty population; ``--where``
-selects facts after dedup. A ``--where`` on a window dimension (project, session, agent,
-window) keeps whole windows; any other dimension is a drill, and the
-reconciliation and the single-call peak then apply to the whole-window
-population they are printed for. What ``query`` refuses (an unknown name,
-an undeclared value, a pair no fact carries) is exit status 2 with its
-message; nothing is checked twice.
+selects facts after dedup. A ``--where`` on a window dimension (project,
+session, agent, window) keeps whole windows; any other dimension is a
+drill, and the reconciliation and the single-call peak then apply to the
+whole-window population they are printed for. What ``query`` refuses (an
+unknown name, an undeclared value, an open-vocabulary value no fact
+carries) is exit status 2 with its message; nothing is checked twice.
 """
 import argparse
 import sys
-import time
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -88,21 +87,13 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _modified_within(days: Optional[float]) -> Optional[corpus.Keep]:
-    """A file filter on modification time, or ``None`` for no filter."""
-    if days is None:
-        return None
-    cutoff = time.time() - days * 86400
-    return lambda path: path.stat().st_mtime >= cutoff
-
-
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     view = VIEWS[args.view]
-    loaded = corpus.load(args.root, _modified_within(args.since))
+    loaded = corpus.load(args.root, args.since)
     try:
         sel = query.selection(walk.forest(loaded), args.where, view.metric)
-        lines = render.report(view, sel, loaded, args.root, args.since, args.by, args.limit)
+        lines = render.report(view, sel, loaded, args.by, args.limit)
     except schema.SchemaError as error:
         print("sa %s: error: %s" % (args.view, error.args[0]), file=sys.stderr)
         return 2

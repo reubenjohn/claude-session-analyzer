@@ -1,7 +1,6 @@
 """Plain-text rendering of a selection: headline, population, tables, leaves,
 footer. The tables are grouped here from the selection's facts; its total
 and reconciliation come with it, so nothing here decides the exit status."""
-from pathlib import Path
 from typing import List, NamedTuple, Optional, Tuple
 
 from . import query, schema
@@ -26,8 +25,7 @@ def _status(holds: bool) -> str:
     return "OK" if holds else "MISMATCH"
 
 
-def report(view: View, sel: Selection, loaded: Corpus, root: Path, since: Optional[float],
-           by: Optional[str], limit: int) -> List[str]:
+def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit: int) -> List[str]:
     """Every line of the view: the headline, the population lines, the
     default tables a pin left open (``--by`` one dimension's table with its
     labels whole, or the leaves for ``fact``) and the footer."""
@@ -39,7 +37,7 @@ def report(view: View, sel: Selection, loaded: Corpus, root: Path, since: Option
         tables = [query.group(sel.facts, dim, view.metric) for dim in dims]
         body = [line for t in tables if t.rows
                 for line in table(t, view.metric, limit, whole=bool(by)) + [""]]
-    return (headline(view, sel) + population(view, sel, loaded, root, since) + [""]
+    return (headline(view, sel) + population(view, sel, loaded) + [""]
             + body + footer(view, sel))
 
 
@@ -141,18 +139,17 @@ def _peaks(sel: Selection) -> List[str]:
     return lines
 
 
-def population(view: View, sel: Selection, loaded: Corpus, root: Path,
-               since: Optional[float]) -> List[str]:
+def population(view: View, sel: Selection, loaded: Corpus) -> List[str]:
     """Each count beside the population it was taken over: the read (the
-    root, the files ``--since`` kept, what the read skipped or excluded,
-    corpus-wide) and what the window pins kept: the windows (the files
-    with a call, which is why they are fewer than the files read) and the
-    facts the view's metric is read from, its carrier's. A drill pin is
+    corpus's root, the files its ``--since`` kept, what the read skipped or
+    excluded, corpus-wide) and what the window pins kept: the windows (the
+    files with a call, which is why they are fewer than the files read) and
+    the facts the view's metric is read from, its carrier's. A drill pin is
     named on the headline, the one line that counts what it narrows."""
     carrier = schema.metric(view.metric).carrier
     return ["read: root %s, %s%s, %s skipped, %s excluded"
-            % (root, count(len(loaded.files), "file"),
-               "" if since is None else " (modified within %gd)" % since,
+            % (loaded.root, count(len(loaded.files), "file"),
+               "" if loaded.since_days is None else " (modified within %gd)" % loaded.since_days,
                count(loaded.skipped_lines, "line"),
                count(loaded.duplicate_records, "duplicate record")),
             "kept%s: %s, %s"

@@ -32,8 +32,9 @@ def test_project_is_the_first_path_component_for_agents_too(tmp_path):
     assert [(s.project, s.path.name) for s in loaded.files] == [
         ("proj-a", "sess-0002.jsonl"), ("proj-b", "sess-0001.jsonl"),
         ("proj-b", "agent-fake1.jsonl")]
-    kept = corpus.load(root, keep=lambda path: "proj-a" in path.parts)
-    assert [s.project for s in kept.files] == ["proj-a"]
+    assert (loaded.root, loaded.since_days) == (root, None)
+    assert corpus.load(root, since_days=0).files == []  # modified within no time at all
+    assert [s.project for s in corpus.load(root, since_days=1).files] == ["proj-a", "proj-b", "proj-b"]
 
 
 def test_uuid_less_records_are_kept_and_never_deduped(tmp_path):
@@ -122,7 +123,7 @@ def test_a_tool_result_keeps_its_tool_when_its_tool_use_was_replayed(tmp_path):
     loaded, facts = fx.load_facts(root)
     source = next(s for s in loaded.files if s.path.stem == "sess-0002")
     assert [r.duplicate for r in source.records] == [True, False, False, False]
-    assert walk.tool_uses([r for r in source.records if not r.duplicate]) == {}
+    assert walk.tool_uses(source.live) == {}
     (exact,) = [f for f in facts if f.locator.file == source.name
                 and f.dims.get(schema.CAUSE_DIM) in schema.EXACT_CAUSES]
     assert (exact.dims[schema.TOOL_DIM], exact.dims[schema.HEAD_DIM], exact.metrics[fx.DELTA]) == (

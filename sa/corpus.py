@@ -13,13 +13,14 @@ resumed or forked session replays its parent's records (2,767 of 205,003
 uuids in the Phase 0 sweep appear in more than one file; per-file reading
 inflates totals by 94%). A call's identity is its ``message.id``, deduplicated
 ACROSS files only (D-MESSAGE-ID-DEDUP): a fork re-mints its parent's last
-call under a new uuid (local sweep 2026-10-01 via ``scripts/local_sweep.py``:
-1 re-mint beside 1,597 live calls, 15,240 spend-equivalents, one phantom
-call and interval), while records
-sharing an id within one file are the split constituents of one call.
-A window is a file, never a ``parentUuid`` chain: no link names a uuid in
-another file (same sweep, ``sweep.cross_file_parents``: 0 of 11,817), so a
-continuation is joined by its replayed records, not by its parent.
+call under a new uuid (local sweep 2026-10-01T11:50Z, one minute's snapshot
+of this machine's corpus by ``scripts/local_sweep.py``, 67 files and 1,672
+live calls: 1 re-mint, 15,240 spend-equivalents, one phantom call and
+interval), while records sharing an id within one file are the split
+constituents of one call. A window is a file, never a ``parentUuid``
+chain: no link names a uuid in another file (same sweep,
+``sweep.cross_file_parents``: 0 of 12,557), so a continuation is joined by
+its replayed records, not by its parent.
 Files are read in owner order, so that the earliest-starting,
 longest-running copy of a window owns the records it shares with any other
 copy, and a replayed record in any later copy is MARKED duplicate rather
@@ -31,10 +32,11 @@ re-billing is real. Records without a uuid are kept; they are bookkeeping
 and carry no tokens.
 """
 import json
+import time
 from pathlib import Path
-from typing import Callable, Dict, Iterator, List, NamedTuple, Optional, Tuple
+from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
 
-Keep = Callable[[Path], bool]
+DAY = 86400.0
 
 
 def default_root() -> Path:
@@ -53,8 +55,15 @@ class SourceFile(NamedTuple):
     project: str
     records: List[Record]
 
+    @property
+    def live(self) -> List[Record]:
+        """The records this file owns: the ones that mint its facts."""
+        return [r for r in self.records if not r.duplicate]
+
 
 class Corpus(NamedTuple):
+    root: Path
+    since_days: Optional[float]  # the files were kept by modification time; None: every file
     files: List[SourceFile]
     usages: Dict[str, List[dict]]  # message.id -> every usage dict the forest carries under it
     skipped_lines: int        # blank, unparseable, or not a JSON object
@@ -70,17 +79,17 @@ def message_id(data: dict) -> Optional[str]:
     return message.get("id")
 
 
-def find_files(root: Path, keep: Optional[Keep] = None) -> Iterator[Tuple[Path, str, str]]:
+def find_files(root: Path, since_days: Optional[float] = None) -> Iterator[Tuple[Path, str, str]]:
     """``(path, root-relative name, project)`` for each transcript file, in
-    sorted-path order.
-
-    ``keep(path)`` narrows the population before reading; dedup then
-    runs over the kept files only, so the population line names exactly the
-    files whose records were counted.
+    sorted-path order; only those modified within ``since_days`` when it is
+    given. The population is narrowed before reading, so dedup runs over the
+    kept files only and the read line names exactly the files whose records
+    were counted.
     """
+    cutoff = None if since_days is None else time.time() - since_days * DAY
     for path in sorted(root.rglob("*.jsonl"), key=str):
         relative = path.relative_to(root)
-        if keep is None or keep(path):
+        if cutoff is None or path.stat().st_mtime >= cutoff:
             yield path, relative.as_posix(), relative.parts[0]
 
 
@@ -116,8 +125,9 @@ def _span(lines: List[Tuple[int, dict]]) -> Tuple[str, str]:
     return (stamps[0], stamps[-1]) if stamps else ("", "")
 
 
-def load(root: Path, keep: Optional[Keep] = None) -> Corpus:
-    """Every kept file's records, in owner order, with replays marked.
+def load(root: Path, since_days: Optional[float] = None) -> Corpus:
+    """Every file's records (those modified within ``since_days``, when
+    given), in owner order, with replays marked.
 
     Owner order is (first record timestamp ascending, last record timestamp
     DESCENDING, path): the earliest-starting, longest-running copy of a
@@ -129,7 +139,7 @@ def load(root: Path, keep: Optional[Keep] = None) -> Corpus:
     """
     read = []
     skipped = 0
-    for path, name, project in find_files(root, keep):
+    for path, name, project in find_files(root, since_days):
         lines = []
         for line_no, data in read_lines(path):
             if data is None:
@@ -164,4 +174,4 @@ def load(root: Path, keep: Optional[Keep] = None) -> Corpus:
                 seen.add(uuid)
             records.append(Record(line_no, data, duplicate))
         files.append(SourceFile(f.path, f.name, f.project, records))
-    return Corpus(files, usages, skipped, duplicates)
+    return Corpus(root, since_days, files, usages, skipped, duplicates)
