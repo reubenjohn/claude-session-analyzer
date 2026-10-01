@@ -1,5 +1,10 @@
 # session-analyzer v2 — standing context
 
+> **Moved out of the dotfiles. Read `references/PUBLISHING_PLAN.md` first.**
+> It has the open extraction steps and the distribution decision. Until step 2
+> there is done, any mention below of the dotfiles branch, the worktree, or v1's
+> dotfiles path is stale: v1 now lives on this repo's `v1-legacy` branch.
+
 Clean-room rebuild of session-analyzer, built on the disposable branch
 `session-analyzer-v2`. Never checkout or commit to main from this worktree.
 
