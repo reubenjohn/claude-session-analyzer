@@ -22,7 +22,7 @@ def live_records(loaded):
 
 def batched_results(loaded):
     """tool_result records, and those carrying more than one block."""
-    blocks = [sum(b.get("type") == "tool_result" for b in walk._blocks(r.data))
+    blocks = [sum(b.get("type") == "tool_result" for b in walk.blocks(r.data))
               for _, live in live_records(loaded) for r in live if r.data.get("type") == "user"]
     return sum(n > 1 for n in blocks), sum(n > 0 for n in blocks)
 
@@ -32,15 +32,10 @@ def inside_spans(loaded):
     constituent), the calls holding any, and every call."""
     records = calls = holding = 0
     for _, live in live_records(loaded):
-        last = {}
-        for i, r in enumerate(live):
-            key = corpus.message_id(r.data)
-            if key is not None:
-                last[key] = i
         users = [i for i, r in enumerate(live) if r.data.get("type") == "user"]
         for call in walk.calls(live, loaded.usages):
-            end = last.get(corpus.message_id(call.record.data), call.first)
-            inside = sum(call.first < i < end for i in users)
+            first, last = walk.span(live, call)
+            inside = sum(first < i < last for i in users)
             records, calls, holding = records + inside, calls + 1, holding + (inside > 0)
     return records, holding, calls
 
@@ -74,7 +69,7 @@ def key_disagreements(loaded):
     or agentId, of the files with a live record."""
     keys = ("sessionId", "agentId")
     with_live = [(s.records, live) for s, live in live_records(loaded) if live]
-    return sum(any(walk._first_value(every, k) != walk._first_value(live, k) for k in keys)
+    return sum(any(walk.first_value(every, k) != walk.first_value(live, k) for k in keys)
                for every, live in with_live), len(with_live)
 
 

@@ -23,7 +23,8 @@ python3 -m sa context --since 7d --by cause
 ```
 context_delta: 3,872,684 context tokens = the 32 windows' final occupancies summed; top tool=Bash 1,049,312 (27.1% of the 3,872,684 total); within it head=Bash:cat 554,879 (52.9% of Bash, 14.3% of the total)
 single-call peak context_tokens over the 32 whole windows: 255,333 context tokens at -home-me-workspace-myproject/<session-id>.jsonl:807
-population: root ~/.claude/projects; 39 files read (modified within 7d), 32 windows, 863 call facts, 1,693 increment facts; 0 lines skipped, 0 duplicate records excluded
+read: root ~/.claude/projects, 39 files (modified within 7d), 0 lines skipped, 0 duplicate records excluded
+kept: 32 windows, 863 call facts, 1,693 increment facts
 
 by cause         context_delta  increments  share of 3,872,684
 window_head          1,323,189          32               34.2%
@@ -47,7 +48,8 @@ python3 -m sa spend --since 7d --by agent --limit 3
 spend: 14,626,322 input-side base-token-equivalents over 863 call facts in 32 windows; top agent=agent-a1 1,116,805 (7.6% of the 14,626,322 total)
 single-call peak context_tokens over the 32 whole windows: 255,333 context tokens at -home-me-workspace-myproject/<session-id>.jsonl:807
 spend is paid per call; context shares are not cost shares. What put the tokens there is answered by `sa context` (--by tool, --by head).
-population: root ~/.claude/projects; 39 files read (modified within 7d), 32 windows, 863 call facts, 1,693 increment facts; 0 lines skipped, 0 duplicate records excluded
+read: root ~/.claude/projects, 39 files (modified within 7d), 0 lines skipped, 0 duplicate records excluded
+kept: 32 windows, 863 call facts, 1,693 increment facts
 
 by agent                  spend  calls  share of 9,858,904
 agent-a1              1,116,805     68               11.3%
@@ -77,7 +79,7 @@ python3 -m sa context --where cause=ambiguous --by fact --limit 2
 `--where DIM=VALUE` (dims: project, session, agent, window, cause, tool,
 head, reason) is repeatable, exact: on the first four it keeps whole
 windows (`window`, a root-relative file name, isolates a main window);
-otherwise it drills (the headline counts the windows hit). `cause=bogus` (undeclared) or `tool=bash` (absent)
+otherwise it drills, named on the headline with the windows hit. `cause=bogus` (undeclared) or `tool=bash` (absent)
 exits 2, naming what is declared or present. A head is a Bash call's
 first command word (`Bash:pytest`) or a file tool's extension
 (`Read:py`). The headline names the top tool with its share of the

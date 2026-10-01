@@ -12,8 +12,9 @@ its ``-``-prefixed options, each skipped alone unless ``VALUED`` declares
 it takes the next word, and its ``OPERANDS`` (``timeout``'s duration); a
 ``TESTS`` bracket through its closer; a bare separator; and an output-less
 ``BUILTINS`` word with its arguments up to the next separator (``echo "==
-$f"; cat $f`` is ``cat``, ``cd -P /x && make`` is ``make``), so a command
-that is only builtins (``cd /x``, ``echo done``) is ``other``. Separators
+$f"; cat $f`` is ``cat``, ``cd -P /x && make`` is ``make``, ``test -f x
+&& make`` is ``make``), so a command that is only builtins (``cd /x``,
+``echo done``, ``: > f``) is ``other``. Separators
 are ``&&``, ``||``, ``;``, ``|``, a newline and either parenthesis, each
 padded into a word of its own, and the bare ``RESERVED`` words that open,
 close or switch a body (``done``, ``fi``, ``else``, ``}``) or background a
@@ -57,8 +58,8 @@ VALUED = {  # a wrapper's options that take the next word; any other option is s
 }
 OPERANDS = {"timeout": 1}  # positional words a wrapper takes before the command
 TESTS = {"[": "]", "[[": "]]"}  # a condition, closed by its bracket; no output
-BUILTINS = ("cd", "echo", "printf", "true", "false", "set", "export", "unset", "shift", "exit",
-            "source", ".")  # no output
+BUILTINS = ("cd", "echo", "printf", "true", "false", "test", ":", "set", "export", "unset",
+            "shift", "exit", "source", ".")  # no output; skipped before HEAD_SHAPE could reject ``:``
 OTHER = "other"
 
 

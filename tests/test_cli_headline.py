@@ -6,7 +6,7 @@ from sa import cli, query, schema, tables
 from sa.schema import CALL
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
-CAUSE, TOOL, HEAD = CONTEXT.tables[:3]
+CAUSE, TOOL, HEAD = schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM
 
 
 def _levers_of(out):

@@ -70,6 +70,10 @@ CASES = [
     ("Bash", {"command": "source .venv/bin/activate && pytest"}, "Bash:pytest"),
     ("Bash", {"command": ". ./env.sh; pytest"}, "Bash:pytest"),
     ("Bash", {"command": ". ./env.sh"}, "Bash:other"),
+    ("Bash", {"command": "test -f x && make"}, "Bash:make"),
+    ("Bash", {"command": "test -f x"}, "Bash:other"),
+    ("Bash", {"command": ": > f; make"}, "Bash:make"),  # `:` is skipped before HEAD_SHAPE could reject it
+    ("Bash", {"command": ":"}, "Bash:other"),
     # Wrappers: prefixes that run the word after them and their options.
     ("Bash", {"command": "{ cmd; }"}, "Bash:cmd"),
     ("Bash", {"command": "( cmd )"}, "Bash:cmd"),

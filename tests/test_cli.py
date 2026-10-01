@@ -11,7 +11,7 @@ from sa import cli, schema, tables, walk
 from sa.schema import CALL, INCREMENT
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
-CAUSE, TOOL, HEAD = CONTEXT.tables[:3]
+CAUSE, TOOL, HEAD = schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM
 
 
 def test_context_reconciles_and_counts_its_population(tmp_path):
@@ -19,7 +19,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     loaded, facts = fx.load_facts(root)
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
-    first, peak, population = out.splitlines()[:3]
+    first, peak, read, kept = out.splitlines()[:4]
     # window_head is the largest cause (3,000 of 4,560) but cause is no lever:
     # the headline walks down the top tool and its top head, as shares of
     # the total.
@@ -30,11 +30,10 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
         CONTEXT.metric, format(3 * fx.FINAL_OCCUPANCY, ",d"), fx.unit(CONTEXT.metric), TOOL, HEAD)
     assert peak == "single-call peak %s over the 3 whole windows: %s %s at proj-a/sess-0001.jsonl:14" % (
         fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), fx.unit(fx.PEAK))
-    assert population == (
-        "population: root %s; %d files read, 3 windows, %d call facts, %d increment facts; "
-        "0 lines skipped, 0 duplicate records excluded"
-        % (root, len(loaded.files), sum(f.kind == CALL for f in facts),
-           sum(f.kind == INCREMENT for f in facts)))
+    assert read == "read: root %s, %d files, 0 lines skipped, 0 duplicate records excluded" % (
+        root, len(loaded.files))
+    assert kept == "kept: 3 windows, %d call facts, %d increment facts" % (
+        sum(f.kind == CALL for f in facts), sum(f.kind == INCREMENT for f in facts))
     assert out.count(str(root)) == 1  # locators are root-relative
     assert ("final occupancy %s: OK; holds by construction (walk.py), so a mismatch is a bug"
             " in this tool" % format(3 * fx.FINAL_OCCUPANCY, ",d")) in out
@@ -74,7 +73,7 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     for name in others:
         assert re.search(r"^%s: [\d,]+ %s over 14 call facts in 2 windows$"
                          % (name, fx.unit(name)), out, re.M)
-    assert "duplicate records excluded; where project=proj-a" in out
+    assert "\nkept where project=proj-a: 2 windows, 14 call facts, 22 increment facts\n" in out
     assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+$"
                      % (schema.AGENT_DIM, SPEND.metric, fx.count_column(SPEND.metric)), out, re.M)
     assert fx.count_column(SPEND.metric) != fx.count_column(CONTEXT.metric)  # each view names its carrier

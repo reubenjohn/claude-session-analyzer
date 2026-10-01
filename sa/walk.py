@@ -35,7 +35,7 @@ def _message(data: dict) -> dict:
     return message if isinstance(message, dict) else {}
 
 
-def _blocks(data: dict) -> List[dict]:
+def blocks(data: dict) -> List[dict]:
     content = _message(data).get("content")
     if not isinstance(content, list):
         return []
@@ -75,6 +75,19 @@ def calls(records: List[Record], usages: Usages) -> List[Call]:
     return found
 
 
+def span(records: List[Record], call: Call) -> Tuple[int, int]:
+    """The indices of a call's first and last constituent in ``records``,
+    the records sharing its ``message.id`` (``(first, first)`` for an
+    id-less call). A split call's results sit strictly inside its span
+    (parallel tool use), which is why ``walk`` slices an interval from the
+    previous call's FIRST constituent; ``scripts/local_sweep.py`` counts
+    them."""
+    key = message_id(call.record.data)
+    if key is None:  # a call by itself
+        return call.first, call.first
+    return call.first, max(i for i, r in enumerate(records) if message_id(r.data) == key)
+
+
 def tool_uses(records: List[Record]) -> ToolUses:
     """``tool_use.id -> (tool name, input)`` over the file. Every tool_result's
     ``tool_use_id`` resolves to an earlier record in its own file (59,740 of
@@ -82,7 +95,7 @@ def tool_uses(records: List[Record]) -> ToolUses:
     index = {}
     for record in records:
         if record.data.get("type") == "assistant":
-            for block in _blocks(record.data):
+            for block in blocks(record.data):
                 if block.get("type") == "tool_use":
                     index[block.get("id")] = (block.get("name"), block.get("input"))
     return index
@@ -118,7 +131,7 @@ def contributors(records: List[Record], uses: ToolUses) -> Iterator[Contributor]
     for record in records:
         if record.data.get("type") != "user":
             continue
-        results = [block for block in _blocks(record.data) if block.get("type") == "tool_result"]
+        results = [block for block in blocks(record.data) if block.get("type") == "tool_result"]
         if not results:
             yield Contributor(record, schema.USER_TEXT, None, None)
         for block in results:
@@ -156,7 +169,7 @@ def fork_evidence(records: List[Record]) -> dict:
     return {}
 
 
-def _first_value(records: List[Record], key: str) -> Optional[str]:
+def first_value(records: List[Record], key: str) -> Optional[str]:
     for record in records:
         value = record.data.get(key)
         if value:
@@ -173,7 +186,7 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
     previous call's FIRST constituent and the current call's first. A split
     call's constituents interleave with their results (parallel tool use:
     constituent, result, constituent, result, next call; local sweep
-    2026-10-01: 119 user records sit inside 77 of 1,423 calls' spans), so slicing from the
+    2026-10-01: 119 user records sit inside 77 of 1,423 calls' spans, ``span``), so slicing from the
     previous call's last constituent hides the earlier result and books a
     two-contributor interval as exact.
     """
@@ -184,8 +197,8 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
     # window (local sweep 2026-10-01: 0 of 55 files whose first record and
     # first live record disagree on either key).
     window = {schema.PROJECT_DIM: source.project,
-              schema.SESSION_DIM: _first_value(live, "sessionId"),
-              schema.AGENT_DIM: _first_value(live, "agentId"),  # None: a main window
+              schema.SESSION_DIM: first_value(live, "sessionId"),
+              schema.AGENT_DIM: first_value(live, "agentId"),  # None: a main window
               schema.WINDOW_DIM: source.name}
     window = {k: v for k, v in window.items() if v is not None}
 

@@ -26,8 +26,8 @@ def _status(holds: bool) -> str:
     return "OK" if holds else "MISMATCH"
 
 
-def report(view: View, sel: Selection, population: str, by: Optional[str], limit: int) -> List[str]:
-    """Every line of the view: the headline, the population line, the
+def report(view: View, sel: Selection, population: List[str], by: Optional[str], limit: int) -> List[str]:
+    """Every line of the view: the headline, the population lines, the
     default tables a pin left open (``--by`` one dimension's table with its
     labels whole, or the leaves for ``fact``) and the footer."""
     spec = schema.metric(view.metric)
@@ -38,7 +38,7 @@ def report(view: View, sel: Selection, population: str, by: Optional[str], limit
         tables = [query.group(sel.facts, dim, view.metric) for dim in dims]
         body = [line for t in tables if t.rows
                 for line in table(t, view.metric, limit, whole=bool(by)) + [""]]
-    return headline(view, sel) + [population, ""] + body + footer(view, sel)
+    return headline(view, sel) + population + [""] + body + footer(view, sel)
 
 
 def _open(sel: Selection, dims: Tuple[str, ...], carrier: str) -> List[str]:
@@ -68,12 +68,19 @@ def headline(view: View, sel: Selection) -> List[str]:
 
 
 def _over(sel: Selection, carrier: str) -> str:
-    """``over N <carrier> facts in M windows``, M of the selection's when a drill shows fewer."""
+    """``over N <carrier> facts [where <drill pins>] in M windows``, M of
+    the selection's when a drill shows fewer. The drill pins are named
+    here only: this is the one count they narrow."""
     shown, windows = query.window_count(sel.facts), count(sel.n_windows, "window")
     if shown != sel.n_windows:
         windows = "%s of %s" % (num(shown), windows)
     facts = count(sum(f.kind == carrier for f in sel.facts), carrier + " fact")
-    return "over %s in %s" % (facts, windows)
+    return "over %s%s in %s" % (facts, _pins(sel.drill), windows)
+
+
+def _pins(pairs: List[Tuple[str, str]]) -> str:
+    """`` where dim=value ...`` for the pairs, or nothing."""
+    return " where " + " ".join("%s=%s" % p for p in pairs) if pairs else ""
 
 
 def _largest(table: query.Table) -> Optional[query.Row]:
@@ -132,18 +139,20 @@ def _peaks(sel: Selection) -> List[str]:
     return lines
 
 
-def population(sel: Selection, loaded: Corpus, root: Path, since: Optional[float]) -> str:
-    """What the selection was read from (the root, the files ``--since``
-    kept, what the read skipped or excluded) and what it kept."""
-    return ("population: root %s; %s read%s, %s, %s, %s; %s skipped, %s excluded%s"
+def population(sel: Selection, loaded: Corpus, root: Path, since: Optional[float]) -> List[str]:
+    """Each count beside the population it was taken over: the read (the
+    root, the files ``--since`` kept, what the read skipped or excluded,
+    corpus-wide) and what the window pins kept. A drill pin is named on
+    the headline, the one line that counts what it narrows."""
+    return ["read: root %s, %s%s, %s skipped, %s excluded"
             % (root, count(len(loaded.files), "file"),
                "" if since is None else " (modified within %gd)" % since,
-               count(sel.n_windows, "window"),
-               count(sum(f.kind == schema.CALL for f in sel.window_facts), "call fact"),
-               count(sum(f.kind == schema.INCREMENT for f in sel.window_facts), "increment fact"),
                count(loaded.skipped_lines, "line"),
-               count(loaded.duplicate_records, "duplicate record"),
-               "".join("; where %s=%s" % p for p in sel.where)))
+               count(loaded.duplicate_records, "duplicate record")),
+            "kept%s: %s, %s, %s"
+            % (_pins(sel.window_where), count(sel.n_windows, "window"),
+               count(sum(f.kind == schema.CALL for f in sel.window_facts), "call fact"),
+               count(sum(f.kind == schema.INCREMENT for f in sel.window_facts), "increment fact"))]
 
 
 def _reconciliation(r: query.Reconciliation) -> List[str]:

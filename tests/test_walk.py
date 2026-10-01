@@ -74,8 +74,8 @@ def test_a_call_split_across_files_is_one_call_owned_by_the_earlier_file(tmp_pat
     assert query.reconcile(facts).holds
     code, out, err = fx.run_cli("spend", "--root", str(root))
     assert code == 0, err
-    assert "; 2 files read, 1 window, 1 call fact, 1 increment fact; " \
-           "0 lines skipped, 1 duplicate record excluded" in out
+    assert ("read: root %s, 2 files, 0 lines skipped, 1 duplicate record excluded\n"
+            "kept: 1 window, 1 call fact, 1 increment fact\n" % root) in out
     # Merged over both files' constituents: the same metrics as the split within one file.
     (within,) = [f for f in _one_window(tmp_path / "within", [parent, copy]) if f.kind == CALL]
     assert call.metrics == within.metrics
@@ -151,7 +151,11 @@ def test_a_result_interleaved_with_a_split_call_is_a_second_contributor(tmp_path
         fx.tool_result("uuid-0004", "toolu_0002"),
         fx.assistant("uuid-0005", "msg-0002", fx.usage(1300, 0)),
     ]
-    facts = _one_window(tmp_path / "interleaved", records)
+    loaded, facts = fx.load_facts(fx.corpus(tmp_path / "interleaved", {"proj-a/sess-0001.jsonl": records}))
+    (source,) = loaded.files
+    split, plain = walk.calls(source.records, loaded.usages)
+    assert walk.span(source.records, split) == (0, 2)  # the first result, at 1, sits inside
+    assert walk.span(source.records, plain) == (4, 4)
     (closing,) = [f for f in facts if f.dims.get(schema.REASON_DIM)]
     assert closing.dims[schema.REASON_DIM] == schema.MULTI_CONTRIBUTOR
     assert [c.locator.uuid for c in closing.evidence[schema.CANDIDATES]] == ["uuid-0002", "uuid-0004"]
@@ -187,7 +191,7 @@ def test_window_dimensions_come_from_the_live_records(tmp_path):
     loaded, facts = fx.load_facts(root)
     source = next(s for s in loaded.files if s.path.stem == "sess-0002")
     assert [r.duplicate for r in source.records] == [True] * 5 + [False] * 9
-    assert walk._first_value(source.records, "sessionId") == fx.SESSION  # the first record's: replayed
+    assert walk.first_value(source.records, "sessionId") == fx.SESSION  # the first record's: replayed
     assert {f.dims[schema.SESSION_DIM] for f in facts if f.locator.file == source.name} == {"sess-0002"}
 
 

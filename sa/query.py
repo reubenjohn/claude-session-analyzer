@@ -24,13 +24,14 @@ def narrow(facts: List[Fact], where: Where, metric: str) -> List[Fact]:
     carrier = schema.metric(metric).carrier
     for dim, value in where:
         schema.check_value(schema.check_dimension(dim, carrier), value)
-        present = values(facts, dim, metric)
-        if value not in present:
+        kept = select(facts, [(dim, value)])
+        if not any(f.kind == carrier for f in kept):
+            present = values(facts, dim, metric)  # built for the refusal only
             listed = ", ".join(present[:LISTED]) or "none"
             if len(present) > LISTED:
                 listed += " (+%d more; --by %s lists them all)" % (len(present) - LISTED, dim)
             raise schema.SchemaError("no facts carry %s=%s; present: %s" % (dim, value, listed))
-        facts = select(facts, [(dim, value)])
+        facts = kept
     return facts
 
 

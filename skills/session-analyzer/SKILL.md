@@ -49,8 +49,9 @@ another tool: `top tool=Bash 1,553,915 (31.5% of the 4,936,844 total);
 within it head=Bash:cat 712,004 (45.8% of Bash, 14.4% of the total)`;
 `spend` names the top agent. Never a cause or a window row. A `--where`
 pin omits the default tables and levers it implies (a head its tool, a
-window its agent, session, project). A drill's headline counts the windows its
-facts come from (`in 29 of 36 windows`). `single-call peak
+window its agent, session, project). A drill's headline names its pins and
+counts the windows its facts come from (`… where tool=Bash in 29 of 36
+windows`). `single-call peak
 context_tokens` under it is the fullest call over the N whole windows,
 even under a drill.
 
@@ -64,8 +65,8 @@ python3 -m sa context --where cause=ambiguous --by fact --limit 2
 ```
 
 `--by fact` prints the heaviest leaves with their locator, e.g.
-`81,989  <project>/<session-id>.jsonl:76  <uuid>  project=<project> session=<session-id> cause=ambiguous reason=multi_contributor`
-(no `agent=` on a main-window leaf), and under an ambiguous one
+`81,989  <project>/<session-id>.jsonl:76  <uuid>  project=… session=… cause=ambiguous reason=multi_contributor`
+and under an ambiguous one
 `candidates:`, then a line per contributor with its cause/tool/head:
 `<file>:<line> <uuid>  cause=tool_result tool=Read head=Read:py`. The row
 carries a tool only when all candidates share it. Open the locator to
@@ -79,10 +80,10 @@ Exit 2, naming what is declared or present: `spend --where cause=...`
 
 ## Reading the output
 
-Every run prints a **population** line: corpus root, files read, windows,
-call and increment facts, lines skipped, duplicates excluded, `where`
-filters. Quote it with any figure: a number without its population is no
-finding. Table columns: the metric, its carrier's count
+Every run prints `read:` (corpus root, files, lines skipped, duplicates
+excluded: corpus-wide) and `kept where <window pins>:` (windows, call and
+increment facts). Quote both with any figure: a number without its
+population is no finding. Table columns: the metric, its carrier's count
 (`increments`, `calls`) and `share of <base>`, the mass the shares are
 over. Tables end with the residual row `∅` (facts lacking
 the grouped dimension, a note saying what it holds) and any `(signed)`
@@ -114,7 +115,7 @@ is a high-water mark).
 
 1. Run the matching command, narrowed (`--since`, `--where project=` /
    `session=`) to what was asked.
-2. Report the headline, the population line and the footer rates.
+2. Report the headline, the population lines and the footer rates.
 3. Drill one step past the headline; name the heaviest leaf with its
    `file:line`.
 4. End with the action the numbers suggest, or say the attribution is too
