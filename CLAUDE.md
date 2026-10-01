@@ -15,7 +15,9 @@ Owner directive: an elegant, simple implementation from which powerful
 capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE); the
 path is a minimal clean implementation.
 
-Package `sa/`: `usage.py` (lib_usage, VERBATIM), `corpus.py` (read files,
+Package `sa/`: `usage.py` (the ported lib_usage helpers: function bodies
+unchanged and pinned by test, docstrings hold only the measured
+corrections), `corpus.py` (read files,
 dedup, physical line numbers), `walk.py` (calls, intervals, attribution),
 `schema.py` (the one METRICS table: name -> class, carrier, unit),
 `query.py` (group/aggregate by dims, reconciliation), `cli.py` (two
@@ -56,7 +58,9 @@ schema change; no stitching ships in v1.
 
 ## Measured corrections — stay pinned by tests
 
-Docstrings in `sa/usage.py` carry these; a change is a new measurement plus a
+Docstrings in `sa/usage.py` carry these (D-USAGE-DOCSTRINGS: the measured
+fact with its population and date, nothing else) and `tests/test_usage.py`
+pins the function bodies; a change to either is a new measurement plus a
 logged ruling, never a plausible rewrite.
 
 - Split `message.id`s are MAX-MERGED field-wise: 80.5% of ids are split, and
@@ -65,14 +69,16 @@ logged ruling, never a plausible rewrite.
   cache_read + cache_creation) holds on only 92.21% of pairs for it.
 - Peak is never summed: 4,950,327 summed vs 131,612 true peak.
 - Cache tiers priced per call: 1h write x2.0, 5m write x1.25, read x0.1.
+  Exactly one tier applies to any one call (0 mixed of 47,419; the tier
+  totals equal `cache_creation_input_tokens` on every one).
 - Shrinks are real and unclamped: 830 of 45,555 pairs.
 - Feed-forward subtraction (`delta_occ >= out_prev`) holds on 97.79% of pairs.
 - Physical line numbers, not parsed index. A filename is not a session.
 - Contributors are token-relevant only (tool_result + user text): 2.1.28x
   transcripts emit per-turn bookkeeping attachments that collapse the
   "exactly one non-assistant record" rate from 84% to under 1% if counted.
-  Attachment mass is an [OPEN] caveat: exact remainders include injected
-  reminder text.
+  "Exact" is exact given the feed-forward model: an attachment's text in an
+  exact interval folds into the single contributor's remainder.
 - parentUuid links never cross files (0 of 1,523; 21-file probe,
   2026-09-30), so no parentUuid-chain window model.
 - A split call's constituents interleave with their results (parallel tool
@@ -110,8 +116,8 @@ an opus second opinion. The recorded failure mode is the confident in-place
 
 ## Repo gates
 
-Pre-commit warns on `.py` > 15,000 chars and `.md` > 20,000 (verbatim
-`usage.py` is the accepted exception). Privacy gate FAILS CLOSED: no literal
+Pre-commit warns on `.py` > 15,000 chars and `.md` > 20,000. Privacy gate
+FAILS CLOSED: no literal
 `/home/...` or `/Users/...` paths, no real-looking UUIDs, no transcript text
 in any tracked file. The global hook's checker is not yet wired to this
 standalone repo, so scan before every push (PUBLISHING_PLAN standing rules).

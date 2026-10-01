@@ -1,6 +1,42 @@
-"""Smoke tests for sa.usage: the module imports cleanly and each helper
-honours its docstring on a minimal synthetic usage dict."""
+"""sa.usage: each helper honours its docstring on a minimal synthetic usage
+dict, and every function body is the ported one."""
+import ast
+import hashlib
+from pathlib import Path
+
 from sa import usage as L
+
+# sha256 prefix of each ported function body with its docstring removed.
+# Docstrings may change by ruling; a body change here is the recorded
+# failure mode and needs a new measurement plus a logged ruling.
+PORTED_BODIES = {
+    "usage_context": "6cd87dea08b2fe13",
+    "_cache_creation_tiers": "1de2fd93b04bfbf8",
+    "usage_spend": "6b24d2d5c3596e24",
+    "context_delta": "cc285c61b0efc9af",
+    "max_merge_usage": "6851868ac33864ad",
+}
+
+
+def function_bodies(path):
+    """``{name: source lines of the function with its docstring removed}``."""
+    text = path.read_text(encoding="utf-8").splitlines()
+    out = {}
+    for node in ast.parse("\n".join(text)).body:
+        if isinstance(node, ast.FunctionDef):
+            lines = text[node.lineno - 1:node.end_lineno]
+            if ast.get_docstring(node) is not None:
+                doc = node.body[0]
+                del lines[doc.lineno - node.lineno:doc.end_lineno - node.lineno + 1]
+            out[node.name] = "\n".join(lines)
+    return out
+
+
+def test_every_function_body_is_the_ported_one():
+    bodies = function_bodies(Path(L.__file__))
+    assert {n: hashlib.sha256(b.encode()).hexdigest()[:16]
+            for n, b in bodies.items()} == PORTED_BODIES
+    assert all('"""' not in b for b in bodies.values())  # the strip removed the docstrings
 
 
 def test_usage_context_sums_three_input_classes():
@@ -10,20 +46,13 @@ def test_usage_context_sums_three_input_classes():
     assert L.usage_context(None) == 0
 
 
-def test_usage_cache_tier_per_call():
-    assert L.usage_cache_tier({"cache_creation": {"ephemeral_1h_input_tokens": 5}}) == "1h"
-    assert L.usage_cache_tier({"cache_creation": {"ephemeral_5m_input_tokens": 5}}) == "5m"
-    assert L.usage_cache_tier({"cache_creation": {
-        "ephemeral_1h_input_tokens": 1, "ephemeral_5m_input_tokens": 1}}) == "mixed"
-    assert L.usage_cache_tier({}) == "none"
-    assert L.usage_cache_tier(None) == "none"
-
-
 def test_usage_spend_weights_by_tier():
     u = {"input_tokens": 10, "cache_read_input_tokens": 100,
          "cache_creation_input_tokens": 4,
          "cache_creation": {"ephemeral_5m_input_tokens": 4}}
     assert L.usage_spend(u) == 10 + 0.1 * 100 + 1.25 * 4
+    assert L.usage_spend({"cache_creation_input_tokens": 3,
+                          "cache_creation": {"ephemeral_1h_input_tokens": 3}}) == 2.0 * 3
     # Untiered cache writes are priced at the 5m default.
     assert L.usage_spend({"cache_creation_input_tokens": 8}) == 1.25 * 8
     assert L.usage_spend(None) == 0.0

@@ -14,36 +14,43 @@ applies to the whole-window population it is printed for.
 import argparse
 import time
 from pathlib import Path
-from typing import List, NamedTuple, Tuple
+from typing import Iterator, List, NamedTuple, Optional, Tuple
 
 from . import corpus, query, schema, walk
+from .schema import Fact
 
 
 class View(NamedTuple):
     metric: str
-    lead: str  # the dimension whose top row the headline names
+    tables: Tuple[str, ...]  # printed by default; the first one not pinned by --where leads
 
 
-VIEWS = {"context": View("context_delta", "cause"),
-         "spend": View("spend", "project")}
+VIEWS = {"context": View("context_delta", ("cause", "tool", "head", "agent", "session", "project")),
+         "spend": View("spend", schema.WINDOW_DIMENSIONS)}
+
+SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What put"
+              " the tokens there is answered by `sa context` (--by tool, --by head).")
+
+# Printed under a table whose row needs saying what it is.
+NOTES = {schema.WINDOW_HEAD: "first call's context: boot prompt + first message, or"
+                             " inherited parent context for a fork; not splittable by"
+                             " content"}
 
 
-def _days(text):
-    # type: (str) -> float
+def _days(text: str) -> float:
     if not text.endswith("d"):
         raise argparse.ArgumentTypeError("expected a number of days like 7d")
     return float(text[:-1])
 
 
-def _pair(text):
-    # type: (str) -> Tuple[str, str]
+def _pair(text: str) -> Tuple[str, str]:
     dim, sep, value = text.partition("=")
     if not sep:
         raise argparse.ArgumentTypeError("expected DIM=VALUE")
     return dim, value
 
 
-def parse_args(argv):
+def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="sa", description="Where did my context go, and what did it cost.")
     views = parser.add_subparsers(dest="view", metavar="|".join(VIEWS))
@@ -71,19 +78,23 @@ def parse_args(argv):
     return args
 
 
-def _num(value):
+def _num(value: float) -> str:
     return format(int(round(value)), ",d")
 
 
-def _pct(share):
+def _pct(share: Optional[float]) -> str:
     return "-" if share is None else "%.1f%%" % (100 * share)
 
 
-def _status(holds):
+def _status(holds: bool) -> str:
     return "OK" if holds else "MISMATCH"
 
 
-def _modified_within(days):
+def _at(locator: schema.Locator) -> str:
+    return "%s:%d" % (locator.file, locator.line)
+
+
+def _modified_within(days: Optional[float]) -> Optional[corpus.Keep]:
     """A file filter on modification time, or ``None`` for no filter."""
     if days is None:
         return None
@@ -91,8 +102,84 @@ def _modified_within(days):
     return lambda path, project: path.stat().st_mtime >= cutoff
 
 
-def _table(title, rows, unit, limit):
-    # type: (str, List[query.Row], str, int) -> List[str]
+class Selection(NamedTuple):
+    loaded: corpus.Corpus
+    windows: List[Fact]             # whole windows kept by the window-dimension filters
+    facts: List[Fact]               # the windows' facts kept by the drill filters too
+    drill: List[Tuple[str, str]]    # the --where pairs that are not window dimensions
+
+    @property
+    def n_windows(self) -> int:
+        return len({f.locator.file for f in self.windows})
+
+
+def _select(args: argparse.Namespace) -> Selection:
+    loaded = corpus.load(args.root, _modified_within(args.since))
+    facts = [f for source in loaded.files for f in walk.walk(source)]
+    whole = [p for p in args.where if p[0] in schema.WINDOW_DIMENSIONS]
+    drill = [p for p in args.where if p[0] not in schema.WINDOW_DIMENSIONS]
+    windows = query.select(facts, whole)
+    return Selection(loaded, windows, query.select(windows, drill), drill)
+
+
+def _headline_dimension(args: argparse.Namespace, view: View) -> Optional[str]:
+    """The dimension the headline names: ``--by`` when it is one, else the
+    first default table not pinned by ``--where`` (whose top row would be
+    the filter itself)."""
+    if args.by and args.by != "fact":
+        return args.by
+    pinned = {dim for dim, _ in args.where}
+    return next((dim for dim in view.tables if dim not in pinned), None)
+
+
+def _headline(args: argparse.Namespace, view: View, sel: Selection) -> List[str]:
+    spec = schema.metric(view.metric)
+    carried = [f for f in sel.facts if f.kind == spec.carrier]
+    total = "%s: %s %s" % (view.metric, _num(sum(f.metrics[view.metric] for f in carried)),
+                           spec.unit)
+    if args.view == "context" and not sel.drill:
+        total += " = the %d windows' final occupancies summed" % sel.n_windows
+    else:
+        total += " over %d %s facts in %d windows" % (len(carried), spec.carrier, sel.n_windows)
+    dim = _headline_dimension(args, view)
+    if dim:
+        top = next((r for r in query.group(sel.facts, dim, view.metric)
+                    if r.kind == query.REGULAR), None)
+        if top:
+            total += "; top %s=%s %s" % (dim, top.value, _pct(top.share))
+    lines = [total]
+    if args.view == "context":
+        lines += _peaks(sel.windows)
+    else:
+        lines.append(SPEND_NOTE)
+    return lines
+
+
+def _peaks(facts: List[Fact]) -> List[str]:
+    """Every peak metric as the single call where it happened: a peak reports
+    no value at a node and is never summed."""
+    lines = []
+    for name, spec in schema.METRICS.items():
+        if spec.aggregation == schema.PEAK:
+            top = query.largest(facts, name)
+            if top is not None:
+                lines.append("single-call peak %s: %s %s at %s"
+                             % (name, _num(top.metrics[name]), spec.unit, _at(top.locator)))
+    return lines
+
+
+def _population(args: argparse.Namespace, sel: Selection) -> str:
+    return ("population: root %s; %d files read%s, %d windows, %d call facts, %d increment"
+            " facts; %d lines skipped, %d duplicate records excluded%s"
+            % (args.root, len(sel.loaded.files),
+               "" if args.since is None else " (modified within %gd)" % args.since,
+               sel.n_windows, sum(f.kind == schema.CALL for f in sel.windows),
+               sum(f.kind == schema.INCREMENT for f in sel.windows),
+               sel.loaded.skipped_lines, sel.loaded.duplicate_records,
+               "".join("; where %s=%s" % p for p in args.where)))
+
+
+def _table(title: str, rows: List[query.Row], unit: str, limit: int) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
     still adds up, then the residual and signed rows, which are never hidden.
     Shares are of the regular rows' mass, printed once in the header."""
@@ -112,29 +199,50 @@ def _table(title, rows, unit, limit):
     for label, r in zip(labels, shown):
         lines.append("%-*s  %16s  %7d  %*s"
                      % (width, label, _num(r.mass), r.count, len(share), _pct(r.share)))
+    lines += ["%s: %s" % (r.value, NOTES[r.value]) for r in shown if r.value in NOTES]
     return lines
 
 
-def _leaves(facts, metric, limit):
-    # type: (List[schema.Fact], str, int) -> List[str]
+def _tables(args: argparse.Namespace, view: View, sel: Selection) -> List[str]:
+    unit = schema.metric(view.metric).unit
+    if args.by == "fact":
+        return _leaves(sel.facts, view.metric, args.limit)
+    lines = []
+    for dim in [args.by] if args.by else view.tables:
+        rows = query.group(sel.facts, dim, view.metric)
+        if rows:
+            lines += _table("by " + dim, rows, unit, args.limit) + [""]
+    return lines
+
+
+def _leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:
+    """The ``limit`` largest facts, each with its dimensions and, indented
+    under it, its evidence: the candidate contributors of an ambiguous
+    increment, the parent of a fork's window head."""
     spec = schema.metric(metric)
     leaves = sorted((f for f in facts if f.kind == spec.carrier),
                     key=lambda f: -f.metrics[metric])[:limit]
     lines = ["%16s  file:line  uuid  dimensions" % spec.unit]
     for f in leaves:
-        tags = " ".join("%s=%s" % (d, f.dims[d]) for d in schema.DIMENSIONS
-                        if d in f.dims and d not in schema.WINDOW_DIMENSIONS)
-        lines.append("%16s  %s:%d  %s  %s" % (_num(f.metrics[metric]), f.locator.file,
-                                              f.locator.line, f.locator.uuid, tags))
+        tags = " ".join("%s=%s" % (d, f.dims[d]) for d in schema.DIMENSIONS if d in f.dims)
+        lines.append("%16s  %s  %s  %s" % (_num(f.metrics[metric]), _at(f.locator),
+                                           f.locator.uuid, tags))
+        lines += list(_evidence(f.evidence))
     return lines
 
 
-def _reconciliation(r):
-    # type: (query.Reconciliation) -> List[str]
+def _evidence(evidence: dict) -> Iterator[str]:
+    for key, value in evidence.items():
+        for item in value if isinstance(value, list) else [value]:
+            shown = "%s %s" % (_at(item), item.uuid) if isinstance(item, schema.Locator) else item
+            yield "%18s%s: %s" % ("", key, shown)
+
+
+def _reconciliation(r: query.Reconciliation) -> List[str]:
     terms = " + ".join("%s %s" % (c, _num(r.by_cause[c])) for c in schema.CAUSES)
     reasons = ", ".join("%s %d" % (k, v) for k, v in r.by_reason.items() if v)
 
-    def rate(n):
+    def rate(n: int) -> str:
         return "%d (%.1f%%)" % (n, 100.0 * n / r.intervals) if r.intervals else "0"
     return [
         "reconciliation over %d windows: %s = %s; final occupancy %s: %s"
@@ -144,79 +252,41 @@ def _reconciliation(r):
         % (r.intervals, r.calls, r.windows, rate(r.exact), rate(r.ambiguous),
            reasons or "none", rate(r.shrink), _status(r.count_holds)),
         "exact: the interval's one token-relevant contributor (a tool_result or user"
-        " text) after subtracting the previous call's output; bookkeeping attachments"
-        " in the interval fold into its remainder [OPEN]",
+        " text) after subtracting the previous call's output. Exact given the"
+        " feed-forward model; bookkeeping attachments are folded into the single"
+        " contributor's remainder.",
     ]
 
 
-def _call_totals(facts, headline_metric):
-    # type: (List[schema.Fact], str) -> List[str]
+def _call_totals(facts: List[Fact], headline_metric: str) -> List[str]:
     """Every other call-carried metric: additive ones as totals, peaks as
     the single largest call."""
     lines = []
     for name, spec in schema.METRICS.items():
-        if spec.carrier != schema.CALL or name == headline_metric:
-            continue
-        if spec.aggregation == schema.PEAK:
-            top = query.largest(facts, name)
-            if top is not None:
-                lines.append("%s: largest single call %s %s, at %s:%d"
-                             % (name, _num(top.metrics[name]), spec.unit,
-                                top.locator.file, top.locator.line))
-        else:
+        if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE \
+                and name != headline_metric:
             total = sum(f.metrics[name] for f in facts if f.kind == schema.CALL)
             lines.append("%s: %s %s" % (name, _num(total), spec.unit))
-    return lines
+    return lines + _peaks(facts)
 
 
-def main(argv=None):
+def _footer(args: argparse.Namespace, view: View, sel: Selection) -> Tuple[List[str], bool]:
+    """The closing lines and whether the reconciliation held."""
+    if args.view != "context":
+        return _call_totals(sel.facts, view.metric), True
+    reconciliation = query.reconcile(sel.windows)
+    if sel.drill:
+        return ["reconciliation: applies to the %d whole windows above, not to this"
+                " drill: %s" % (sel.n_windows, _status(reconciliation.holds))], \
+               reconciliation.holds
+    return _reconciliation(reconciliation), reconciliation.holds
+
+
+def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     view = VIEWS[args.view]
-    spec = schema.metric(view.metric)
-    loaded = corpus.load(args.root, _modified_within(args.since))
-    facts = [f for source in loaded.files for f in walk.walk(source)]
-    drill = [p for p in args.where if p[0] not in schema.WINDOW_DIMENSIONS]
-    windows = query.select(facts, [p for p in args.where if p[0] in schema.WINDOW_DIMENSIONS])
-    selected = query.select(windows, drill) if drill else windows
-    carried = [f for f in selected if f.kind == spec.carrier]
-    n_windows = len({f.locator.file for f in windows})
-    rows = query.group(selected, view.lead, view.metric)
-
-    total = "%s: %s %s" % (view.metric, _num(sum(f.metrics[view.metric] for f in carried)),
-                           spec.unit)
-    if args.view == "context" and not drill:
-        total += " = the %d windows' final occupancies summed" % n_windows
-    else:
-        total += " over %d %s facts in %d windows" % (len(carried), spec.carrier, n_windows)
-    if rows and rows[0].kind == query.REGULAR:
-        total += "; top %s=%s %s" % (view.lead, rows[0].value, _pct(rows[0].share))
-    population = "population: %d files read%s, %d windows, %d call facts, %d increment " \
-                 "facts; %d lines skipped, %d duplicate records excluded%s" % (
-                     len(loaded.files),
-                     "" if args.since is None else " (modified within %gd)" % args.since,
-                     n_windows, sum(f.kind == schema.CALL for f in windows),
-                     sum(f.kind == schema.INCREMENT for f in windows),
-                     loaded.skipped_lines, loaded.duplicate_records,
-                     "".join("; where %s=%s" % p for p in args.where))
-    out = [total, population, ""]
-    if args.by == "fact":
-        out += _leaves(selected, view.metric, args.limit)
-    else:
-        for dim in [args.by] if args.by else schema.KIND_DIMENSIONS[spec.carrier]:
-            rows = query.group(selected, dim, view.metric)
-            if any(r.kind == query.REGULAR for r in rows):
-                out += _table("by " + dim, rows, spec.unit, args.limit)
-                out.append("")
-    holds = True
-    if args.view == "context":
-        reconciliation = query.reconcile(windows)
-        holds = reconciliation.holds
-        if drill:
-            out.append("reconciliation: applies to the %d whole windows above, not to"
-                       " this drill: %s" % (n_windows, _status(holds)))
-        else:
-            out += _reconciliation(reconciliation)
-    else:
-        out += _call_totals(selected, view.metric)
-    print("\n".join(out))
+    sel = _select(args)
+    footer, holds = _footer(args, view, sel)
+    print("\n".join(_headline(args, view, sel) + [_population(args, sel), ""]
+                    + _tables(args, view, sel) + footer))
     return 0 if holds else 1

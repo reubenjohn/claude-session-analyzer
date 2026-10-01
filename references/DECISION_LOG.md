@@ -93,6 +93,32 @@ does not advance the carry.
 **P9 — presets-as-data; computed denominators.** RULED: keep computed
 denominators; presets reduce to the two subcommands' defaults.
 
+**D-SPEND-BY-INCREMENT — spend cannot leave the window.** DEFERRED. Call
+facts carry only project/session/agent, so `sa spend` cannot say what put the
+tokens there; v1 prints a one-line pointer to `sa context` and says that
+context shares are not cost shares. No cost-per-increment join in v1. Design
+note for the next build: an exact decomposition exists — spread each call's
+spend uniformly over the tokens occupying its window at that call, so an
+increment's cost is `delta x sum over later calls N of spend(N)/occupancy(N)`,
+which telescopes to `sum spend` exactly — but uniform per-token spreading
+inside a call is a convention, so it is attribution by model and waits for an
+owner ruling. Alternative: price each call's `cache_creation` at its own
+tier rate against the increment booked into the interval that call closes;
+this rests on the identity `cache_read(N) == cache_read(N-1) +
+cache_creation(N-1)`, measured at 92.21% of pairs, so it must be measured
+before anyone calls it exact.
+
+**D-USAGE-DOCSTRINGS — `sa/usage.py` docstrings trimmed.** RULED. Each
+docstring is now the measured fact with its population and date and nothing
+else: no engine cross-references, no history of earlier wordings. The
+function bodies are the ported ones unchanged, pinned by digest in
+`tests/test_usage.py`; `usage_cache_tier` (never called) is deleted and its
+measured fact (exactly one tier per call; tier totals equal
+`cache_creation_input_tokens` on 47,419 of 47,419 calls, 0 mixed) moved into
+`usage_spend`'s docstring. CLAUDE.md no longer calls the module verbatim.
+Same pass, R5 amended: a head value carries its tool (`Bash:pytest`,
+`Read:py`), and `&&`/`||` are padded like `;`.
+
 ---
 
 ## Phase 3 synthesis — the rows as proposed (history)

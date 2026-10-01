@@ -1,13 +1,16 @@
-"""The ``head`` dimension: a low-cardinality summary of a tool call's input.
+"""The ``head`` dimension: ``<tool>:<summary>``, a low-cardinality summary of
+a tool call's input that carries its tool so a table over heads needs no
+second column.
 
 Ruled (DECISION_LOG R5): a head is never a full command line and never a
-file path. For Bash it is the first command word after leading ``VAR=value``
-assignments and ``cd <dir>`` prefixes ended by ``&&``, ``;`` or ``||``; for
-the tools whose input carries ``file_path`` it is the file extension. A head
-is kept only if it matches ``HEAD_SHAPE``, which admits no slash, so a
-path-shaped head degrades to ``other``. Every other tool has no head: Glob
-and Grep take a pattern and a directory, and NotebookEdit's extension is
-always the same, so none of them would carry information.
+file path. For Bash the summary is the first command word after leading
+``VAR=value`` assignments and ``cd <dir>`` prefixes ended by ``&&``, ``;``
+or ``||``; for the tools whose input carries ``file_path`` it is the file
+extension. A summary is kept only if it matches ``HEAD_SHAPE``, which
+admits no slash, so a path-shaped one degrades to ``other``. Every other
+tool has no head: Glob and Grep take a pattern and a directory, and
+NotebookEdit's extension is always the same, so none of them would carry
+information.
 """
 import re
 from pathlib import PurePosixPath
@@ -19,14 +22,15 @@ _SEPARATORS = ("&&", ";", "||")
 OTHER = "other"
 
 
-def _guard(head):
-    # type: (str) -> str
+def _guard(head: str) -> str:
     return head if HEAD_SHAPE.match(head) else OTHER
 
 
-def bash_head(tool_input):
-    # type: (dict) -> str
-    words = str(tool_input.get("command", "")).replace(";", " ; ").split()
+def bash_head(tool_input: dict) -> str:
+    command = str(tool_input.get("command", ""))
+    for separator in _SEPARATORS:
+        command = command.replace(separator, " %s " % separator)
+    words = command.split()
     while words:
         if _ASSIGNMENT.match(words[0]):
             del words[0]
@@ -37,8 +41,7 @@ def bash_head(tool_input):
     return _guard(words[0]) if words else OTHER
 
 
-def extension_head(tool_input):
-    # type: (dict) -> str
+def extension_head(tool_input: dict) -> str:
     suffix = PurePosixPath(str(tool_input.get("file_path", ""))).suffix
     return _guard(suffix[1:]) if suffix else OTHER
 
@@ -51,10 +54,9 @@ EXTRACTORS = {
 }
 
 
-def head_of(tool, tool_input):
-    # type: (str, dict) -> Optional[str]
+def head_of(tool: str, tool_input: dict) -> Optional[str]:
     """The head for one tool call, or ``None`` for a tool with no head."""
     extract = EXTRACTORS.get(tool)
     if extract is None or not isinstance(tool_input, dict):
         return None
-    return extract(tool_input)
+    return "%s:%s" % (tool, extract(tool_input))

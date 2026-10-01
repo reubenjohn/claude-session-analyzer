@@ -27,18 +27,18 @@ class Metric(NamedTuple):
     unit: str
 
 
-METRICS = {
+METRICS: Dict[str, Metric] = {
     "context_delta": Metric(ADDITIVE, INCREMENT, "context tokens"),
     "spend": Metric(ADDITIVE, CALL, "input-side base-token-equivalents"),
     "output_tokens": Metric(ADDITIVE, CALL, "tokens"),
     "cache_write_1h_tokens": Metric(ADDITIVE, CALL, "tokens"),
     "cache_write_5m_tokens": Metric(ADDITIVE, CALL, "tokens"),
     "context_tokens": Metric(PEAK, CALL, "context tokens"),
-}  # type: Dict[str, Metric]
+}
 
 # Causes of an increment. The first five book non-negative mass; ``shrink``
-# books the signed delta of a window that got smaller (830 of 45,555 measured
-# call pairs) and is reported as its own signed row, never spread.
+# books the signed delta of a window that got smaller (``usage.context_delta``
+# has the measurement) and is reported as its own signed row, never spread.
 WINDOW_HEAD = "window_head"
 FEED_FORWARD = "feed_forward"
 TOOL_RESULT = "tool_result"
@@ -49,31 +49,29 @@ CAUSES = (WINDOW_HEAD, FEED_FORWARD, TOOL_RESULT, USER_TEXT, AMBIGUOUS, SHRINK)
 EXACT_CAUSES = (TOOL_RESULT, USER_TEXT)
 
 # Why an increment is ``ambiguous``. ``no_contributor`` was measured at 0 of
-# 51,960 intervals; it is declared so that an empty interval, should one
-# appear, is labelled rather than miscounted as multi_contributor.
+# 51,960 intervals (2026-07-28 sweep); it is declared so that an empty
+# interval, should one appear, is labelled rather than miscounted.
 MULTI_CONTRIBUTOR = "multi_contributor"
 NEGATIVE_REMAINDER = "negative_remainder"
 NO_CONTRIBUTOR = "no_contributor"
 REASONS = (MULTI_CONTRIBUTOR, NEGATIVE_REMAINDER, NO_CONTRIBUTOR)
 
 # A window is a file. The first three dimensions are constant over a window
-# (measured: 0 of 1,845 files mix assistant records from two agentIds), so a
-# filter on them selects whole windows and the reconciliation footer still
-# telescopes.
+# (no file in the Phase 0 sweep named in ``corpus`` mixes assistant records
+# from two agentIds), so a filter on them selects whole windows and the
+# reconciliation footer still telescopes.
 WINDOW_DIMENSIONS = ("project", "session", "agent")
-DIMENSIONS = WINDOW_DIMENSIONS + ("cause", "tool", "head", "reason",
-                                  "candidate_count")
+DIMENSIONS = WINDOW_DIMENSIONS + ("cause", "tool", "head", "reason")
 KIND_DIMENSIONS = {CALL: WINDOW_DIMENSIONS, INCREMENT: DIMENSIONS}
 
-RESIDUAL = "∅"  # the row for facts that lack the grouped dimension
+RESIDUAL_LABEL = "∅"  # the row for facts that lack the grouped dimension
 
 
 class SchemaError(KeyError):
     pass
 
 
-def metric(name):
-    # type: (str) -> Metric
+def metric(name: str) -> Metric:
     try:
         return METRICS[name]
     except KeyError:
@@ -81,16 +79,14 @@ def metric(name):
                           % (name, ", ".join(sorted(METRICS))))
 
 
-def check_cause(cause):
-    # type: (str) -> str
+def check_cause(cause: str) -> str:
     if cause not in CAUSES:
         raise SchemaError("unknown cause %r; declared: %s"
                           % (cause, ", ".join(CAUSES)))
     return cause
 
 
-def check_dimension(dim, kind=None):
-    # type: (str, Optional[str]) -> str
+def check_dimension(dim: str, kind: Optional[str] = None) -> str:
     """``dim`` is declared and, when ``kind`` is given, carried by that kind:
     a filter or table over a dimension the carrier never has would print a
     confident zero."""
@@ -114,11 +110,11 @@ class Fact(NamedTuple):
     dims: dict      # dimension name -> value, only the dimensions this fact has
     metrics: dict   # metric name -> number, only metrics of this fact's kind
     locator: Locator
-    evidence: dict  # drill material that is not a dimension (lists, parent ids)
+    evidence: dict  # drill material that is not a dimension: locators, parent ids
 
 
-def fact(kind, dims, metrics, locator, evidence=None):
-    # type: (str, dict, dict, Locator, Optional[dict]) -> Fact
+def fact(kind: str, dims: dict, metrics: dict, locator: Locator,
+         evidence: Optional[dict] = None) -> Fact:
     """Build a fact, refusing one whose metrics or dimensions are undeclared
     or whose metrics belong to the other kind."""
     if kind not in KINDS:

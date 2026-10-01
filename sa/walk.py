@@ -21,15 +21,15 @@ from . import heads, schema, usage
 from .corpus import Record, SourceFile
 from .schema import Fact, Locator
 
+ToolUses = Dict[str, Tuple[str, dict]]
 
-def _message(data):
-    # type: (dict) -> dict
+
+def _message(data: dict) -> dict:
     message = data.get("message")
     return message if isinstance(message, dict) else {}
 
 
-def _blocks(data):
-    # type: (dict) -> List[dict]
+def _blocks(data: dict) -> List[dict]:
     content = _message(data).get("content")
     if not isinstance(content, list):
         return []
@@ -42,18 +42,16 @@ class Call(NamedTuple):
     usage: dict     # max-merged over the constituents
 
 
-def calls(records):
-    # type: (List[Record]) -> List[Call]
+def calls(records: List[Record]) -> List[Call]:
     """Usage-carrying calls in first-constituent order.
 
-    Assistant records sharing a ``message.id`` are one call (78.05% of 53,855
-    measured ids are split over several records, and 73% of the split ones
-    disagree on output_tokens, which is why the merge is a field-wise max).
-    A record without ``message.id`` is a call by itself. A call carries usage
+    Assistant records sharing a ``message.id`` are one call, merged by
+    ``usage.max_merge_usage`` (its docstring has why a field-wise max). A
+    record without ``message.id`` is a call by itself. A call carries usage
     iff it has occupancy or output: a ``<synthetic>`` zero-usage record is
     not a call and does not advance the chain.
     """
-    groups = {}  # type: Dict[object, List[int]]
+    groups: Dict[object, List[int]] = {}
     for index, record in enumerate(records):
         if record.data.get("type") != "assistant":
             continue
@@ -69,11 +67,10 @@ def calls(records):
     return found
 
 
-def tool_uses(records):
-    # type: (List[Record]) -> Dict[str, Tuple[str, dict]]
-    """``tool_use.id -> (tool name, input)`` over the file. Every measured
-    tool_result's ``tool_use_id`` resolves to an earlier record in its own
-    file (59,740 of 59,740), so this is the whole join."""
+def tool_uses(records: List[Record]) -> ToolUses:
+    """``tool_use.id -> (tool name, input)`` over the file. Every tool_result's
+    ``tool_use_id`` resolves to an earlier record in its own file (59,740 of
+    59,740 in the Phase 0 sweep), so this is the whole join."""
     index = {}
     for record in records:
         if record.data.get("type") == "assistant":
@@ -90,17 +87,17 @@ class Contributor(NamedTuple):
     head: Optional[str]
 
 
-def contributors(records, uses):
-    # type: (List[Record], Dict[str, Tuple[str, dict]]) -> Iterator[Contributor]
+def contributors(records: List[Record], uses: ToolUses) -> Iterator[Contributor]:
     """The token-relevant records among ``records``: user records carrying a
     tool_result, named by their first such block (0 of 296 block-content user
-    records on the 24-file local corpus carry more than one), and all other
-    user records as user text.
+    records on the 24-file local corpus, 2026-09-30, carry more than one),
+    and all other user records as user text.
 
     Attachments, system records and bookkeeping types are not contributors.
-    Measured: counting them collapses the exact rate from 96.92% to below
-    1% on versions that emit a per-turn attachment, and exact intervals that
-    also hold such records show a lower mean remainder, not a higher one.
+    Measured over 51,960 intervals (2026-07-28): counting them collapses the
+    exact rate from 96.92% to below 1% on versions that emit a per-turn
+    attachment, and exact intervals that also hold such records show a lower
+    mean remainder, not a higher one.
     """
     for record in records:
         if record.data.get("type") != "user":
@@ -115,8 +112,7 @@ def contributors(records, uses):
             yield Contributor(record, schema.USER_TEXT, None, None)
 
 
-def fork_evidence(records):
-    # type: (List[Record]) -> dict
+def fork_evidence(records: List[Record]) -> dict:
     """A forked agent file opens with a ``fork-context-ref`` naming the
     parent; its first call's occupancy is inherited, not booted, and the
     ids are kept so a later build can stitch windows without a new schema."""
@@ -127,8 +123,7 @@ def fork_evidence(records):
     return {}
 
 
-def _first_value(records, key):
-    # type: (List[Record], str) -> Optional[str]
+def _first_value(records: List[Record], key: str) -> Optional[str]:
     for record in records:
         value = record.data.get(key)
         if value:
@@ -136,8 +131,7 @@ def _first_value(records, key):
     return None
 
 
-def walk(source):
-    # type: (SourceFile) -> Iterator[Fact]
+def walk(source: SourceFile) -> Iterator[Fact]:
     """Facts of one window in file order, each call followed by the
     increments it closes.
 
@@ -149,7 +143,6 @@ def walk(source):
     so slicing from the previous call's last constituent hides the earlier
     result and books a two-contributor interval as exact.
     """
-    path = str(source.path)
     window = {
         "project": source.project,
         "session": _first_value(source.records, "sessionId"),
@@ -158,19 +151,17 @@ def walk(source):
     uses = tool_uses(source.records)
     live = [record for record in source.records if not record.duplicate]
 
-    def locator(record):
-        # type: (Record) -> Locator
-        return Locator(path, record.line, record.data.get("uuid"))
+    def locator(record: Record) -> Locator:
+        return Locator(source.name, record.line, record.data.get("uuid"))
 
-    def increment(cause, delta, record, evidence=None, **dims):
-        # type: (str, int, Record, Optional[dict], **object) -> Fact
+    def increment(cause: str, delta: int, record: Record,
+                  evidence: Optional[dict] = None, **dims: Optional[str]) -> Fact:
         all_dims = dict(window, cause=cause)
         all_dims.update((k, v) for k, v in dims.items() if v is not None)
         return schema.fact(schema.INCREMENT, all_dims, {"context_delta": delta},
                            locator(record), evidence)
 
-    def interval(previous, current):
-        # type: (Call, Call) -> Iterator[Fact]
+    def interval(previous: Call, current: Call) -> Iterator[Fact]:
         delta = usage.context_delta(previous.usage, current.usage)
         if delta < 0:
             yield increment(schema.SHRINK, delta, current.record)
@@ -190,8 +181,7 @@ def walk(source):
         yield increment(
             schema.AMBIGUOUS, remainder, current.record,
             reason=schema.MULTI_CONTRIBUTOR if found else schema.NO_CONTRIBUTOR,
-            candidate_count=len(found),
-            evidence={"candidates": [c.record.data.get("uuid") for c in found]})
+            evidence={"candidates": [locator(c.record) for c in found]})
 
     previous = None
     for call in calls(live):

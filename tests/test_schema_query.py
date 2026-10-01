@@ -68,7 +68,7 @@ def test_group_keeps_residual_and_signed_rows_out_of_shares(facts):
     rows = query.group(facts, "tool", fx.DELTA)
     assert [r.kind for r in rows[-2:]] == [query.RESIDUAL, query.SIGNED]
     residual, shrink = rows[-2], rows[-1]
-    assert (residual.value, shrink.value) == (schema.RESIDUAL, schema.SHRINK)
+    assert (residual.value, shrink.value) == (schema.RESIDUAL_LABEL, schema.SHRINK)
     assert residual.share is None and shrink.share is None
     assert shrink.mass < 0 and residual.mass > 0
     regular = rows[:-2]
@@ -88,9 +88,9 @@ def test_a_zero_base_leaves_rows_regular(facts):
 
 
 def test_select_matches_every_pair_regardless_of_order(facts):
-    where = [("head", "pytest"), ("cause", schema.TOOL_RESULT)]
+    where = [("head", "Bash:pytest"), ("cause", schema.TOOL_RESULT)]
     hits = query.select(facts, where)
     assert hits and hits == query.select(facts, where[::-1])
-    assert all(f.dims["head"] == "pytest" for f in hits)
-    assert query.select(facts, [("candidate_count", "2")])
-    assert query.select(facts, [("candidate_count", "0")])
+    assert all(f.dims["head"] == "Bash:pytest" for f in hits)
+    assert query.select(facts, [("reason", schema.MULTI_CONTRIBUTOR)])
+    assert not query.select(facts, [("head", "pytest")])  # a head carries its tool

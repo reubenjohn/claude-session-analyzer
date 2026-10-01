@@ -4,9 +4,10 @@ from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
 from . import schema
 from .schema import Fact
 
+Where = Iterable[Tuple[str, str]]
 
-def select(facts, where):
-    # type: (Iterable[Fact], Iterable[Tuple[str, str]]) -> List[Fact]
+
+def select(facts: Iterable[Fact], where: Where) -> List[Fact]:
     """Facts whose dimensions equal every ``(dim, value)`` pair."""
     pairs = [(schema.check_dimension(dim), value) for dim, value in where]
     return [f for f in facts
@@ -27,30 +28,29 @@ class Row(NamedTuple):
     kind: str
 
 
-def group(facts, dim, metric):
-    # type: (Iterable[Fact], str, str) -> List[Row]
+def group(facts: Iterable[Fact], dim: str, metric: str) -> List[Row]:
     """One row per value of ``dim``, regular rows by descending mass, then
     the residual row for facts that lack ``dim``, then the signed shrink row.
 
     The metric is read only from facts of its carrier kind. A peak metric
-    refuses to be grouped: a summed peak once printed 4,950,327 against a
-    true high-water mark of 131,612 (37.6x). Shrink increments always land
-    in their own signed row whatever ``dim`` is, so no other row mixes
-    signed mass and every share is a share of mass that was added.
+    refuses to be grouped (``usage.usage_context`` has the measurement).
+    Shrink increments always land in their own signed row whatever ``dim``
+    is, so no other row mixes signed mass and every share is a share of mass
+    that was added.
     """
     spec = schema.metric(metric)
     if spec.aggregation == schema.PEAK:
         raise ValueError("%s is a peak; it has no sum. Use largest()." % metric)
     schema.check_dimension(dim)
-    mass = {}   # type: Dict[Tuple[str, str], float]
-    count = {}  # type: Dict[Tuple[str, str], int]
+    mass: Dict[Tuple[str, str], float] = {}
+    count: Dict[Tuple[str, str], int] = {}
     for f in facts:
         if f.kind != spec.carrier:
             continue
         if f.dims.get("cause") == schema.SHRINK:
             key = (schema.SHRINK, SIGNED)
         elif f.dims.get(dim) is None:
-            key = (schema.RESIDUAL, RESIDUAL)
+            key = (schema.RESIDUAL_LABEL, RESIDUAL)
         else:
             key = (str(f.dims[dim]), REGULAR)
         mass[key] = mass.get(key, 0) + f.metrics[metric]
@@ -59,14 +59,13 @@ def group(facts, dim, metric):
     base = sum(mass[k] for k in regular)
     rows = [Row(k[0], mass[k], count[k], mass[k] / base if base else None, REGULAR)
             for k in regular]
-    for key in ((schema.RESIDUAL, RESIDUAL), (schema.SHRINK, SIGNED)):
+    for key in ((schema.RESIDUAL_LABEL, RESIDUAL), (schema.SHRINK, SIGNED)):
         if key in mass:
             rows.append(Row(key[0], mass[key], count[key], None, key[1]))
     return rows
 
 
-def largest(facts, metric):
-    # type: (Iterable[Fact], str) -> Optional[Fact]
+def largest(facts: Iterable[Fact], metric: str) -> Optional[Fact]:
     """The fact carrying the largest value of ``metric``: the only honest
     report of a peak is the single call where it happened."""
     spec = schema.metric(metric)
@@ -85,34 +84,28 @@ class Reconciliation(NamedTuple):
     shrink: int
 
     @property
-    def booked(self):
-        # type: () -> float
+    def booked(self) -> float:
         return sum(self.by_cause.values())
 
     @property
-    def intervals(self):
-        # type: () -> int
+    def intervals(self) -> int:
         """Counted from the calls, not from the increments it is checked against."""
         return self.calls - self.windows
 
     @property
-    def mass_holds(self):
-        # type: () -> bool
+    def mass_holds(self) -> bool:
         return self.booked == self.final_occupancy
 
     @property
-    def count_holds(self):
-        # type: () -> bool
+    def count_holds(self) -> bool:
         return self.exact + self.ambiguous + self.shrink == self.intervals
 
     @property
-    def holds(self):
-        # type: () -> bool
+    def holds(self) -> bool:
         return self.mass_holds and self.count_holds
 
 
-def reconcile(facts):
-    # type: (Iterable[Fact]) -> Reconciliation
+def reconcile(facts: Iterable[Fact]) -> Reconciliation:
     """Chain integrity over whole windows: every booked increment, summed by
     cause, against the occupancy the windows ended at; and the exact,
     ambiguous and shrink increments against the interval count, which is
@@ -121,7 +114,7 @@ def reconcile(facts):
     by_cause = dict.fromkeys(schema.CAUSES, 0)
     by_reason = dict.fromkeys(schema.REASONS, 0)
     counts = dict.fromkeys(schema.CAUSES, 0)
-    final = {}  # type: Dict[str, float]
+    final: Dict[str, float] = {}
     calls = 0
     for f in facts:
         if f.kind == schema.CALL:

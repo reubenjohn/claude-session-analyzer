@@ -116,10 +116,10 @@ def test_a_tool_result_keeps_its_tool_when_its_tool_use_was_replayed(tmp_path):
     source = next(s for s in loaded.files if s.path.stem == "sess-0002")
     assert [r.duplicate for r in source.records] == [True, False, False, False]
     assert walk.tool_uses([r for r in source.records if not r.duplicate]) == {}
-    (exact,) = [f for f in facts if f.locator.file == str(source.path)
+    (exact,) = [f for f in facts if f.locator.file == source.name
                 and f.dims.get("cause") in schema.EXACT_CAUSES]
     assert (exact.dims["tool"], exact.dims["head"], exact.metrics[fx.DELTA]) == (
-        "Bash", "pytest", fx.EXACT_FIRST_DELTA)
+        "Bash", "Bash:pytest", fx.EXACT_FIRST_DELTA)
 
 
 def test_split_message_id_merges_every_additive_metric_by_max(tmp_path):
@@ -138,26 +138,32 @@ def test_split_message_id_merges_every_additive_metric_by_max(tmp_path):
 
 
 def test_exact_interval_names_its_contributor_line(tmp_path):
-    facts = _one_window(tmp_path)
+    root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": fx.window_records()})
+    facts = fx.load_facts(root)[1]
     exact = [f for f in facts if f.dims.get("cause") == schema.TOOL_RESULT]
     first = exact[0]
     assert first.metrics[fx.DELTA] == fx.EXACT_FIRST_DELTA
-    assert (first.dims["tool"], first.dims["head"]) == ("Bash", "pytest")
-    with open(first.locator.file, encoding="utf-8") as handle:
+    assert (first.dims["tool"], first.dims["head"]) == ("Bash", "Bash:pytest")
+    assert first.locator.file == "proj-a/sess-0001.jsonl"  # relative to the root
+    with open(root / first.locator.file, encoding="utf-8") as handle:
         line = handle.read().splitlines()[first.locator.line - 1]
     assert json.loads(line)["uuid"] == first.locator.uuid == "uuid-0002"
 
 
-def test_ambiguous_carries_candidates_as_evidence(tmp_path):
+def test_ambiguous_carries_candidate_locators_as_evidence(tmp_path):
     facts = _one_window(tmp_path)
     by_reason = {f.dims["reason"]: f for f in facts if f.dims.get("reason")}
     multi = by_reason[schema.MULTI_CONTRIBUTOR]
-    assert multi.dims["candidate_count"] == 2
-    assert multi.evidence["candidates"] == ["uuid-0004", "uuid-0005"]
+    assert [(c.line, c.uuid) for c in multi.evidence["candidates"]] == [
+        (4, "uuid-0004"), (5, "uuid-0005")]
     assert "candidates" not in multi.dims
     empty = by_reason[schema.NO_CONTRIBUTOR]
-    assert empty.dims["candidate_count"] == 0 and empty.evidence["candidates"] == []
+    assert empty.evidence["candidates"] == []
     assert empty.metrics[fx.DELTA] == 12
+
+
+def _exact(facts):
+    return [f for f in facts if f.dims.get("cause") in schema.EXACT_CAUSES]
 
 
 def test_a_result_interleaved_with_a_split_call_is_a_second_contributor(tmp_path):
@@ -172,13 +178,15 @@ def test_a_result_interleaved_with_a_split_call_is_a_second_contributor(tmp_path
         fx.tool_result("uuid-0004", "toolu_0002"),
         fx.assistant("uuid-0005", "msg-0002", fx.usage(1300, 0)),
     ]
-    facts = _one_window(tmp_path, records)
+    facts = _one_window(tmp_path / "interleaved", records)
     (closing,) = [f for f in facts if f.dims.get("reason")]
     assert closing.dims["reason"] == schema.MULTI_CONTRIBUTOR
-    assert closing.dims["candidate_count"] == 2
-    assert closing.evidence["candidates"] == ["uuid-0002", "uuid-0004"]
+    assert [c.uuid for c in closing.evidence["candidates"]] == ["uuid-0002", "uuid-0004"]
     assert closing.metrics[fx.DELTA] == fx.EXACT_FIRST_DELTA
-    assert not [f for f in facts if f.dims.get("cause") in schema.EXACT_CAUSES]
+    assert not _exact(facts)
+    # Vacuity guard: the same call with one constituent and one result is exact.
+    (exact,) = _exact(_one_window(tmp_path / "plain", records[:2] + records[4:]))
+    assert (exact.dims["head"], exact.metrics[fx.DELTA]) == ("Read:py", fx.EXACT_FIRST_DELTA)
 
 
 def test_usage_less_synthetic_record_is_not_a_call(tmp_path):
