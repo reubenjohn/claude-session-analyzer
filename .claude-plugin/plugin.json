@@ -1,0 +1,11 @@
+{
+  "name": "claude-session-analyzer",
+  "version": "2.0.0",
+  "description": "Where is my Claude Code context going, and what did it cost: two measured, drillable answers read from your local session transcripts.",
+  "author": {
+    "name": "Reuben John"
+  },
+  "repository": "https://github.com/reubenjohn/claude-session-analyzer",
+  "license": "MIT",
+  "keywords": ["claude-code", "sessions", "context-window", "token-spend", "retrospective"]
+}

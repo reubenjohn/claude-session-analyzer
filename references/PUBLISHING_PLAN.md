@@ -25,21 +25,41 @@ publishing session data that old commits might contain.
    dotfiles-branch or worktree references remain; the clean-room allowlist
    points at `git show v1-legacy:<path>` once step 1 lands, and at the
    installed skill under `~/.claude/skills/session-analyzer/` until then.
-3. [ ] **Remove both copies from the dotfiles.** This needs owner approval. v2
-   has no `SKILL.md`, so nothing loads it as a skill and it can simply be
-   deleted. v1 is still the installed `session-analyzer` skill; remove it
-   only once step 4 can replace it.
-4. [ ] **Distribute as a skill once v2 has a `SKILL.md`.** See below.
+3. [ ] **Remove both copies from the dotfiles.** This needs owner approval.
+   The dotfiles' v2 copy predates the plugin and can simply be deleted. v1
+   is still the installed `session-analyzer` skill; step 4 now replaces it,
+   so remove it when the plugin is installed (both are listed as
+   `session-analyzer` otherwise, the plugin's one namespaced as
+   `claude-session-analyzer:session-analyzer`).
+4. [x] **Distribute as a plugin.** Done 2026-09-30. The repo root is the
+   plugin root:
+   - `.claude-plugin/plugin.json` (name `claude-session-analyzer`, version
+     `2.0.0`) and `.claude-plugin/marketplace.json` (marketplace name
+     `reubenjohn`, one entry with `source: "./"`).
+   - `skills/session-analyzer/SKILL.md` drives the CLI with
+     `cd "${CLAUDE_PLUGIN_ROOT}" && python3 -m sa …`; the installed copy is
+     the whole repo, so `sa/` sits at the plugin root.
+   - Verified locally: `claude plugin marketplace add <repo path>` then
+     `claude plugin install claude-session-analyzer@reubenjohn` installs
+     under `~/.claude/plugins/cache/reubenjohn/claude-session-analyzer/2.0.0/`
+     and a fresh session lists the skill as
+     `claude-session-analyzer:session-analyzer`.
+   - Bump `version` in both manifests on every release; `claude plugin
+     update claude-session-analyzer@reubenjohn` is how a user picks it up
+     (restart required). The install copies untracked files too
+     (`.pytest_cache`, `__pycache__`), so install from a clean checkout or
+     the GitHub source rather than a working tree.
 
 ## Distribution decision (step 4)
 
 Both mainstream installers read the same `SKILL.md` format, so one repo can
 serve both:
 
-- **Claude Code plugin marketplace** (first-party). Add
-  `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`. Users
-  run `/plugin marketplace add reubenjohn/claude-session-analyzer`. A plugin
-  can bundle skills, hooks and agents, and gets versioned updates.
+- **Claude Code plugin marketplace** (first-party, DONE). Users run
+  `claude plugin marketplace add reubenjohn/claude-session-analyzer`,
+  `claude plugin install claude-session-analyzer@reubenjohn`, and later
+  `claude plugin update claude-session-analyzer@reubenjohn`. A plugin can
+  bundle skills, hooks and agents, and gets versioned updates.
 - **`npx skills add reubenjohn/claude-session-analyzer`** (vercel-labs/skills).
   This cross-agent installer covers Claude Code, Codex, Cursor and others.
 

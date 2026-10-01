@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "reubenjohn",
+  "description": "Plugins by Reuben John",
+  "owner": {
+    "name": "Reuben John"
+  },
+  "plugins": [
+    {
+      "name": "claude-session-analyzer",
+      "description": "Where is my Claude Code context going, and what did it cost: two measured, drillable answers read from your local session transcripts.",
+      "version": "2.0.0",
+      "author": {
+        "name": "Reuben John"
+      },
+      "source": "./",
+      "category": "productivity",
+      "license": "MIT",
+      "homepage": "https://github.com/reubenjohn/claude-session-analyzer"
+    }
+  ]
+}
