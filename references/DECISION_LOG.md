@@ -201,7 +201,13 @@ only builtins yields `Bash:other`. The interpreter-plus-script gap
 pass: a table's mass column is headed by the metric name
 (`context_delta`, `spend`) rather than its unit, which the headline already
 states once; spend's 33-character unit had overflowed the column and
-misaligned `by agent`.
+misaligned `by agent`. Extended 2026-10-01 (fourteenth judge): the
+principle is negligible output, not the builtin list, so a second declared
+tuple `SILENT = ("mkdir", "touch", "mv", "cp", "rm", "chmod", "sleep",
+"ln")` is skipped the same way (`mkdir -p x && cat > f <<EOF` ->
+`Bash:cat`); measured basis, live corpus 2026-10-01: `Bash:mkdir` carried
+59,586 context tokens over 13 increments, one increment of 23,390 tokens
+that mkdir did not print.
 
 **D-MESSAGE-ID-DEDUP — a call's identity is its `message.id`, deduplicated
 across files.** RULED 2026-10-01, on a fifth judge's rejection of ab20da2;

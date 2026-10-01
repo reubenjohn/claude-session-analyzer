@@ -8,7 +8,7 @@ import pytest
 
 import fixtures as fx
 from sa import cli, schema, tables, walk
-from sa.schema import CALL, INCREMENT
+from sa.schema import INCREMENT
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
 CAUSE, TOOL, HEAD = schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM
@@ -32,8 +32,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
         fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), fx.unit(fx.PEAK))
     assert read == "read: root %s, %d files, 0 lines skipped, 0 duplicate records excluded" % (
         root, len(loaded.files))
-    assert kept == "kept: 3 windows, %d call facts, %d increment facts" % (
-        sum(f.kind == CALL for f in facts), sum(f.kind == INCREMENT for f in facts))
+    assert kept == "kept: 3 windows, %d increment facts" % sum(f.kind == INCREMENT for f in facts)
     assert out.count(str(root)) == 1  # locators are root-relative
     assert ("final occupancy %s: OK; holds by construction (walk.py), so a mismatch is a bug"
             " in this tool" % format(3 * fx.FINAL_OCCUPANCY, ",d")) in out
@@ -73,7 +72,7 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     for name in others:
         assert re.search(r"^%s: [\d,]+ %s over 14 call facts in 2 windows$"
                          % (name, fx.unit(name)), out, re.M)
-    assert "\nkept where project=proj-a: 2 windows, 14 call facts, 22 increment facts\n" in out
+    assert "\nkept where project=proj-a: 2 windows, 14 call facts\n" in out  # spend reads calls only
     assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+$"
                      % (schema.AGENT_DIM, SPEND.metric, fx.count_column(SPEND.metric)), out, re.M)
     assert fx.count_column(SPEND.metric) != fx.count_column(CONTEXT.metric)  # each view names its carrier

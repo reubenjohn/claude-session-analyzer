@@ -11,11 +11,14 @@ not ``for``; ``case $x in a) cmd`` is ``cmd``); a ``WRAPPERS`` word with
 its ``-``-prefixed options, each skipped alone unless ``VALUED`` declares
 it takes the next word, and its ``OPERANDS`` (``timeout``'s duration); a
 ``TESTS`` bracket through its closer; a bare separator; and a
-``BUILTINS`` word (negligible output, ruling R5-BUILTINS) with its
+``BUILTINS`` or ``SILENT`` word (negligible output, ruling R5-BUILTINS as
+extended: the principle is the output, not the builtin list) with its
 arguments up to the next separator (``echo "==
-$f"; cat $f`` is ``cat``, ``cd -P /x && make`` is ``make``, ``test -f x
-&& make`` is ``make``), so a command that is only builtins (``cd /x``,
-``echo done``, ``: > f``) is ``other``. Separators
+$f"; cat $f`` is ``cat``, ``cd -P /x && make`` is ``make``, ``mkdir -p x
+&& cat > f`` is ``cat``), so a command that is only such words (``cd /x``,
+``echo done``, ``rm -rf x``) is ``other``. A command substitution
+``$(...)`` is one argument, not a separator: ``cd "$(git rev-parse
+--show-toplevel)" && pytest`` is ``pytest``, never ``git``. Separators
 are ``&&``, ``||``, ``;``, ``|``, a newline and either parenthesis, each
 padded into a word of its own, and the bare ``RESERVED`` words that open
 a condition (``if``, ``elif``, ``while``, ``until``: the condition is a
@@ -44,6 +47,7 @@ HEAD_SHAPE = re.compile(r"^[A-Za-z0-9_.+][A-Za-z0-9_.+-]{0,31}$")  # never an op
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _SEPARATORS = ("&&", "||", ";", "|", "(", ")")  # ``||`` before ``|``: the regex tries them in order
 _SEPARATOR = re.compile("(%s)" % "|".join(map(re.escape, _SEPARATORS)))  # padded into its own word
+_SUBSTITUTION = re.compile(r"\$\([^()]*\)")  # ``$(cmd)``: one argument, before ``(`` could separate
 RESERVED = ("if", "elif", "while", "until",  # open a condition: a command list
             "do", "then", "else", "done", "fi", "esac", "}", "&")  # bare, ends a command like ``;``
 _ENDS = _SEPARATORS + RESERVED
@@ -65,6 +69,7 @@ TESTS = {"[": "]", "[[": "]]"}  # a condition, closed by its bracket; no output
 # Negligible output, skipped by ruling R5-BUILTINS (before HEAD_SHAPE could reject ``:``).
 BUILTINS = ("cd", "echo", "printf", "read", "true", "false", "test", ":", "set", "export",
             "unset", "shift", "exit", "source", ".")
+SILENT = ("mkdir", "touch", "mv", "cp", "rm", "chmod", "sleep", "ln")  # common commands that print nothing
 OTHER = "other"
 
 
@@ -79,7 +84,7 @@ def _past(words: List[str], stop: Tuple[str, ...]) -> int:
 
 def bash_head(tool_input: dict) -> str:
     command = str(tool_input.get("command", "")).replace("\n", ";")  # a newline ends a command
-    words = _SEPARATOR.sub(r" \1 ", command).split()
+    words = _SEPARATOR.sub(r" \1 ", _SUBSTITUTION.sub("$_", command)).split()
     while words:
         if _ASSIGNMENT.match(words[0]) or words[0] in _ENDS:
             del words[0]
@@ -93,7 +98,7 @@ def bash_head(tool_input: dict) -> str:
                 del words[:_past(words, (opener,))]
         elif words[0] in TESTS:
             del words[:_past(words, (TESTS[words[0]],))]
-        elif words[0] in BUILTINS:
+        elif words[0] in BUILTINS + SILENT:
             del words[:_past(words, _ENDS)]
         else:
             break

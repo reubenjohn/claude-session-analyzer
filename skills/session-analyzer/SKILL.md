@@ -81,8 +81,8 @@ Exit 2, naming what is declared or present: `spend --where cause=...`
 ## Reading the output
 
 Every run prints `read:` (corpus root, files, lines skipped, duplicates
-excluded: corpus-wide) and `kept where <window pins>:` (windows, call and
-increment facts). Quote both with any figure: a number without its
+excluded: corpus-wide) and `kept where <window pins>:` (windows and the
+view's carrier facts). Quote both with a figure: a number without its
 population is no finding. Table columns: the metric, its carrier's count
 (`increments`, `calls`) and `share of <base>`, the mass the shares are
 over. Tables end with the residual row `∅` (facts lacking
@@ -92,7 +92,7 @@ chars to `…tail`; `--by` shows it whole, ready for `--where`.
 
 Unnarrowed, the `context` headline reads `= the N windows' final
 occupancies summed` and ends with a three-line **reconciliation footer**
-whose first two lines read:
+whose first two lines are:
 
 ```
 reconciliation over 32 windows: window_head 1,323,189 + feed_forward 205,510 + tool_result 1,287,069 + user_text 58,365 + ambiguous 998,551 + shrink 0 = 3,872,684; final occupancy 3,872,684: OK; holds by construction (walk.py), so a mismatch is a bug in this tool

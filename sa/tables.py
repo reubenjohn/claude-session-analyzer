@@ -10,8 +10,8 @@ LABEL_WIDTH = 40      # a default table keeps a longer label's tail behind "…"
 # Rows whose mass is not splittable by content: each prints its note under
 # its table. Neither can lead the headline: ``cause`` is no view's lever.
 UNSPLITTABLE = {schema.WINDOW_HEAD: "first call's context: boot prompt + first message, or"
-                                    " inherited parent context for a fork; not splittable by"
-                                    " content",
+                                    " context inherited from a parent (fork, resume or branch);"
+                                    " not splittable by content",
                 schema.AMBIGUOUS: "intervals not attributable to one contributor (by reason: %s);"
                                   " never spread; --by fact lists them" % ", ".join(schema.REASONS)}
 

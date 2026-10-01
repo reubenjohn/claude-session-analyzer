@@ -43,7 +43,7 @@ CASES = [
     ("Bash", {"command": "while ! make; do sleep 1; done"}, "Bash:make"),
     ("Bash", {"command": "if cmd; then cd x; else make; fi"}, "Bash:cmd"),
     ("Bash", {"command": "while read -r x; do cmd; done"}, "Bash:cmd"),
-    ("Bash", {"command": "until test -f x; do sleep 1; done"}, "Bash:sleep"),
+    ("Bash", {"command": "until test -f x; do make; done"}, "Bash:make"),
     ("Bash", {"command": "if [ -f x ]; then cmd; fi"}, "Bash:cmd"),
     ("Bash", {"command": "elif [ -f x ]; then cmd; fi"}, "Bash:cmd"),
     # RESERVED: a word that closes or switches a body, or a bare `&`, ends a
@@ -58,6 +58,12 @@ CASES = [
     ("Bash", {"command": 'case "$1" in\n  start) ./run.sh ;;\n  *) ls ;;\nesac'}, "Bash:run.sh"),
     ("Bash", {"command": "case $(uname) in Linux) make;; esac"}, "Bash:make"),
     ("Bash", {"command": "case $x in"}, "Bash:other"),
+    # A command substitution is one argument: its `(` never separates.
+    ("Bash", {"command": 'cd "$(git rev-parse --show-toplevel)" && pytest -q'}, "Bash:pytest"),
+    ("Bash", {"command": 'export PATH="$(pwd)/bin:$PATH" && make'}, "Bash:make"),
+    ("Bash", {"command": "cd x && echo $(pwd) && make"}, "Bash:make"),
+    ("Bash", {"command": 'echo "start $(date)"; make'}, "Bash:make"),
+    ("Bash", {"command": "$(which make)"}, "Bash:other"),
     # R5-BUILTINS: an output-less builtin and its arguments, to the next separator.
     ("Bash", {"command": 'for f in a b; do echo "== $f"; cat "$f"; done'}, "Bash:cat"),
     ("Bash", {"command": "echo hi && pytest"}, "Bash:pytest"),
@@ -78,6 +84,17 @@ CASES = [
     ("Bash", {"command": "test -f x"}, "Bash:other"),
     ("Bash", {"command": ": > f; make"}, "Bash:make"),  # `:` is skipped before HEAD_SHAPE could reject it
     ("Bash", {"command": ":"}, "Bash:other"),
+    # R5-BUILTINS extended: a common silent command is skipped the same way.
+    ("Bash", {"command": "mkdir -p x && cat > f <<EOF\nhello\nEOF"}, "Bash:cat"),
+    ("Bash", {"command": "touch f && make"}, "Bash:make"),
+    ("Bash", {"command": "mv a b; make"}, "Bash:make"),
+    ("Bash", {"command": "cp a b && make"}, "Bash:make"),
+    ("Bash", {"command": "rm -rf build && make"}, "Bash:make"),
+    ("Bash", {"command": "chmod +x run.sh && ./run.sh"}, "Bash:run.sh"),
+    ("Bash", {"command": "sleep 1; make"}, "Bash:make"),
+    ("Bash", {"command": "ln -s a b && make"}, "Bash:make"),
+    ("Bash", {"command": "until test -f x; do sleep 1; done"}, "Bash:other"),
+    ("Bash", {"command": "rm -rf x"}, "Bash:other"),
     # Wrappers: prefixes that run the word after them and their options.
     ("Bash", {"command": "{ cmd; }"}, "Bash:cmd"),
     ("Bash", {"command": "( cmd )"}, "Bash:cmd"),
@@ -98,7 +115,7 @@ CASES = [
     ("Bash", {"command": "timeout -s KILL 30"}, "Bash:other"),
     ("Bash", {"command": "xargs -n1 wc -l"}, "Bash:wc"),
     ("Bash", {"command": "xargs -n 1 -P 4 wc -l"}, "Bash:wc"),
-    ("Bash", {"command": "xargs -I {} cp {} /dest"}, "Bash:cp"),
+    ("Bash", {"command": "xargs -I {} wc -l {}"}, "Bash:wc"),
     ("Bash", {"command": "sudo -u bob make"}, "Bash:make"),
     ("Bash", {"command": "sudo -E -- make"}, "Bash:make"),
     ("Bash", {"command": "env -i make"}, "Bash:make"),
@@ -136,10 +153,11 @@ def test_head_of(tool, tool_input, expected):
     assert heads.head_of(tool, tool_input) == expected
 
 
-def test_every_declared_keyword_wrapper_test_and_builtin_opens_a_case():
+def test_every_declared_keyword_wrapper_test_builtin_and_silent_word_opens_a_case():
     firsts = {tool_input["command"].split()[0] for tool, tool_input, _ in CASES
               if tool == "Bash" and isinstance(tool_input, dict) and tool_input.get("command")}
-    declared = tuple(heads.KEYWORDS) + heads.WRAPPERS + heads.BUILTINS + tuple(heads.TESTS)
+    declared = (tuple(heads.KEYWORDS) + heads.WRAPPERS + heads.BUILTINS + heads.SILENT
+                + tuple(heads.TESTS))
     assert set(declared) <= firsts
     assert set(heads.VALUED) | set(heads.OPERANDS) <= set(heads.WRAPPERS)
     for wrapper, options in heads.VALUED.items():  # some valued option of each has a case

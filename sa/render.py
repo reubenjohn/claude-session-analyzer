@@ -139,20 +139,22 @@ def _peaks(sel: Selection) -> List[str]:
     return lines
 
 
-def population(sel: Selection, loaded: Corpus, root: Path, since: Optional[float]) -> List[str]:
+def population(view: View, sel: Selection, loaded: Corpus, root: Path,
+               since: Optional[float]) -> List[str]:
     """Each count beside the population it was taken over: the read (the
     root, the files ``--since`` kept, what the read skipped or excluded,
-    corpus-wide) and what the window pins kept. A drill pin is named on
+    corpus-wide) and what the window pins kept: the windows and the facts
+    the view's metric is read from, its carrier's. A drill pin is named on
     the headline, the one line that counts what it narrows."""
+    carrier = schema.metric(view.metric).carrier
     return ["read: root %s, %s%s, %s skipped, %s excluded"
             % (root, count(len(loaded.files), "file"),
                "" if since is None else " (modified within %gd)" % since,
                count(loaded.skipped_lines, "line"),
                count(loaded.duplicate_records, "duplicate record")),
-            "kept%s: %s, %s, %s"
+            "kept%s: %s, %s"
             % (_pins(sel.window_where), count(sel.n_windows, "window"),
-               count(sum(f.kind == schema.CALL for f in sel.window_facts), "call fact"),
-               count(sum(f.kind == schema.INCREMENT for f in sel.window_facts), "increment fact"))]
+               count(sum(f.kind == carrier for f in sel.window_facts), carrier + " fact"))]
 
 
 def _reconciliation(r: query.Reconciliation) -> List[str]:

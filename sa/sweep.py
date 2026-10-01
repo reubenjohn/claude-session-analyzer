@@ -4,23 +4,27 @@ engine: nothing here mints a fact. ``scripts/local_sweep.py`` runs it over
 the live corpus and prints aggregate counts only: no transcript text, no
 ids, no paths.
 """
-from typing import Iterator, List, Tuple
+from typing import Dict, Iterator, List, Tuple
 
 from . import query, schema, usage, walk
 from .corpus import Corpus, Record, SourceFile, message_id
 from .schema import Fact
 
 
-def span(records: List[Record], call: walk.Call) -> Tuple[int, int]:
-    """The indices of a call's first and last constituent in ``records``,
-    the records sharing its ``message.id`` (``(first, first)`` for an
-    id-less call). A split call's results sit strictly inside its span
-    (parallel tool use), which is why ``walk`` slices an interval from the
-    previous call's FIRST constituent."""
-    key = message_id(call.record.data)
-    if key is None:  # a call by itself
-        return call.first, call.first
-    return call.first, max(i for i, r in enumerate(records) if message_id(r.data) == key)
+def last_constituents(records: List[Record]) -> Dict[str, int]:
+    """Each ``message.id``'s last index in ``records``, in one pass."""
+    last = {message_id(r.data): i for i, r in enumerate(records)}
+    last.pop(None, None)  # id-less records are no call's constituents
+    return last
+
+
+def span(last_of: Dict[str, int], call: walk.Call) -> Tuple[int, int]:
+    """The indices of a call's first and last constituent, the records
+    sharing its ``message.id`` (``(first, first)`` for an id-less call). A
+    split call's results sit strictly inside its span (parallel tool use),
+    which is why ``walk`` slices an interval from the previous call's FIRST
+    constituent."""
+    return call.first, last_of.get(message_id(call.record.data), call.first)
 
 
 def live_records(loaded: Corpus) -> Iterator[Tuple[SourceFile, List[Record]]]:
@@ -41,8 +45,9 @@ def inside_spans(loaded: Corpus) -> Tuple[int, int, int]:
     records = calls = holding = 0
     for _, live in live_records(loaded):
         users = [i for i, r in enumerate(live) if r.data.get("type") == "user"]
+        last_of = last_constituents(live)
         for call in walk.calls(live, loaded.usages):
-            first, last = span(live, call)
+            first, last = span(last_of, call)
             inside = sum(first < i < last for i in users)
             records, calls, holding = records + inside, calls + 1, holding + (inside > 0)
     return records, holding, calls
