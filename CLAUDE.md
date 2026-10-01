@@ -15,16 +15,16 @@ capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
 
 Package `sa/`, one module per stage (`corpus` read+dedup, `walk`
 attribution, `heads`, `schema` the METRICS table and vocabularies,
-`query`, `render`, `cli`, `usage` the ported helpers); each docstring is
-its spec. The parser IS the product: probes import it, never copy it.
+`query`, `tables`, `render`, `cli`, `usage` the ported helpers); each
+docstring is its spec. The parser IS the product: probes import it, never copy it.
 
 One data model, `Fact`, specified in `schema.py`: `kind` is `call` or
 `increment`; `metrics`; `dims`; `locator` `file:line:uuid` with `file`
 relative to the corpus root; `evidence` (not a dimension: an ambiguous
 increment's `candidates` locators, a fork's parent ids). Every metric
 names its one carrier kind (`spend` -> call,
-`context_delta` -> increment) and is read only from that kind, so
-double-counting is impossible. Window dimensions `project`, `session`,
+`context_delta` -> increment) and is read only from that kind: no
+double-counting. Window dimensions `project`, `session`,
 `agent`, `window` are on both kinds (a main window has no `agent`,
 D-AGENT-DIM; `window`, the root-relative file name, alone isolates one,
 never a default table, D-WINDOW-DIM); `cause`, `tool`, `head`, `reason`
@@ -43,7 +43,7 @@ head with its share of the tool and of the total, then a larger head
 elsewhere `under tool=`; a `--where` pin omits every default table and
 lever whose facts share one value (a head implies its tool); a drill
 counts the windows its facts come from; only a default table cuts a
-label over `render.LABEL_WIDTH` to `…tail`. The reconciliation holds by construction (`walk`): MISMATCH
+label over `tables.LABEL_WIDTH` to `…tail`. The reconciliation holds by construction (`walk`): MISMATCH
 is a bug, exit 1.
 
 ## Non-negotiables

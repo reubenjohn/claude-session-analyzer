@@ -15,7 +15,10 @@ it takes the next word, and its ``OPERANDS`` (``timeout``'s duration); a
 $f"; cat $f`` is ``cat``, ``cd -P /x && make`` is ``make``), so a command
 that is only builtins (``cd /x``, ``echo done``) is ``other``. Separators
 are ``&&``, ``||``, ``;``, ``|``, a newline and either parenthesis, each
-padded into a word of its own.
+padded into a word of its own, and the bare ``RESERVED`` words that open,
+close or switch a body (``done``, ``fi``, ``else``, ``}``) or background a
+command (``&``), so ``if [ -f x ]; then echo hi; fi; make`` is ``make``,
+never ``fi``.
 A path-shaped command word is its basename (``./check.sh`` is ``check.sh``,
 ``/usr/bin/python3`` is ``python3``). For the tools whose input carries
 ``file_path`` the summary is the file extension. A summary is kept only if
@@ -36,6 +39,8 @@ HEAD_SHAPE = re.compile(r"^[A-Za-z0-9_.+][A-Za-z0-9_.+-]{0,31}$")  # never an op
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _SEPARATORS = ("&&", "||", ";", "|", "(", ")")  # ``||`` before ``|``: the regex tries them in order
 _SEPARATOR = re.compile("(%s)" % "|".join(map(re.escape, _SEPARATORS)))  # padded into its own word
+RESERVED = ("do", "then", "else", "done", "fi", "esac", "}", "&")  # bare, ends a command like ``;``
+_ENDS = _SEPARATORS + RESERVED
 # The command is in the body a keyword opens, past each opener in turn:
 # ``case``'s past ``in`` and then past the first pattern's ``)``.
 KEYWORDS = {"for": ("do",), "while": ("do",), "until": ("do",), "if": ("then",),
@@ -70,7 +75,7 @@ def bash_head(tool_input: dict) -> str:
     command = str(tool_input.get("command", "")).replace("\n", ";")  # a newline ends a command
     words = _SEPARATOR.sub(r" \1 ", command).split()
     while words:
-        if _ASSIGNMENT.match(words[0]) or words[0] in _SEPARATORS:
+        if _ASSIGNMENT.match(words[0]) or words[0] in _ENDS:
             del words[0]
         elif words[0] in WRAPPERS:
             wrapper = words.pop(0)
@@ -83,7 +88,7 @@ def bash_head(tool_input: dict) -> str:
         elif words[0] in TESTS:
             del words[:_past(words, (TESTS[words[0]],))]
         elif words[0] in BUILTINS:
-            del words[:_past(words, _SEPARATORS)]
+            del words[:_past(words, _ENDS)]
         else:
             break
     return _guard(words[0].rpartition("/")[2]) if words else OTHER  # R5-BASENAME: the basename

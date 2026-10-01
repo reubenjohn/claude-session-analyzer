@@ -7,7 +7,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, render, schema, walk
+from sa import cli, schema, tables, walk
 from sa.schema import CALL, INCREMENT
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
@@ -49,7 +49,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     for dim in drillable:
         assert not re.search(r"^by %s\s" % dim, out, re.M)
         assert re.search(r"^by %s\s" % dim, fx.run_cli("context", "--root", str(root), "--by", dim)[1], re.M)
-    assert "%s: %s" % (schema.WINDOW_HEAD, render.UNSPLITTABLE[schema.WINDOW_HEAD]) in out
+    assert "%s: %s" % (schema.WINDOW_HEAD, tables.UNSPLITTABLE[schema.WINDOW_HEAD]) in out
     assert re.search(r"^%s\s" % schema.AMBIGUOUS, out, re.M)
     assert re.search(r"^%s \(signed\)\s+-300\s" % schema.SHRINK, out, re.M)
     assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+$"
@@ -67,6 +67,13 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     assert re.search(r"over 14 call facts in 2 windows; top %s=agent-fake1 [\d,]+ \(50\.0%% of the [\d,]+ total\)$"
                      % schema.AGENT_DIM, first)
     assert peak.startswith("single-call peak ") and note == cli.SPEND_NOTE
+    others = [name for name, spec in schema.METRICS.items()  # footer totals name their population
+              if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE
+              and name != SPEND.metric]
+    assert others  # vacuity guard
+    for name in others:
+        assert re.search(r"^%s: [\d,]+ %s over 14 call facts in 2 windows$"
+                         % (name, fx.unit(name)), out, re.M)
     assert "duplicate records excluded; where project=proj-a" in out
     assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+$"
                      % (schema.AGENT_DIM, SPEND.metric, fx.count_column(SPEND.metric)), out, re.M)
@@ -84,8 +91,8 @@ def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
     assert code == 0, err
     assert re.search(r"; top %s=agent-fake1 [\d,]+ \(33\.3%% of the [\d,]+ total\)$"
                      % schema.AGENT_DIM, out.splitlines()[0])  # one of three like windows
-    assert re.search(r"^%s\s+[\d,]+\s+14\s+-$" % re.escape(render.RESIDUAL_LABEL), out, re.M)
-    assert render.RESIDUAL_NOTES[schema.AGENT_DIM] in out
+    assert re.search(r"^%s\s+[\d,]+\s+14\s+-$" % re.escape(tables.RESIDUAL_LABEL), out, re.M)
+    assert tables.RESIDUAL_NOTES[schema.AGENT_DIM] in out
     assert "%s=main" % schema.AGENT_DIM not in out
     facts = fx.load_facts(root)[1]
     by_file = {f.locator.file: f.dims.get(schema.AGENT_DIM) for f in facts}

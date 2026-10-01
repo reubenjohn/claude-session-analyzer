@@ -4,7 +4,7 @@ the leaf order."""
 import re
 
 import fixtures as fx
-from sa import query, render, schema
+from sa import query, render, schema, tables
 from sa.schema import Locator
 
 ROWS = [query.Row("a", 60, 2, query.REGULAR), query.Row("b", 30, 1, query.REGULAR),
@@ -17,35 +17,35 @@ TOOL, HEAD = schema.TOOL_DIM, schema.HEAD_DIM
 
 def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
     table = query.Table(DIM, ROWS, 100)
-    lines = render._table(table, M, K, limit=1, whole=False)
+    lines = tables.table(table, M, K, limit=1, whole=False)
     assert lines[0].startswith("by " + DIM) and lines[0].endswith("share of 100")
-    assert [l.split()[0] for l in lines[1:]] == ["a", "+2", render.RESIDUAL_LABEL, schema.SHRINK]
+    assert [l.split()[0] for l in lines[1:]] == ["a", "+2", tables.RESIDUAL_LABEL, schema.SHRINK]
     assert re.match(r"\+2 more rows\s+40\s+2\s+40\.0%", lines[2])
-    assert [l.split()[0] for l in render._table(table, M, K, limit=3, whole=False)[1:]] == [
-        "a", "b", "c", render.RESIDUAL_LABEL, schema.SHRINK]
-    for dim in render.RESIDUAL_NOTES:
-        noted = render._table(table._replace(dim=dim), M, K, limit=3, whole=False)
-        assert noted[-1] == render.RESIDUAL_NOTES[dim]
-        no_residual = render._table(query.Table(dim, ROWS[:3], 100), M, K, 3, whole=False)
-        assert render.RESIDUAL_NOTES[dim] not in no_residual
+    assert [l.split()[0] for l in tables.table(table, M, K, limit=3, whole=False)[1:]] == [
+        "a", "b", "c", tables.RESIDUAL_LABEL, schema.SHRINK]
+    for dim in tables.RESIDUAL_NOTES:
+        noted = tables.table(table._replace(dim=dim), M, K, limit=3, whole=False)
+        assert noted[-1] == tables.RESIDUAL_NOTES[dim]
+        no_residual = tables.table(query.Table(dim, ROWS[:3], 100), M, K, 3, whole=False)
+        assert tables.RESIDUAL_NOTES[dim] not in no_residual
 
 
 def test_the_mass_column_is_the_metric_and_the_count_column_its_carrier_kind():
     table = query.Table(DIM, ROWS, 100)
     for kind in schema.KINDS:
-        header = render._table(table, M, kind, limit=3, whole=False)[0].split()
+        header = tables.table(table, M, kind, limit=3, whole=False)[0].split()
         assert header == ["by", DIM, M, kind + "s", "share", "of", "100"]
-    header = render._table(table, M, K, limit=3, whole=False)[0]
+    header = tables.table(table, M, K, limit=3, whole=False)[0]
     assert "count" not in header
     for name, spec in schema.METRICS.items():  # the unit never heads the mass column
-        assert render._table(table, name, spec.carrier, limit=3, whole=False)[0].split() == [
+        assert tables.table(table, name, spec.carrier, limit=3, whole=False)[0].split() == [
             "by", DIM, name, spec.carrier + "s", "share", "of", "100"]
         assert spec.unit != name  # vacuity guard: the two are distinguishable
 
 
 def test_a_zero_base_table_truncates_without_a_share():
     zero = query.Table(DIM, [r._replace(mass=0) for r in ROWS[:3]], 0)
-    lines = render._table(zero, M, K, limit=1, whole=False)
+    lines = tables.table(zero, M, K, limit=1, whole=False)
     assert lines[0].endswith("  share") and "share of" not in lines[0]
     assert re.match(r"\+2 more rows\s+0\s+2\s+-$", lines[2])
     facts = [f._replace(metrics={fx.DELTA: 0}) for f in FACTS[:3]]
@@ -108,23 +108,23 @@ def test_a_top_row_under_another_lead_follows_the_refinement_naming_what_it_lies
 
 
 def test_the_ambiguous_note_names_every_declared_reason():
-    note = render.UNSPLITTABLE[schema.AMBIGUOUS]
+    note = tables.UNSPLITTABLE[schema.AMBIGUOUS]
     assert len(schema.REASONS) > 1 and all(reason in note for reason in schema.REASONS)
     assert "several" not in note  # negative_remainder and no_contributor have one or none
 
 
 def test_a_long_label_keeps_its_tail_behind_an_ellipsis_unless_the_table_is_whole():
     long = "proj/" + "x" * 120 + "/sub.jsonl"
-    assert len(long) > render.LABEL_WIDTH  # vacuity guard
+    assert len(long) > tables.LABEL_WIDTH  # vacuity guard
     rows = [query.Row(long, 60, 2, query.REGULAR), query.Row("short", 30, 1, query.REGULAR)]
     table = query.Table(schema.WINDOW_DIM, rows, 90)
-    lines = render._table(table, M, K, limit=3, whole=False)
+    lines = tables.table(table, M, K, limit=3, whole=False)
     label = lines[1].split()[0]
-    assert label == "…" + long[1 - render.LABEL_WIDTH:] and len(label) == render.LABEL_WIDTH
-    assert lines[2].startswith("short" + " " * (render.LABEL_WIDTH - 5) + "  ")  # the column is capped
-    at_cap = "y" * render.LABEL_WIDTH
-    assert render._label(query.Row(at_cap, 1, 1, query.REGULAR), whole=False) == at_cap  # at the cap
-    whole = render._table(table, M, K, limit=3, whole=True)
+    assert label == "…" + long[1 - tables.LABEL_WIDTH:] and len(label) == tables.LABEL_WIDTH
+    assert lines[2].startswith("short" + " " * (tables.LABEL_WIDTH - 5) + "  ")  # the column is capped
+    at_cap = "y" * tables.LABEL_WIDTH
+    assert tables._label(query.Row(at_cap, 1, 1, query.REGULAR), whole=False) == at_cap  # at the cap
+    whole = tables.table(table, M, K, limit=3, whole=True)
     assert whole[1].split()[0] == long and whole[2].startswith("short" + " " * (len(long) - 5) + "  ")
 
 
@@ -134,7 +134,7 @@ def test_leaves_are_ordered_by_magnitude_so_a_large_shrink_is_not_hidden_by_limi
                            Locator("f", line, "u-%d" % line))
     exact, shrink = leaf(schema.USER_TEXT, 100, 1), leaf(schema.SHRINK, -500, 2)
     assert abs(shrink.metrics[fx.DELTA]) > exact.metrics[fx.DELTA]  # the shrink is the larger
-    lines = render._leaves([exact, shrink], fx.DELTA, limit=1)
+    lines = tables.leaves([exact, shrink], fx.DELTA, limit=1)
     assert len(lines) == 2 and lines[1].split()[:2] == ["-500", "f:2"]
-    both = render._leaves([exact, shrink], fx.DELTA, limit=2)
+    both = tables.leaves([exact, shrink], fx.DELTA, limit=2)
     assert [l.split()[0] for l in both[1:]] == ["-500", "100"]

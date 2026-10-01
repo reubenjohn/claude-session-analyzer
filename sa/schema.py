@@ -7,7 +7,8 @@ the single kind that carries it, so the two can never be summed together
 (measured: ``context_delta`` read from both kinds totals exactly 2.000000x
 the truth).
 
-Adding a metric, a cause or a dimension is one line here. An unknown name
+Adding a metric or a dimension is one line here; a cause is its entry in
+``CAUSES`` plus the branch of ``walk`` that books it. An unknown name
 raises rather than skipping: a silent skip is how a wrong number stays
 plausible.
 """

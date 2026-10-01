@@ -4,7 +4,7 @@ What each view prints unnarrowed is ``test_cli``."""
 import re
 
 import fixtures as fx
-from sa import cli, query, render, schema
+from sa import cli, query, schema, tables
 
 CONTEXT = cli.VIEWS["context"]
 CAUSE, TOOL, HEAD = CONTEXT.tables[:3]
@@ -29,7 +29,7 @@ def test_a_drill_prints_a_table_that_has_only_a_residual_row(tmp_path):
                           "%s=%s" % (CAUSE, schema.WINDOW_HEAD), "--by", TOOL)
     assert code == 0, err
     assert re.search(r"^by %s\s" % TOOL, out, re.M)
-    assert re.search(r"^%s\s+%s\s+3\s+-$" % (re.escape(render.RESIDUAL_LABEL), format(3000, ",d")),
+    assert re.search(r"^%s\s+%s\s+3\s+-$" % (re.escape(tables.RESIDUAL_LABEL), format(3000, ",d")),
                      out, re.M)
     assert "; top" not in out.splitlines()[0]
     assert re.search(r"^by %s\s.*\s+%s\s+share$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
@@ -108,7 +108,7 @@ def test_a_main_window_is_selected_by_its_file_name_alone(tmp_path):
         assert code == 0, err
         rows = [l.split()[0] for l in out.splitlines() if l.endswith("%")]  # the regular rows
         assert sorted(rows) == sorted({f.locator.file for f in facts})  # one row per window, whole
-        assert main in rows and len(max(rows, key=len)) > render.LABEL_WIDTH  # one a default table cuts
+        assert main in rows and len(max(rows, key=len)) > tables.LABEL_WIDTH  # one a default table cuts
 
 
 def test_an_asked_for_table_prints_its_labels_whole_so_they_copy_into_where(tmp_path):
@@ -116,9 +116,9 @@ def test_an_asked_for_table_prints_its_labels_whole_so_they_copy_into_where(tmp_
     table on purpose, so the labels print whole and one pasted into
     ``--where`` selects."""
     project = "-home-me-workspace-" + "x" * 40
-    assert len(project) > render.LABEL_WIDTH  # vacuity guard
+    assert len(project) > tables.LABEL_WIDTH  # vacuity guard
     root = fx.corpus(tmp_path, {project + "/sess-0001.jsonl": fx.window_records()})
-    cut = "…" + project[1 - render.LABEL_WIDTH:]
+    cut = "…" + project[1 - tables.LABEL_WIDTH:]
     for by, label in (([], cut), (["--by", schema.PROJECT_DIM], project)):
         code, out, err = fx.run_cli("context", "--root", str(root), *by)
         assert code == 0, err

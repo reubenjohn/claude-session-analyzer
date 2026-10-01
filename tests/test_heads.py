@@ -42,6 +42,14 @@ CASES = [
     ("Bash", {"command": "for f in x; do if [ -f $f ]; then cmd; fi; done"}, "Bash:cmd"),
     ("Bash", {"command": "cd /x && for f in *; do cmd; done"}, "Bash:cmd"),
     ("Bash", {"command": "for f in a b"}, "Bash:other"),  # no body, no command
+    # RESERVED: a word that closes or switches a body, or a bare `&`, ends a
+    # command like `;` and is never itself the head.
+    ("Bash", {"command": "for f in a; do echo $f; done"}, "Bash:other"),
+    ("Bash", {"command": "if [ -f x ]; then echo hi; fi; make"}, "Bash:make"),
+    ("Bash", {"command": "if cmd; then cd x; else make; fi"}, "Bash:make"),
+    ("Bash", {"command": "{ echo a; }; make"}, "Bash:make"),
+    ("Bash", {"command": "cd x & make"}, "Bash:make"),
+    ("Bash", {"command": "case $x in a) cd x;; esac; make"}, "Bash:make"),
     # case: past `in`, then past the first pattern's `)`.
     ("Bash", {"command": "case $x in a) make;; esac"}, "Bash:make"),
     ("Bash", {"command": 'case "$1" in\n  start) ./run.sh ;;\n  *) ls ;;\nesac'}, "Bash:run.sh"),
@@ -131,6 +139,14 @@ def test_every_declared_keyword_wrapper_test_and_builtin_opens_a_case():
                    if tool == "Bash" and isinstance(tool_input, dict)
                    and tool_input.get("command", "").startswith(wrapper + " -")}
         assert seconds & set(options), wrapper
+
+
+def test_no_expected_head_is_a_reserved_word_and_every_reserved_word_has_a_case():
+    commands = [tool_input.get("command", "") for tool, tool_input, _ in CASES
+                if tool == "Bash" and isinstance(tool_input, dict)]
+    assert set(heads.RESERVED) <= {word for command in commands for word in command.split()}
+    expected = {head.partition(":")[2] for tool, _, head in CASES if tool == "Bash" and head}
+    assert not expected & set(heads.RESERVED) and "make" in expected  # vacuity guard
 
 
 def test_every_declared_extractor_reads_its_real_input_shape():

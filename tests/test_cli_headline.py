@@ -2,7 +2,7 @@
 import re
 
 import fixtures as fx
-from sa import cli, query, render, schema
+from sa import cli, query, schema, tables
 from sa.schema import CALL
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
@@ -134,12 +134,12 @@ def test_the_headline_never_names_a_cause(tmp_path):
         "; top %s=Read 250 (19.2%% of the 1,300 total); within it %s=Read:py 250"
         " (100.0%% of Read, 19.2%% of the total)" % (TOOL, HEAD))
     for value in (schema.WINDOW_HEAD, schema.AMBIGUOUS):
-        assert "%s: %s" % (value, render.UNSPLITTABLE[value]) in out
+        assert "%s: %s" % (value, tables.UNSPLITTABLE[value]) in out
     # With one result the interval is exact: the same lead, no ambiguous note.
     root = fx.corpus(tmp_path / "exact", {"proj-a/sess-0001.jsonl": records[:2] + records[3:]})
     out = fx.run_cli("context", "--root", str(root), "--by", CAUSE)[1]
     assert "; top %s=Read 250 " % TOOL in out.splitlines()[0]
-    assert "%s: %s" % (schema.AMBIGUOUS, render.UNSPLITTABLE[schema.AMBIGUOUS]) not in out
+    assert "%s: %s" % (schema.AMBIGUOUS, tables.UNSPLITTABLE[schema.AMBIGUOUS]) not in out
 
 
 def test_headline_share_is_of_the_total_while_the_table_share_is_of_its_base(tmp_path):
@@ -148,7 +148,7 @@ def test_headline_share_is_of_the_total_while_the_table_share_is_of_its_base(tmp
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", TOOL)
     assert code == 0, err
-    assert re.search(r"^%s\s+4,110\s+\d+\s+-$" % re.escape(render.RESIDUAL_LABEL), out, re.M)
+    assert re.search(r"^%s\s+4,110\s+\d+\s+-$" % re.escape(tables.RESIDUAL_LABEL), out, re.M)
     assert re.search(r"^%s \(signed\)\s+-300\s" % schema.SHRINK, out, re.M)
     assert "; top %s=Bash 750 (16.4%% of the 4,560 total)" % TOOL in out.splitlines()[0]
     assert re.search(r"^by %s\s.*\s+%s\s+share of 750$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
@@ -167,7 +167,7 @@ def test_headline_total_and_table_base_are_one_sum(tmp_path):
                                        fx.usage(4 + cache_read, 0), session=session)], start)
         for name, (start, cache_read, session) in files.items()})
     a, b, c = [f.metrics[SPEND.metric] for f in fx.load_facts(root)[1] if f.kind == CALL]
-    assert render._num((a + b) + c) != render._num((a + c) + b)  # the two orders really straddle a .5
+    assert tables.num((a + b) + c) != tables.num((a + c) + b)  # the two orders really straddle a .5
     code, out, err = fx.run_cli("spend", "--root", str(root), "--by", SPEND.tables[1])
     assert code == 0, err
     headline = re.match(r"%s: ([\d,]+) " % SPEND.metric, out).group(1)
