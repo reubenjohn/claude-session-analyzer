@@ -114,6 +114,7 @@ def test_a_drill_prints_a_table_that_has_only_a_residual_row(tmp_path):
     assert re.search(r"^%s\s+%s\s+3\s+-$" % (schema.RESIDUAL_LABEL, format(3000, ",d")),
                      out, re.M)
     assert "; top" not in out.splitlines()[0]
+    assert re.search(r"^by %s\s.*\s+count\s+share$" % TOOL, out, re.M) and "share of" not in out
 
 
 @pytest.mark.parametrize("flag,value", [("--where", "%s=Bash" % TOOL), ("--by", CAUSE)])

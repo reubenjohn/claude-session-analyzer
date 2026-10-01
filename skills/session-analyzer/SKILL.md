@@ -18,102 +18,95 @@ Default scope is the whole corpus; narrow, then drill:
 | Flag | Meaning |
 |---|---|
 | `--since 7d` | files modified in the last N days (the only pre-read filter) |
-| `--where project=NAME` / `--where session=ID` | one project directory name (e.g. `-home-me-workspace-myproject`) or one sessionId, exact; keeps whole windows |
-| `--where DIM=VALUE` | repeatable, exact match after dedup; dims: project, session, agent, cause, tool, head, reason, candidate_count |
-| `--by DIM` | one dimension's table instead of all |
-| `--by fact` | the leaf facts: one line each, `tokens  file:line  uuid  dimensions` |
-| `--limit N` | rows per table; the rest fold into one `+k more rows` line |
+| `--where project=NAME` / `session=ID` / `agent=ID` | a project directory name (e.g. `-home-me-workspace-myproject`), sessionId or agentId; keeps whole windows |
+| `--where DIM=VALUE` | repeatable, exact after dedup; dims: project, session, agent, cause, tool, head, reason |
+| `--by DIM` | one dimension's table instead of the default set |
+| `--by fact` | leaf facts: `tokens  file:line  uuid  dimensions`, evidence indented under each |
+| `--limit N` | rows per table; the rest fold into `+k more rows` |
 
 ## What each command answers
 
 **`context`** books every change of context-window occupancy as an
 *increment* with one `cause`: `window_head` (the first call's occupancy:
-boot context for a fresh session, inherited for a fork), `feed_forward`
-(the previous turn's own output), `tool_result`, `user_text`, `ambiguous`
-(more than one candidate) and `shrink` (a window that got smaller,
-reported signed). The headline names the top cause, then one
-table per dimension.
+boot context for a fresh session, inherited for a fork; a note under the
+cause table says so), `feed_forward` (the previous turn's own output),
+`tool_result`, `user_text`, `ambiguous` (more than one candidate) and
+`shrink` (a window that got smaller, signed). Default tables: cause, tool,
+head, agent, session, project (`reason` via `--by`). A `single-call peak
+context_tokens` line under the headline names the fullest window's call.
 
 **`spend`** sums each call's cost in input-side base-token-equivalents:
 output tokens, uncached input, cache writes (1h at 2.0x, 5m at 1.25x) and
-cache reads at 0.1x. The headline names the top project; `--by agent` is
-the usual follow-up for "which subagent was expensive".
+cache reads at 0.1x. Default tables: project, session, agent; `--by agent`
+answers "which subagent was expensive". Its note line says spend is paid
+per call, so context shares are not cost shares.
+
+Either headline names the top row of the first table shown, or of `--by`.
 
 ## The drill: headline -> `--by` -> `--where` -> `--by fact`
 
-Each step narrows the population; the last lands on a transcript line.
-
 ```bash
-python3 -m sa context --since 7d                          # every table
-python3 -m sa context --since 7d --by cause               # one table
+python3 -m sa context --since 7d                      # default tables
+python3 -m sa context --since 7d --by cause           # one table
 python3 -m sa context --since 7d --where cause=tool_result --by tool
-python3 -m sa context --since 7d --where tool=Bash --by head   # first command word
-python3 -m sa context --since 7d --where tool=Bash --where head=cat --by fact
+python3 -m sa context --since 7d --where tool=Bash --by head   # Bash:cat ...
+python3 -m sa context --since 7d --where cause=ambiguous --by fact --limit 2
 ```
 
 `--by fact` prints the heaviest leaf facts with their locator, e.g.
-`9,535  <file>:<line>  <uuid>  cause=tool_result tool=Write head=py`. Open
-that transcript line to see what landed in the window. A `head` is the
-first command word of a Bash call or a file tool's extension, never a
-path. `spend` facts carry only project, session and agent, so `spend
---where cause=...` is refused with exit 2.
+`81,989  <project>/<session>.jsonl:76  <uuid>  project=... cause=ambiguous reason=multi_contributor`,
+and under an ambiguous one a `candidates: <file>:<line> <uuid>` line per
+contributor. Locators are relative to the corpus root in the population
+line; open that transcript line to see what landed in the window. A
+`head` is `<tool>:<summary>`: a Bash call's first command word
+(`Bash:pytest`) or a file tool's extension (`Read:py`), never a path.
+`spend` facts carry only project, session and agent, so `spend --where
+cause=...` is refused with exit 2.
 
 ## Reading the output
 
-Every run prints a **population** line: files read, windows, call facts,
-increment facts, lines skipped, duplicate records excluded, and `where`
+Every run prints a **population** line: corpus root, files read, windows,
+call and increment facts, lines skipped, duplicates excluded, `where`
 filters. Quote it with any figure you report; a number without its
-population is not a finding.
-
-The share column is `share of <base>`, the mass the shares are over. Tables end with the residual row `∅` (facts lacking the grouped
-dimension) and any rows marked `(signed)`; neither has a share.
+population is not a finding. The share column is `share of <base>`, the
+mass the shares are over (just `share` when no row has one). Tables end
+with the residual row `∅` (facts lacking the grouped dimension) and any
+`(signed)` rows; neither has a share.
 
 Unnarrowed, the `context` headline reads `= the N windows' final
 occupancies summed` and ends with a three-line **reconciliation footer**:
 
 ```
-reconciliation over 20 windows: window_head 906,778 + feed_forward 168,187 + tool_result 498,935 + user_text 21,042 + ambiguous 458,828 + shrink 0 = 2,053,770; final occupancy 2,053,770: OK
-intervals 371 (= 391 calls - 20 windows): exact 291 (78.4%) + ambiguous 80 (21.6%) [multi_contributor 79, negative_remainder 1] + shrink 0 (0.0%): OK
-exact: the interval's one token-relevant contributor (a tool_result or user text) after subtracting the previous call's output; bookkeeping attachments in the interval fold into its remainder [OPEN]
+reconciliation over 23 windows: window_head 1,011,695 + feed_forward 181,474 + tool_result 699,884 + user_text 30,444 + ambiguous 537,617 + shrink 0 = 2,461,114; final occupancy 2,461,114: OK
+intervals 468 (= 491 calls - 23 windows): exact 373 (79.7%) + ambiguous 95 (20.3%) [multi_contributor 94, negative_remainder 1] + shrink 0 (0.0%): OK
+exact: the interval's one token-relevant contributor (a tool_result or user text) after subtracting the previous call's output. Exact given the feed-forward model; bookkeeping attachments are folded into the single contributor's remainder.
 ```
 
 Line 1 proves the increments telescope to the final occupancy; a
-`MISMATCH` exits 1 and the numbers above it are not trustworthy. Line 2
+`MISMATCH` exits 1; distrust the numbers above it. Line 2
 is this run's attribution quality over the intervals (calls minus
-windows): *exact* went to exactly one contributor, *ambiguous* is the rest
-with reasons, *shrink* is windows that got smaller; line 3 defines
-*exact*. Rates are measured per run, never hard-coded; report them with
-the headline. A drill
-(`--where` on a non-window dimension) replaces the footer with one line:
-`reconciliation: applies to the N whole windows above, not to this drill:
-OK`.
+windows); line 3 defines *exact*. Rates are measured per run, never
+hard-coded; report them with the headline. A drill (`--where` on a
+non-window dimension) replaces the footer with one line, `reconciliation:
+applies to the N whole windows above, not to this drill: OK`.
 
-`spend` ends with the other call-carried totals (`output_tokens`,
-`cache_write_1h_tokens`, `cache_write_5m_tokens`) and the largest single
-call's `context_tokens` at its `file:line`, a peak never summed.
+`spend` ends with the `output_tokens`, `cache_write_1h_tokens` and
+`cache_write_5m_tokens` totals and the same `single-call peak` line.
 
-## What the tool refuses to do, and why
+## Refusals, and why
 
-- **No dollars.** Spend is in weighted input-side tokens. A rate differs
-  per model and speed tier, so a dollar figure would be a confident wrong
-  number.
-- **No estimated attribution.** An interval with more than one candidate
-  contributor goes to the one `ambiguous` row with its reason, never
-  spread by guesswork.
-- **Peaks are never summed.** `context_tokens` is a high-water mark; the
-  tool reports the single largest call, not a total.
-- **Every figure names its population.** The line is reprinted on every
-  run.
-
-A good answer ends in an action; a spread or a dollar guess leads nowhere
-you can act.
+No dollars (rates differ per model and speed tier; a dollar figure would
+be a confident wrong number); no estimated attribution (several candidates
+go to the one `ambiguous` row with a reason, never a spread); no summed
+peaks (`context_tokens` is a high-water mark). A good answer ends in an
+action; a spread or a dollar guess leads nowhere you can act.
 
 ## Answering a user
 
 1. Run the matching command, narrowed with `--since` / `--where project=`
    / `--where session=` to what they asked about.
 2. Report the headline, the population line and the footer rates.
-3. Drill one step past the headline and name the heaviest leaf, with its
+3. Drill one step past the headline; name the heaviest leaf with its
    `file:line`.
-4. End with the action the numbers suggest, or say that the attribution
-   is too ambiguous (quote the rate) to suggest one.
+4. End with the action the numbers suggest, or say the attribution is too
+   ambiguous (quote the rate) to suggest one.

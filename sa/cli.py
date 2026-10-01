@@ -182,7 +182,8 @@ def _population(args: argparse.Namespace, sel: Selection) -> str:
 def _table(title: str, rows: List[query.Row], unit: str, limit: int) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
     still adds up, then the residual and signed rows, which are never hidden.
-    Shares are of the regular rows' mass, printed once in the header."""
+    Shares are of the regular rows' mass, printed once in the header; a
+    table with no regular rows has no base and its header says just "share"."""
     regular = [r for r in rows if r.kind == query.REGULAR]
     base = sum(r.mass for r in regular)
     shown = regular[:limit]
@@ -194,7 +195,7 @@ def _table(title: str, rows: List[query.Row], unit: str, limit: int) -> List[str
     shown += [r for r in rows if r.kind != query.REGULAR]
     labels = [r.value + (" (signed)" if r.kind == query.SIGNED else "") for r in shown]
     width = max(len(label) for label in labels + [title])
-    share = "share of %s" % _num(base)
+    share = "share of %s" % _num(base) if base else "share"
     lines = ["%-*s  %16s  %7s  %s" % (width, title, unit, "count", share)]
     for label, r in zip(labels, shown):
         lines.append("%-*s  %16s  %7d  %*s"
