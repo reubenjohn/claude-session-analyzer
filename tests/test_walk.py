@@ -58,13 +58,7 @@ def test_a_call_split_across_files_is_one_call_owned_by_the_earlier_file(tmp_pat
     uuid. The parent owns it, the fork's copy is a duplicate the population
     line counts, its usage still max-merges into the one call, and spend is
     counted once; the same fork under its own id is a second call."""
-    fork_ref = {"type": "fork-context-ref", "parentSessionId": fx.SESSION,
-                "parentLastUuid": "uuid-0001", "agentId": "agent-fake1"}
-    parent = fx.assistant("uuid-0001", "msg-0001", fx.usage(1000, 50))
-    copy = fx.assistant("fork-uuid-0001", "msg-0001", fx.usage(1000, 70))
-    root = fx.corpus(tmp_path / "shared", {
-        "proj-a/sess-0001.jsonl": fx.stamped([parent], 0),
-        "proj-a/sess-0001/subagents/agent-fake1.jsonl": [fork_ref] + fx.stamped([copy], 1)})
+    root, fork_ref, parent, copy = fx.remint_corpus(tmp_path / "shared")
     loaded, facts = fx.load_facts(root)
     assert {s.path.stem: [r.duplicate for r in s.records] for s in loaded.files} == {
         "sess-0001": [False], "agent-fake1": [False, True]}
@@ -140,22 +134,10 @@ def _exact(facts):
 
 
 def test_a_result_interleaved_with_a_split_call_is_a_second_contributor(tmp_path):
-    """Parallel tool use: constituent, result, constituent, result, next call.
-    Both results sit between the call's first constituent and the next call."""
-    records = [
-        fx.assistant("uuid-0001", "msg-0001", fx.usage(1000, 50),
-                     [fx.tool_use("toolu_0001", "Read", file_path="/x/a.py")]),
-        fx.tool_result("uuid-0002", "toolu_0001"),
-        fx.assistant("uuid-0003", "msg-0001", fx.usage(1000, 50),
-                     [fx.tool_use("toolu_0002", "Write", file_path="/x/b.py")]),
-        fx.tool_result("uuid-0004", "toolu_0002"),
-        fx.assistant("uuid-0005", "msg-0002", fx.usage(1300, 0)),
-    ]
-    loaded, facts = fx.load_facts(fx.corpus(tmp_path / "interleaved", {"proj-a/sess-0001.jsonl": records}))
-    (source,) = loaded.files
-    split, plain = walk.calls(source.records, loaded.usages)
-    assert walk.span(source.records, split) == (0, 2)  # the first result, at 1, sits inside
-    assert walk.span(source.records, plain) == (4, 4)
+    """Both results of ``fx.interleaved_records`` sit between the call's
+    first constituent and the next call."""
+    records = fx.interleaved_records()
+    facts = _one_window(tmp_path / "interleaved", records)
     (closing,) = [f for f in facts if f.dims.get(schema.REASON_DIM)]
     assert closing.dims[schema.REASON_DIM] == schema.MULTI_CONTRIBUTOR
     assert [c.locator.uuid for c in closing.evidence[schema.CANDIDATES]] == ["uuid-0002", "uuid-0004"]

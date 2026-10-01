@@ -212,3 +212,14 @@ class Selection(NamedTuple):
     @property
     def n_windows(self) -> int:
         return window_count(self.window_facts)
+
+
+def selection(facts: List[Fact], where: Where, metric: str) -> Selection:
+    """The view's population: the window pins narrow first and keep whole
+    windows, the drill pins narrow within them; the total is over the
+    drilled facts, the reconciliation over the whole windows."""
+    window_where, drill = split(where)
+    window_facts = narrow(facts, window_where, metric)
+    kept = narrow(window_facts, drill, metric)
+    return Selection(window_where, drill, window_facts, kept,
+                     total(kept, metric), reconcile(window_facts))

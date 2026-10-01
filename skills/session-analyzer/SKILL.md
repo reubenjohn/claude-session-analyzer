@@ -72,7 +72,7 @@ and under an ambiguous one
 carries a tool only when all candidates share it. Open the locator to
 see what landed.
 A `head` is a Bash call's first command word (past keywords, wrappers
-and output-less builtins: `cd`, `echo`) as a basename (`Bash:pytest`),
+and near-silent builtins: `cd`, `echo`) as a basename (`Bash:pytest`),
 or a file tool's extension (`Read:py`); never a path.
 Exit 2, naming what is declared or present: `spend --where cause=...`
 (calls carry only the window dims), `cause=bogus` (undeclared),

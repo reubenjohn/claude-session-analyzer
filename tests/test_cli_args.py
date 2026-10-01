@@ -70,6 +70,16 @@ def test_a_value_no_fact_carries_is_refused_naming_the_values_present(tmp_path, 
     _answers(*fx.run_cli("context", "--root", str(root), *_where(good)))  # vacuity guard
 
 
+def test_root_must_be_an_existing_directory(tmp_path):
+    """A mistyped root is a refusal, never a zero headline; an empty
+    population is only ever reached through a filter (``--since 0d``, below)."""
+    root = fx.cli_corpus(tmp_path)
+    for typo in (root.parent / "typo", root / "proj-a" / "sess-0001.jsonl"):
+        code, out, err = fx.run_cli("context", "--root", str(typo))
+        assert code == 2 and not out and "no such directory: %s" % typo in err
+    _answers(*fx.run_cli("context", "--root", str(root)))  # vacuity guard
+
+
 def test_since_selects_files_by_mtime_and_zero_days_selects_none(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "0d")

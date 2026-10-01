@@ -23,7 +23,7 @@ reproducible elsewhere. The Phase 0 figures name their own population.
 from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
 
 from . import heads, schema, usage
-from .corpus import Record, SourceFile, message_id
+from .corpus import Corpus, Record, SourceFile, message_id
 from .schema import Candidate, Fact, Locator
 
 ToolUses = Dict[str, Tuple[str, dict]]
@@ -73,19 +73,6 @@ def calls(records: List[Record], usages: Usages) -> List[Call]:
         if usage.usage_context(merged) or merged.get("output_tokens"):
             found.append(Call(indices[0], records[indices[0]], merged))
     return found
-
-
-def span(records: List[Record], call: Call) -> Tuple[int, int]:
-    """The indices of a call's first and last constituent in ``records``,
-    the records sharing its ``message.id`` (``(first, first)`` for an
-    id-less call). A split call's results sit strictly inside its span
-    (parallel tool use), which is why ``walk`` slices an interval from the
-    previous call's FIRST constituent; ``scripts/local_sweep.py`` counts
-    them."""
-    key = message_id(call.record.data)
-    if key is None:  # a call by itself
-        return call.first, call.first
-    return call.first, max(i for i, r in enumerate(records) if message_id(r.data) == key)
 
 
 def tool_uses(records: List[Record]) -> ToolUses:
@@ -186,9 +173,10 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
     previous call's FIRST constituent and the current call's first. A split
     call's constituents interleave with their results (parallel tool use:
     constituent, result, constituent, result, next call; local sweep
-    2026-10-01: 119 user records sit inside 77 of 1,423 calls' spans, ``span``), so slicing from the
-    previous call's last constituent hides the earlier result and books a
-    two-contributor interval as exact.
+    2026-10-01: 119 user records sit inside 77 of 1,423 calls' spans, counted
+    by ``scripts/local_sweep.py``), so slicing from the previous call's last
+    constituent hides the earlier result and books a two-contributor
+    interval as exact.
     """
     uses = tool_uses(source.records)
     live = [record for record in source.records if not record.duplicate]
@@ -245,3 +233,9 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
         else:
             yield from interval(previous, call)
         previous = call
+
+
+def forest(loaded: Corpus) -> List[Fact]:
+    """Every window's facts, files in owner order: the one population the
+    views, the sweep and the tests select from."""
+    return [f for source in loaded.files for f in walk(source, loaded.usages)]

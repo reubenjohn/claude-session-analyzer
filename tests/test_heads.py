@@ -35,18 +35,21 @@ CASES = [
     ("Bash", {"command": "[ -f x ]"}, "Bash:other"),
     # Keywords: the command is in the body they open.
     ("Bash", {"command": "for f in a b; do cmd $f; done"}, "Bash:cmd"),
+    ("Bash", {"command": "for f in x; do if [ -f $f ]; then cmd; fi; done"}, "Bash:cmd"),
+    ("Bash", {"command": "cd /x && for f in *; do cmd; done"}, "Bash:cmd"),
+    ("Bash", {"command": "for f in a b"}, "Bash:other"),  # no body, no command
+    # A condition is a command list: its first command is the head.
+    ("Bash", {"command": "if pytest; then echo ok; fi"}, "Bash:pytest"),
+    ("Bash", {"command": "while ! make; do sleep 1; done"}, "Bash:make"),
+    ("Bash", {"command": "if cmd; then cd x; else make; fi"}, "Bash:cmd"),
     ("Bash", {"command": "while read -r x; do cmd; done"}, "Bash:cmd"),
     ("Bash", {"command": "until test -f x; do sleep 1; done"}, "Bash:sleep"),
     ("Bash", {"command": "if [ -f x ]; then cmd; fi"}, "Bash:cmd"),
     ("Bash", {"command": "elif [ -f x ]; then cmd; fi"}, "Bash:cmd"),
-    ("Bash", {"command": "for f in x; do if [ -f $f ]; then cmd; fi; done"}, "Bash:cmd"),
-    ("Bash", {"command": "cd /x && for f in *; do cmd; done"}, "Bash:cmd"),
-    ("Bash", {"command": "for f in a b"}, "Bash:other"),  # no body, no command
     # RESERVED: a word that closes or switches a body, or a bare `&`, ends a
     # command like `;` and is never itself the head.
     ("Bash", {"command": "for f in a; do echo $f; done"}, "Bash:other"),
     ("Bash", {"command": "if [ -f x ]; then echo hi; fi; make"}, "Bash:make"),
-    ("Bash", {"command": "if cmd; then cd x; else make; fi"}, "Bash:make"),
     ("Bash", {"command": "{ echo a; }; make"}, "Bash:make"),
     ("Bash", {"command": "cd x & make"}, "Bash:make"),
     ("Bash", {"command": "case $x in a) cd x;; esac; make"}, "Bash:make"),
@@ -60,6 +63,7 @@ CASES = [
     ("Bash", {"command": "echo hi && pytest"}, "Bash:pytest"),
     ("Bash", {"command": "echo done"}, "Bash:other"),
     ("Bash", {"command": "printf '%s' x | sort"}, "Bash:sort"),
+    ("Bash", {"command": "read -r x && make"}, "Bash:make"),
     ("Bash", {"command": "true || make"}, "Bash:make"),
     ("Bash", {"command": "false || false"}, "Bash:other"),
     ("Bash", {"command": "set -euo pipefail; pytest -q"}, "Bash:pytest"),

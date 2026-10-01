@@ -7,9 +7,11 @@ reconciliation of the increments against the windows' final occupancy. It
 is a regression guard: ``walk`` books every interval's whole delta, so it
 holds by construction, and a MISMATCH is a bug in this tool, exit status 1.
 
-Filters: ``--since`` selects FILES by modification time before reading, so
-dedup runs over the selected files only; ``--where`` selects facts after
-dedup. A ``--where`` on a window dimension (project, session, agent,
+Filters: ``--root`` must be an existing directory (a typo is a refusal,
+never a zero headline); ``--since`` selects FILES by modification time
+before reading, so dedup runs over the selected files only, and a day
+count that keeps no file is a legitimate empty population; ``--where``
+selects facts after dedup. A ``--where`` on a window dimension (project, session, agent,
 window) keeps whole windows; any other dimension is a drill, and the
 reconciliation and the single-call peak then apply to the whole-window
 population they are printed for. What ``query`` refuses (an unknown name,
@@ -23,7 +25,6 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from . import corpus, query, render, schema, walk
-from .query import Selection
 from .render import View
 
 SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What put"
@@ -47,6 +48,13 @@ def _days(text: str) -> float:
     return float(text[:-1])
 
 
+def _directory(text: str) -> Path:
+    path = Path(text)
+    if not path.is_dir():
+        raise argparse.ArgumentTypeError("no such directory: %s" % text)
+    return path
+
+
 def _pair(text: str) -> Tuple[str, str]:
     dim, sep, value = text.partition("=")
     if not sep:
@@ -67,8 +75,8 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
     views.required = True
     for name, view in VIEWS.items():
         sub = views.add_parser(name, help="total %s by every dimension" % view.metric)
-        sub.add_argument("--root", type=Path, default=corpus.default_root(),
-                         help="corpus root (default: ~/.claude/projects)")
+        sub.add_argument("--root", type=_directory, default=str(corpus.default_root()),
+                         help="corpus root, an existing directory (default: ~/.claude/projects)")
         sub.add_argument("--since", type=_days, metavar="Nd",
                          help="files modified within the last N days")
         sub.add_argument("--where", action="append", default=[], type=_pair,
@@ -88,21 +96,12 @@ def _modified_within(days: Optional[float]) -> Optional[corpus.Keep]:
     return lambda path: path.stat().st_mtime >= cutoff
 
 
-def _select(loaded: corpus.Corpus, where: List[Tuple[str, str]], metric: str) -> Selection:
-    facts = [f for source in loaded.files for f in walk.walk(source, loaded.usages)]
-    window_where, drill = query.split(where)
-    window_facts = query.narrow(facts, window_where, metric)
-    kept = query.narrow(window_facts, drill, metric)
-    return Selection(window_where, drill, window_facts, kept,
-                     query.total(kept, metric), query.reconcile(window_facts))
-
-
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     view = VIEWS[args.view]
     loaded = corpus.load(args.root, _modified_within(args.since))
     try:
-        sel = _select(loaded, args.where, view.metric)
+        sel = query.selection(walk.forest(loaded), args.where, view.metric)
         lines = render.report(view, sel, render.population(sel, loaded, args.root, args.since),
                               args.by, args.limit)
     except schema.SchemaError as error:

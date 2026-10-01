@@ -10,14 +10,18 @@ through the word(s) that open its body (``for f in x; do cmd`` is ``cmd``,
 not ``for``; ``case $x in a) cmd`` is ``cmd``); a ``WRAPPERS`` word with
 its ``-``-prefixed options, each skipped alone unless ``VALUED`` declares
 it takes the next word, and its ``OPERANDS`` (``timeout``'s duration); a
-``TESTS`` bracket through its closer; a bare separator; and an output-less
-``BUILTINS`` word with its arguments up to the next separator (``echo "==
+``TESTS`` bracket through its closer; a bare separator; and a
+``BUILTINS`` word (negligible output, ruling R5-BUILTINS) with its
+arguments up to the next separator (``echo "==
 $f"; cat $f`` is ``cat``, ``cd -P /x && make`` is ``make``, ``test -f x
 && make`` is ``make``), so a command that is only builtins (``cd /x``,
 ``echo done``, ``: > f``) is ``other``. Separators
 are ``&&``, ``||``, ``;``, ``|``, a newline and either parenthesis, each
-padded into a word of its own, and the bare ``RESERVED`` words that open,
-close or switch a body (``done``, ``fi``, ``else``, ``}``) or background a
+padded into a word of its own, and the bare ``RESERVED`` words that open
+a condition (``if``, ``elif``, ``while``, ``until``: the condition is a
+command list, so ``if pytest; then echo ok; fi`` is ``pytest`` and ``while
+! make; do sleep 1; done`` is ``make``), open, close or switch a body
+(``then``, ``do``, ``done``, ``fi``, ``else``, ``}``) or background a
 command (``&``), so ``if [ -f x ]; then echo hi; fi; make`` is ``make``,
 never ``fi``.
 A path-shaped command word is its basename (``./check.sh`` is ``check.sh``,
@@ -40,12 +44,12 @@ HEAD_SHAPE = re.compile(r"^[A-Za-z0-9_.+][A-Za-z0-9_.+-]{0,31}$")  # never an op
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _SEPARATORS = ("&&", "||", ";", "|", "(", ")")  # ``||`` before ``|``: the regex tries them in order
 _SEPARATOR = re.compile("(%s)" % "|".join(map(re.escape, _SEPARATORS)))  # padded into its own word
-RESERVED = ("do", "then", "else", "done", "fi", "esac", "}", "&")  # bare, ends a command like ``;``
+RESERVED = ("if", "elif", "while", "until",  # open a condition: a command list
+            "do", "then", "else", "done", "fi", "esac", "}", "&")  # bare, ends a command like ``;``
 _ENDS = _SEPARATORS + RESERVED
 # The command is in the body a keyword opens, past each opener in turn:
 # ``case``'s past ``in`` and then past the first pattern's ``)``.
-KEYWORDS = {"for": ("do",), "while": ("do",), "until": ("do",), "if": ("then",),
-            "elif": ("then",), "case": ("in", ")")}
+KEYWORDS = {"for": ("do",), "case": ("in", ")")}
 WRAPPERS = ("{", "!", "time", "sudo", "env", "nohup", "xargs", "timeout")  # run the word after them
 VALUED = {  # a wrapper's options that take the next word; any other option is skipped alone
     "timeout": ("-s", "--signal", "-k", "--kill-after"),
@@ -58,8 +62,9 @@ VALUED = {  # a wrapper's options that take the next word; any other option is s
 }
 OPERANDS = {"timeout": 1}  # positional words a wrapper takes before the command
 TESTS = {"[": "]", "[[": "]]"}  # a condition, closed by its bracket; no output
-BUILTINS = ("cd", "echo", "printf", "true", "false", "test", ":", "set", "export", "unset",
-            "shift", "exit", "source", ".")  # no output; skipped before HEAD_SHAPE could reject ``:``
+# Negligible output, skipped by ruling R5-BUILTINS (before HEAD_SHAPE could reject ``:``).
+BUILTINS = ("cd", "echo", "printf", "read", "true", "false", "test", ":", "set", "export",
+            "unset", "shift", "exit", "source", ".")
 OTHER = "other"
 
 
