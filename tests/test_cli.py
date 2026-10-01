@@ -28,12 +28,12 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
     first, peak, population = out.splitlines()[:3]
-    # window_head is the largest cause (3,000 of 4,560) but is not splittable,
-    # so the headline names the next one, over the base the shrink row leaves.
+    # window_head is the largest cause (3,000 of 4,560) but is not splittable
+    # and cause is the least specific table: the headline leads with the top
+    # head, as a share of the total.
     assert re.search(r"^%s\s+3,000\s" % schema.WINDOW_HEAD, out, re.M)
-    assert first == "%s: %s %s = the 3 windows' final occupancies summed; top %s=%s 750 (15.4%% of 4,860 added)" % (
-        CONTEXT.metric, format(3 * fx.FINAL_OCCUPANCY, ",d"), _unit(CONTEXT.metric),
-        CAUSE, schema.TOOL_RESULT)
+    assert first == "%s: %s %s = the 3 windows' final occupancies summed; top %s=Bash:pytest 750 (16.4%% of the 4,560 total)" % (
+        CONTEXT.metric, format(3 * fx.FINAL_OCCUPANCY, ",d"), _unit(CONTEXT.metric), HEAD)
     assert peak == "single-call peak %s over the 3 whole windows: %s %s at proj-a/sess-0001.jsonl:14" % (
         fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), _unit(fx.PEAK))
     assert population == (
@@ -65,8 +65,10 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     assert code == 0, err
     first, peak, note = out.splitlines()[:3]
     assert first.startswith("%s: " % SPEND.metric) and _unit(SPEND.metric) in first
-    assert re.search(r"over 14 call facts in 2 windows; top %s=%s [\d,]+ \(100\.0%%\)$"
-                     % (SPEND.tables[1], fx.SESSION), first)
+    # project is pinned; agent is the most specific table left, and the fork
+    # bills exactly what its parent does, so it is half the total.
+    assert re.search(r"over 14 call facts in 2 windows; top %s=agent-fake1 [\d,]+ \(50\.0%% of the [\d,]+ total\)$"
+                     % schema.AGENT_DIM, first)
     assert peak.startswith("single-call peak ") and note == cli.SPEND_NOTE
     assert "duplicate records excluded; where project=proj-a" in out
     assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+$"
@@ -80,26 +82,55 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     assert "by %s" % CAUSE in fx.run_cli("context", "--root", str(root))[1]  # vacuity guard
 
 
-def test_headline_names_the_top_row_of_the_dimension_shown(tmp_path):
+def _top_of(out):
+    return re.search(r"; top (\w+)=", out.splitlines()[0]).group(1)
+
+
+def test_headline_leads_with_the_most_specific_unpinned_table(tmp_path):
+    """The default tables print cause first, but the headline names the top
+    head (tool_result is the top cause, Bash:pytest the top head: a category
+    is not an answer); pinning a dimension hands the lead to the next most
+    specific; ``--by`` overrides."""
     root = fx.cli_corpus(tmp_path)
-    code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=%s"
-                          % (CAUSE, schema.TOOL_RESULT))
+    assert CONTEXT.tables[0] == CAUSE and HEAD != CAUSE
+    assert schema.DIMENSIONS.index(HEAD) > schema.DIMENSIONS.index(CAUSE)
+    code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
-    assert "; top %s=Bash 750 (100.0%%)" % TOOL in out.splitlines()[0]  # the base is the total
-    assert "top %s=" % CAUSE not in out
-    assert "top %s=" % CAUSE in fx.run_cli("context", "--root", str(root))[1]  # vacuity guard
+    assert _top_of(out) == HEAD and out.index("by " + CAUSE) < out.index("by " + HEAD)
+    assert re.search(r"^%s\s+750\s" % schema.TOOL_RESULT, out, re.M)  # the top cause, not led with
+    where = ["--where", "%s=Bash:pytest" % HEAD]
+    assert _top_of(fx.run_cli("context", "--root", str(root), *where)[1]) == TOOL
+    where += ["--where", "%s=Bash" % TOOL]
+    assert _top_of(fx.run_cli("context", "--root", str(root), *where)[1]) == CAUSE
+    assert _top_of(fx.run_cli("context", "--root", str(root), "--by", CAUSE)[1]) == CAUSE
+    assert _top_of(fx.run_cli("spend", "--root", str(root))[1]) == schema.AGENT_DIM
+    assert SPEND.tables[0] != schema.AGENT_DIM  # vacuity guard: not the first table printed
 
 
-def test_headline_share_names_its_base_when_a_table_has_a_residual_row(tmp_path):
-    """Bash carries 750 of 4,560 tokens, yet its share is of the 750 that
-    have a tool at all, so the headline says so and prints the mass."""
+def test_headline_share_is_of_the_total_while_the_table_share_is_of_its_base(tmp_path):
+    """Bash carries 750 of 4,560 tokens: the table's share column is over the
+    750 that have a tool at all; the headline says 750 of the 4,560 total."""
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", TOOL)
     assert code == 0, err
     assert re.search(r"^%s\s+4,110\s+\d+\s+-$" % re.escape(render.RESIDUAL_LABEL), out, re.M)
     assert re.search(r"^%s \(signed\)\s+-300\s" % schema.SHRINK, out, re.M)
-    assert "; top %s=Bash 750 (100.0%% of 750 added with a %s)" % (TOOL, TOOL) in out.splitlines()[0]
+    assert "; top %s=Bash 750 (16.4%% of the 4,560 total)" % TOOL in out.splitlines()[0]
     assert re.search(r"^by %s\s.*\s+%s\s+share of 750$" % (TOOL, _count(CONTEXT.metric)), out, re.M)
+    assert re.search(r"^Bash\s+750\s+3\s+100\.0%$", out, re.M)
+
+
+def test_shrink_is_selectable_and_its_leaves_are_listed(tmp_path):
+    """Every table files shrink as a signed row, which is no reason for
+    ``--where`` to deny the facts exist."""
+    root = fx.cli_corpus(tmp_path)
+    code, out, err = fx.run_cli("context", "--root", str(root), "--where",
+                                "%s=%s" % (CAUSE, schema.SHRINK), "--by", "fact")
+    assert code == 0, err
+    leaves = [l for l in out.splitlines() if re.match(r"\s+-?[\d,]+\s+\S+:\d+\s", l)]
+    assert len(leaves) == 3 and all("%s=%s" % (CAUSE, schema.SHRINK) in l for l in leaves)
+    assert all(l.split()[0] == "-100" for l in leaves)
+    assert "where %s=%s" % (CAUSE, schema.SHRINK) in out
 
 
 def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
@@ -107,8 +138,8 @@ def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("spend", "--root", str(root), "--by", schema.AGENT_DIM)
     assert code == 0, err
-    assert re.search(r"; top %s=agent-fake1 ([\d,]+) \(100\.0%% of \1 with an %s\)$"
-                     % (schema.AGENT_DIM, schema.AGENT_DIM), out.splitlines()[0])
+    assert re.search(r"; top %s=agent-fake1 [\d,]+ \(33\.3%% of the [\d,]+ total\)$"
+                     % schema.AGENT_DIM, out.splitlines()[0])  # one of three like windows
     assert re.search(r"^%s\s+[\d,]+\s+14\s+-$" % re.escape(render.RESIDUAL_LABEL), out, re.M)
     assert render.RESIDUAL_NOTES[schema.AGENT_DIM] in out
     assert "%s=main" % schema.AGENT_DIM not in out

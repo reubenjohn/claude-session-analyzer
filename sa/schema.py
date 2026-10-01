@@ -71,7 +71,9 @@ REASONS = (MULTI_CONTRIBUTOR, NEGATIVE_REMAINDER, NO_CONTRIBUTOR)
 # (no file in the Phase 0 sweep named in ``corpus`` mixes assistant records
 # from two agentIds), so a filter on them selects whole windows and the
 # reconciliation footer still telescopes. A main window has no ``agent``
-# (D-AGENT-DIM): only a subagent's window carries one.
+# (D-AGENT-DIM): only a subagent's window carries one. ``DIMENSIONS`` is
+# ordered general to specific; a headline leads with the most specific one
+# shown (``render.report``).
 PROJECT_DIM = "project"
 SESSION_DIM = "session"
 AGENT_DIM = "agent"

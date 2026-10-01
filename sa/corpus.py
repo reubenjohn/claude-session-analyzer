@@ -11,18 +11,24 @@ filename stem and carry the parent's sessionId.
 Identity is the record ``uuid``, deduplicated across the whole forest: a
 resumed or forked session replays its parent's records (2,767 of 205,003
 uuids in the Phase 0 sweep appear in more than one file; per-file reading
-inflates totals by 94%). Files are read in owner order, so that the
-earliest-starting, longest-running copy of a window owns the records it
-shares with any other copy, and a replayed record in any later copy is
-MARKED duplicate rather than dropped: the walk still needs it to resolve a
-tool_result whose tool_use was replayed. Dedup is never by content, because
-a sibling fork re-bills identical text under new uuids and that re-billing
-is real. Records without a uuid are kept; they are bookkeeping and carry no
-tokens.
+inflates totals by 94%). A call's identity is its ``message.id``, deduplicated
+ACROSS files only (D-MESSAGE-ID-DEDUP): a fork re-mints its parent's last
+call under a new uuid (local corpus, 2026-10-01: 1 of ~888 live calls,
+15,240 spend-equivalents, one phantom call and interval), while records
+sharing an id within one file are the split constituents of one call.
+Files are read in owner order, so that the earliest-starting,
+longest-running copy of a window owns the records it shares with any other
+copy, and a replayed record in any later copy is MARKED duplicate rather
+than dropped: the walk still needs it to resolve a tool_result whose
+tool_use was replayed, and a split call's usage is max-merged over every
+copy wherever it landed (``SourceFile.usages``). Dedup is never by content,
+because a sibling fork re-bills identical text under new uuids and that
+re-billing is real. Records without a uuid are kept; they are bookkeeping
+and carry no tokens.
 """
 import json
 from pathlib import Path
-from typing import Callable, Iterator, List, NamedTuple, Optional, Tuple
+from typing import Callable, Dict, Iterator, List, NamedTuple, Optional, Tuple
 
 Keep = Callable[[Path], bool]
 
@@ -34,7 +40,7 @@ def default_root() -> Path:
 class Record(NamedTuple):
     line: int        # physical line number, 1-based, counted before any skipping
     data: dict
-    duplicate: bool  # its uuid was already seen in an earlier-owned file
+    duplicate: bool  # its uuid or its call's message.id was already seen in an earlier-owned file
 
 
 class SourceFile(NamedTuple):
@@ -42,12 +48,22 @@ class SourceFile(NamedTuple):
     name: str        # path relative to the root; what locators and output carry
     project: str
     records: List[Record]
+    usages: Dict[str, List[dict]]  # message.id -> every usage dict the forest carries under it
 
 
 class Corpus(NamedTuple):
     files: List[SourceFile]
     skipped_lines: int        # blank, unparseable, or not a JSON object
-    duplicate_records: int    # marked because their uuid was already seen
+    duplicate_records: int    # marked because their uuid or message.id was already seen
+
+
+def message_id(data: dict) -> Optional[str]:
+    """The ``message.id`` of an assistant record; None for any other record
+    or an id-less one, which is never a key."""
+    message = data.get("message")
+    if data.get("type") != "assistant" or not isinstance(message, dict):
+        return None
+    return message.get("id")
 
 
 def find_files(root: Path, keep: Optional[Keep] = None) -> Iterator[Tuple[Path, str, str]]:
@@ -91,10 +107,11 @@ def load(root: Path, keep: Optional[Keep] = None) -> Corpus:
 
     Owner order is (first record timestamp ascending, last record timestamp
     DESCENDING, path): the earliest-starting, longest-running copy of a
-    window comes first and so owns every record it shares. A file with no
-    timestamps at all has no claim to being earliest, so it sorts after
-    every stamped file and owns only what no stamped copy carries. Two
-    stable sorts implement the descending middle key.
+    window comes first and so owns every record it shares, by uuid and by
+    message.id alike. A file with no timestamps at all has no claim to being
+    earliest, so it sorts after every stamped file and owns only what no
+    stamped copy carries. Two stable sorts implement the descending middle
+    key.
     """
     read = []
     skipped = 0
@@ -109,17 +126,27 @@ def load(root: Path, keep: Optional[Keep] = None) -> Corpus:
     read.sort(key=lambda entry: entry[0][1], reverse=True)
     read.sort(key=lambda entry: (entry[0][0] == "", entry[0][0]))
 
+    usages: Dict[str, List[dict]] = {}
+    for *_, lines in read:
+        for _, data in lines:
+            call = message_id(data)
+            if call is not None:
+                usages.setdefault(call, []).append(data["message"].get("usage"))
+
     seen = set()
+    owner: Dict[str, str] = {}  # message.id -> the file that first carried it
     files = []
     duplicates = 0
     for _, path, name, project, lines in read:
         records = []
         for line_no, data in lines:
             uuid = data.get("uuid")
-            duplicate = bool(uuid) and uuid in seen
+            call = message_id(data)
+            duplicate = (bool(uuid) and uuid in seen
+                         or call is not None and owner.setdefault(call, name) != name)
             duplicates += duplicate
             if uuid:
                 seen.add(uuid)
             records.append(Record(line_no, data, duplicate))
-        files.append(SourceFile(path, name, project, records))
+        files.append(SourceFile(path, name, project, records, usages))
     return Corpus(files, skipped, duplicates)

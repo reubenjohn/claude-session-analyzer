@@ -36,14 +36,18 @@ def test_unknown_dimension_is_refused(tmp_path):
     assert code == 2 and not out and "unknown dimension" in err
 
 
-@pytest.mark.parametrize("dim", sorted(schema.VOCABULARY))
-def test_unknown_value_of_a_closed_vocabulary_dimension_is_refused(tmp_path, dim):
+@pytest.mark.parametrize("dim,value", [(dim, value) for dim in sorted(schema.VOCABULARY)
+                                       for value in schema.VOCABULARY[dim]])
+def test_unknown_value_of_a_closed_vocabulary_dimension_is_refused(tmp_path, dim, value):
+    """Every declared value is accepted (the fixture carries each one), and
+    the undeclared one beside it is refused naming the vocabulary."""
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=bogus" % dim)
     assert code == 2 and not out
     assert "unknown %s 'bogus'; declared: %s" % (dim, ", ".join(schema.VOCABULARY[dim])) in err
-    _answers(*fx.run_cli("context", "--root", str(root), "--where",
-                         "%s=%s" % (dim, schema.VOCABULARY[dim][0])))  # vacuity guard
+    code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=%s" % (dim, value))
+    assert code == 0, err  # vacuity guard
+    assert re.search(r"^%s: -?[1-9]" % CONTEXT.metric, out)  # shrink's total is negative
 
 
 @pytest.mark.parametrize("bogus,message,good", [

@@ -203,6 +203,55 @@ pass: a table's mass column is headed by the metric name
 states once; spend's 33-character unit had overflowed the column and
 misaligned `by agent`.
 
+**D-MESSAGE-ID-DEDUP — a call's identity is its `message.id`, deduplicated
+across files.** RULED 2026-10-01, on a fifth judge's rejection of ab20da2;
+opus agreed with four conditions, all applied. Call identity had been
+`message.id` grouped per file, so a message.id already minted in an
+earlier-owned file was minted again under a new uuid in another file: a
+fork re-mints its parent's last call. Measured basis (live local corpus,
+2026-10-01): 1 of ~888 live calls, 15,240 spend-equivalents, one phantom
+call and one phantom interval; it scales with fork fan-out. Now `corpus`
+marks an assistant record whose `message.id` was already seen in an
+EARLIER-OWNED file as a duplicate exactly like a repeated uuid: the owner
+is the first file in the existing owner order (first timestamp, longest
+run, path), never bare path order; the record is marked, not dropped, so
+the tool_use join index still sees it; and the population line counts both
+kinds together ("N duplicate records excluded"). Conditions: within one
+file, records sharing a `message.id` are the split constituents of one
+call and are still max-merged, and an id-less record is never a key; when
+the split constituents are spread across files, the usage is max-merged
+over all of them before the call is credited to the owning file
+(`SourceFile.usages`, the forest's usage dicts by id). Pinned by a fixture
+of a main file and a fork sharing one `message.id` under different uuids:
+one call, its metrics equal to the same split within one file, spend
+counted once, the population line counting the duplicate; the vacuity
+guard gives the fork its own id and gets two calls and double spend.
+
+**D-HEADLINE-SPECIFIC — the headline names the most specific unpinned
+table's top row as a share of the total.** RULED 2026-10-01, same judge.
+`sa context` had led with "top cause=tool_result 33%", the "mostly tools"
+category PURPOSE calls true and useless. Now the lead is the top regular
+row of the most specific dimension shown that `--where` did not pin, in the
+order head, tool, cause, agent, session, project — declared once as
+`schema.DIMENSIONS` reversed, general to specific — so `sa context` leads
+with "top head=Bash:cat 554,879 (13.2% of the 4,188,015 total)" and `sa
+spend` with the top agent; `--by` still overrides. The share is of the
+headline TOTAL, named "of the N total"; the table's own `share of <base>`
+column stays over its base, so the two differ whenever a residual or
+signed row exists and each names what it is over. Same pass, three fixes
+the judge measured: `--where cause=shrink` had been refused ("no facts
+carry cause=shrink") because the present values were read from a table's
+regular rows, which file shrink as signed — they now come from the carrier
+facts themselves, by descending |mass|, and the closed-vocabulary guard is
+parametrized over EVERY declared value; `--by fact` sorted by signed mass,
+so a shrink leaf fell last under `--limit` — now by |mass|; and
+`heads.bash_head` treats a newline and either parenthesis as separators,
+drops a bare separator, skips `timeout`'s options (`TIMEOUT_VALUED` take a
+word) before its duration, skips a `[`…`]` / `[[`…`]]` test, and skips
+`exit` as a builtin (`cd x || exit 1; make` is `Bash:make`, re-pinned).
+The `--where` split into window and drill halves is computed once
+(`query.split`) and both halves live on the `Selection`.
+
 ---
 
 ## Phase 3 synthesis — the rows as proposed (history)

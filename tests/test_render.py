@@ -1,8 +1,11 @@
-"""Table and headline rendering over hand-built rows: truncation, the rows
-that never hide, and the share whose base is not the total."""
+"""Table, headline and leaf rendering over hand-built rows and facts:
+truncation, the rows that never hide, the headline share of the total, and
+the leaf order."""
 import re
 
+import fixtures as fx
 from sa import query, render, schema
+from sa.schema import Locator
 
 ROWS = [query.Row("a", 60, 2, query.REGULAR), query.Row("b", 30, 1, query.REGULAR),
         query.Row("c", 10, 1, query.REGULAR), query.Row(None, 5, 1, query.RESIDUAL),
@@ -42,14 +45,29 @@ def test_a_zero_base_table_truncates_without_a_share():
     lines = render._table(zero, M, K, limit=1)
     assert lines[0].endswith("  share") and "share of" not in lines[0]
     assert re.match(r"\+2 more rows\s+0\s+2\s+-$", lines[2])
-    assert render._top(zero) == ""
+    assert render._top(zero, total=0) == ""
+    assert render._top(zero, total=5) == "; top x=a 0 (0.0% of the 5 total)"  # vacuity guard
 
 
-def test_headline_top_row_names_its_base_by_what_the_other_rows_lack():
-    assert render._top(query.Table("x", ROWS, 100)) == "; top x=a 60 (60.0% of 100 added with a x)"
-    assert render._top(query.Table("x", ROWS[:4], 100)) == "; top x=a 60 (60.0% of 100 with a x)"
-    assert render._top(query.Table("x", ROWS[:3] + ROWS[4:], 100)) == "; top x=a 60 (60.0% of 100 added)"
-    assert render._top(query.Table("x", ROWS[:3], 100)) == "; top x=a 60 (60.0%)"
-    assert render._top(query.Table("x", ROWS[3:], 0)) == ""  # no regular row
+def test_headline_top_row_shares_the_total_it_is_given_never_the_table_base():
+    """The table's share column is over its base (100 here); the headline
+    says the row's share of the headline total, and names that total."""
+    table = query.Table("x", ROWS, 100)
+    assert render._top(table, total=98) == "; top x=a 60 (61.2% of the 98 total)"
+    assert render._top(table, total=100) == "; top x=a 60 (60.0% of the 100 total)"
+    assert render._top(query.Table("x", ROWS[3:], 0), total=98) == ""  # no regular row
     unsplittable = query.Row(next(iter(render.UNSPLITTABLE)), 900, 1, query.REGULAR)
-    assert render._top(query.Table("x", [unsplittable] + ROWS[:3], 1000)) == "; top x=a 60 (6.0%)"
+    assert render._top(query.Table("x", [unsplittable] + ROWS[:3], 1000), total=1000) == (
+        "; top x=a 60 (6.0% of the 1,000 total)")
+
+
+def test_leaves_are_ordered_by_magnitude_so_a_large_shrink_is_not_hidden_by_limit():
+    def leaf(cause, delta, line):
+        return schema.fact(schema.INCREMENT, {schema.CAUSE_DIM: cause}, {fx.DELTA: delta},
+                           Locator("f", line, "u-%d" % line))
+    exact, shrink = leaf(schema.USER_TEXT, 100, 1), leaf(schema.SHRINK, -500, 2)
+    assert abs(shrink.metrics[fx.DELTA]) > exact.metrics[fx.DELTA]  # the shrink is the larger
+    lines = render._leaves([exact, shrink], fx.DELTA, limit=1)
+    assert len(lines) == 2 and lines[1].split()[:2] == ["-500", "f:2"]
+    both = render._leaves([exact, shrink], fx.DELTA, limit=2)
+    assert [l.split()[0] for l in both[1:]] == ["-500", "100"]

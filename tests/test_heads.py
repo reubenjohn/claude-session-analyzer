@@ -19,8 +19,18 @@ CASES = [
     ("Bash", {"command": "cd /x; ls"}, "Bash:ls"),
     ("Bash", {"command": "cd /x&&ls"}, "Bash:ls"),
     ("Bash", {"command": "cd /x||ls"}, "Bash:ls"),
-    ("Bash", {"command": "cd /x || exit 1; make"}, "Bash:exit"),
+    ("Bash", {"command": "cd /x || exit 1; make"}, "Bash:make"),
     ("Bash", {"command": "cd /x"}, "Bash:cd"),
+    # A newline ends a command like `;`; a parenthesis is a separator too.
+    ("Bash", {"command": "cd /x\npytest -q"}, "Bash:pytest"),
+    ("Bash", {"command": "echo start\n\npytest"}, "Bash:pytest"),
+    ("Bash", {"command": "(cd /x && make)"}, "Bash:make"),
+    ("Bash", {"command": "(echo hi) && make"}, "Bash:make"),
+    ("Bash", {"command": "; make"}, "Bash:make"),
+    # A test bracket is a condition with no output, closed by its own bracket.
+    ("Bash", {"command": "[ -f x ] && make"}, "Bash:make"),
+    ("Bash", {"command": "[[ -f x ]] || make"}, "Bash:make"),
+    ("Bash", {"command": "[ -f x ]"}, "Bash:other"),
     # Keywords: the command is in the body they open.
     ("Bash", {"command": "for f in a b; do cmd $f; done"}, "Bash:cmd"),
     ("Bash", {"command": "while read -r x; do cmd; done"}, "Bash:cmd"),
@@ -54,6 +64,12 @@ CASES = [
     ("Bash", {"command": "timeout 30s cmd"}, "Bash:cmd"),
     ("Bash", {"command": "sudo timeout 30 env cmd"}, "Bash:cmd"),
     ("Bash", {"command": "timeout 30"}, "Bash:other"),
+    # timeout's options, valued or not, come before its duration.
+    ("Bash", {"command": "timeout -s KILL 30 make"}, "Bash:make"),
+    ("Bash", {"command": "timeout --signal=KILL -k 5 30 make"}, "Bash:make"),
+    ("Bash", {"command": "timeout --foreground 30 make"}, "Bash:make"),
+    ("Bash", {"command": "timeout -s KILL 30"}, "Bash:other"),
+    ("Bash", {"command": "exit 0"}, "Bash:other"),
     # R5-BASENAME: a path-shaped command word is its basename, never a directory.
     ("Bash", {"command": "./check.sh"}, "Bash:check.sh"),
     ("Bash", {"command": "/usr/bin/python3 -V"}, "Bash:python3"),
@@ -80,10 +96,15 @@ def test_head_of(tool, tool_input, expected):
     assert heads.head_of(tool, tool_input) == expected
 
 
-def test_every_declared_keyword_wrapper_and_builtin_opens_a_case():
+def test_every_declared_keyword_wrapper_test_and_builtin_opens_a_case():
     firsts = {tool_input["command"].split()[0] for tool, tool_input, _ in CASES
               if tool == "Bash" and isinstance(tool_input, dict) and tool_input.get("command")}
-    assert set(heads.KEYWORDS + heads.WRAPPERS + heads.BUILTINS + ("timeout",)) <= firsts
+    declared = heads.KEYWORDS + heads.WRAPPERS + heads.BUILTINS + tuple(heads.TESTS) + ("timeout",)
+    assert set(declared) <= firsts
+    valued = {tool_input["command"].split()[1] for tool, tool_input, _ in CASES
+              if tool == "Bash" and isinstance(tool_input, dict)
+              and tool_input.get("command", "").startswith("timeout -")}
+    assert valued & set(heads.TIMEOUT_VALUED)  # some valued option has a case
 
 
 def test_every_declared_extractor_reads_its_real_input_shape():

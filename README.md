@@ -21,7 +21,7 @@ python3 -m sa context --since 7d --by cause
 ```
 
 ```
-context_delta: 3,872,684 context tokens = the 32 windows' final occupancies summed; top cause=tool_result 1,287,069 (33.2%)
+context_delta: 3,872,684 context tokens = the 32 windows' final occupancies summed; top cause=tool_result 1,287,069 (33.2% of the 3,872,684 total)
 single-call peak context_tokens over the 32 whole windows: 255,333 context tokens at -home-me-workspace-myproject/<session-id>.jsonl:807
 population: root ~/.claude/projects; 39 files read (modified within 7d), 32 windows, 863 call facts, 1693 increment facts; 0 lines skipped, 0 duplicate records excluded
 
@@ -43,7 +43,7 @@ python3 -m sa spend --since 7d --by agent --limit 3
 ```
 
 ```
-spend: 14,626,322 input-side base-token-equivalents over 863 call facts in 32 windows; top agent=agent-a1 1,116,805 (11.3% of 9,858,904 with an agent)
+spend: 14,626,322 input-side base-token-equivalents over 863 call facts in 32 windows; top agent=agent-a1 1,116,805 (7.6% of the 14,626,322 total)
 single-call peak context_tokens over the 32 whole windows: 255,333 context tokens at -home-me-workspace-myproject/<session-id>.jsonl:807
 spend is paid per call; context shares are not cost shares. What put the tokens there is answered by `sa context` (--by tool, --by head).
 population: root ~/.claude/projects; 39 files read (modified within 7d), 32 windows, 863 call facts, 1693 increment facts; 0 lines skipped, 0 duplicate records excluded
@@ -81,9 +81,9 @@ exits 2, naming what is declared or present. `--limit N` folds the rest
 into `+k more rows`. A head is a Bash call's first command word (keywords,
 wrappers, builtins skipped) as a basename (`Bash:pytest`, `Bash:check.sh`)
 or a file tool's extension (`Read:py`). The headline names the top row of
-the first table shown, or of `--by`, with its mass and share base (`of
-9,585,211 with an agent` when `∅` is excluded); never `window_head`. Table
-columns: the metric, its `increments`/`calls`, `share of <base>`; the
+the most specific table shown (head before tool before cause) or of
+`--by`, its mass and share of the total; never `window_head`.
+Table columns: the metric, its `increments`/`calls`, `share of <base>`; the
 residual `∅` row ends it, noted under `by tool`, `by head`, `by agent`.
 `--by fact` lists the heaviest leaves as `<metric>  file:line  uuid
 dimensions`; an ambiguous leaf lists its `candidates:` with cause, tool
@@ -91,8 +91,8 @@ and head.
 
 ## Layout
 
-`python3 -m pytest tests/` runs synthetic fixtures and the privacy gate
-(no real paths, ids or transcript text in tracked files). `sa/` is the
+`python3 -m pytest tests/` runs the fixtures and the privacy gate (no
+real paths, ids or transcript text in tracked files). `sa/` is the
 package, `skills/` and `.claude-plugin/` the plugin, `references/` the
 design docs.
 

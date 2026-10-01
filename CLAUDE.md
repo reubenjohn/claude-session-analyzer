@@ -31,23 +31,24 @@ D-AGENT-DIM); `cause`, `tool`, `head`, `reason` on increments only. A head
 is `<tool>:<summary>`: a Bash command's first COMMAND word (after keywords,
 wrappers, builtins) as a basename (`Bash:pytest`, `Bash:check.sh`), or a
 file tool's extension
-(`Read:py`); never a path (R5, R5-BASENAME, R5-BUILTINS). Unknown names,
-undeclared `cause`/`reason` values and a `--where` value no fact carries
-exit 2, naming what is present. A window IS a file (R2): `window_head` is the first usage-carrying call's
-occupancy — inherited for a fork, boot for a fresh session — its
-own row, never spread, never the headline.
+(`Read:py`); never a path (R5 and amendments). Unknown names, undeclared
+values and a `--where` value no fact carries exit 2, naming what is
+present. A window IS a file (R2); `window_head`, the first call's occupancy
+(inherited for a fork, boot otherwise), is its own row, never spread, never
+the headline.
 
 CLI surface: `python3 -m sa context --help`; README.md and SKILL.md mirror
-live output. The headline names the top splittable row of the first table
-shown, its mass, and its share's base when that is not the total; a table's
-mass column is named for its metric, its count column for its carrier
-(`increments`, `calls`).
+live output. The headline names the top splittable row of the most specific
+unpinned table shown (`schema.DIMENSIONS` order; D-HEADLINE-SPECIFIC), its
+mass and its share of the total; a table's mass column is named for its
+metric, its count column for its carrier (`increments`, `calls`).
 
 ## Non-negotiables
 
-- Forest-level uuid-keyed dedup at the aggregation boundary — never
+- Forest-level dedup at the aggregation boundary, by uuid and, across
+  files only, by a call's `message.id` (D-MESSAGE-ID-DEDUP) — never
   per-file, never content-keyed. A session is not a file (bg, /branch,
-  --fork-session, sibling forks); per-file reading inflates totals by 94%.
+  forks); per-file reading inflates totals by 94%.
 - The tree INVERTS under these metrics: the injected subtree (~95% of
   observed chars) carries ZERO mass. Design output for that first.
 - No estimated attribution: exact by subtracting the feed-forward term,
@@ -117,10 +118,9 @@ any output change.
 
 ## Pointers, never copies
 
-- `references/DESIGN_BRIEF.md` — §2 (the attribution walk) is the spec;
-  the rest is dated. `DESIGN_COMPETITION.md` and `designs/` — the design
-  phase.
-- `references/DECISION_LOG.md` — rulings and status table;
-  `DECISION_LOG_HISTORY.md` — the rows as proposed.
+- `references/DESIGN_BRIEF.md` §2 (the attribution walk) is the spec; the
+  rest, `DESIGN_COMPETITION.md` and `designs/`, is the dated design phase.
+- `references/DECISION_LOG.md` — rulings; `DECISION_LOG_HISTORY.md` — the
+  rows as proposed.
 - `references/PHASE0_MEASUREMENT.md` — what the raw transcripts carry.
 - `references/PUBLISHING_PLAN.md` — extraction and distribution.

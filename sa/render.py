@@ -13,7 +13,7 @@ class View(NamedTuple):
     whether the total is the windows' final occupancies, which the footer
     then checks."""
     metric: str
-    tables: Tuple[str, ...]  # printed by default; the first one not pinned by --where leads
+    tables: Tuple[str, ...]  # printed by default; the most specific one not pinned by --where leads
     reconciles: bool
     notes: Tuple[str, ...]   # printed under the headline
 
@@ -60,16 +60,20 @@ def _tags(dims: dict) -> str:
 
 
 def report(view: View, sel: Selection, by: Optional[str], limit: int) -> List[str]:
-    """Every line of the view. The headline names the top row of the first
-    table shown that ``--where`` did not pin (its top row would be the
-    filter itself)."""
+    """Every line of the view. The headline names the top row of the most
+    specific table shown (the latest in ``schema.DIMENSIONS``) that
+    ``--where`` did not pin (its top row would be the filter itself):
+    ``head`` before ``tool`` before ``cause``, ``agent`` before ``session``
+    before ``project``, so it says what put the mass there rather than which
+    broad category it fell in."""
     spec = schema.metric(view.metric)
     if by == "fact":
         lead, body = None, _leaves(sel.facts, view.metric, limit)
     else:
         shown = [query.group(sel.facts, dim, view.metric) for dim in ([by] if by else view.tables)]
         pinned = {dim for dim, _ in sel.where}
-        lead = next((t for t in shown if t.dim not in pinned), None)
+        unpinned = [t for t in shown if t.dim not in pinned]
+        lead = max(unpinned, key=lambda t: schema.DIMENSIONS.index(t.dim)) if unpinned else None
         body = [line for t in shown if t.rows
                 for line in _table(t, view.metric, spec.carrier, limit) + [""]]
     return headline(view, sel, lead) + [population(sel), ""] + body + footer(view, sel)
@@ -84,25 +88,20 @@ def headline(view: View, sel: Selection, lead: Optional[query.Table]) -> List[st
         line += " over %d %s facts in %d windows" % (
             sum(f.kind == spec.carrier for f in sel.facts), spec.carrier, sel.n_windows)
     if lead:
-        line += _top(lead)
+        line += _top(lead, sel.total)
     return [line] + _peaks(sel) + list(view.notes)
 
 
-def _top(table: query.Table) -> str:
-    """The top splittable row with its mass and share; the share's base is
-    named by what the other rows lack when it is not the total."""
+def _top(table: query.Table, total: float) -> str:
+    """The top splittable row with its mass and its share of the headline
+    total, named as such: the table's own share column is over its base,
+    which the residual and signed rows make smaller."""
     top = next((r for r in table.rows
                 if r.kind == query.REGULAR and r.value not in UNSPLITTABLE), None)
-    if top is None or table.share(top.mass) is None:
+    if top is None or not total:
         return ""
-    share = _pct(table.share(top.mass))
-    kinds = {r.kind for r in table.rows}
-    base = ["added"] if query.SIGNED in kinds else []
-    if query.RESIDUAL in kinds:
-        base.append("with a%s %s" % ("n" if table.dim[0] in "aeiou" else "", table.dim))
-    if base:
-        share += " of %s %s" % (_num(table.base), " ".join(base))
-    return "; top %s=%s %s (%s)" % (table.dim, top.value, _num(top.mass), share)
+    return "; top %s=%s %s (%s of the %s total)" % (
+        table.dim, top.value, _num(top.mass), _pct(top.mass / total), _num(total))
 
 
 def _peaks(sel: Selection) -> List[str]:
@@ -172,7 +171,7 @@ def _leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:
     increment, the parent of a fork's window head."""
     spec = schema.metric(metric)
     leaves = sorted((f for f in facts if f.kind == spec.carrier),
-                    key=lambda f: -f.metrics[metric])[:limit]
+                    key=lambda f: -abs(f.metrics[metric]))[:limit]  # a shrink is as large as its |mass|
     lines = ["%16s  file:line  uuid  dimensions" % metric]  # the metric, as in the tables
     for f in leaves:
         lines.append("%16s  %s  %s  %s" % (_num(f.metrics[metric]), _at(f.locator),

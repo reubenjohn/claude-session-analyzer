@@ -41,13 +41,12 @@ answers "which subagent was expensive", its `∅` row being the main
 windows. A note says spend is paid per call: context shares are not cost
 shares.
 
-Either headline names the top row of the first table shown, or of
-`--by`, with its mass and its share's base: `top agent=agent-a1
-1,116,805 (11.3% of 9,858,904 with an agent)` when the `∅` row is
-excluded, `top cause=tool_result 1,287,069 (33.2%)` when the base is the
-total. Never `window_head`; `--by fact` names none. The
-`single-call peak context_tokens` line under it names the fullest call
-over the N whole windows, even under a drill.
+Either headline names the top row of the most specific table shown
+(head before tool before cause; agent before session before project), or
+of `--by`, with its mass and its share of the total: `top head=Bash:cat
+554,879 (13.2% of the 4,188,015 total)`. Never `window_head`; `--by fact`
+names none. The `single-call peak context_tokens` line under it names the
+fullest call over the N whole windows, even under a drill.
 
 ## The drill: headline -> `--by` -> `--where` -> `--by fact`
 

@@ -53,73 +53,43 @@ def test_reconciliation_fails_on_a_missing_or_extra_increment(tmp_path):
     assert not query.reconcile(doubled).holds
 
 
-def test_replayed_records_count_once_and_sibling_forks_twice(tmp_path):
-    one = fx.corpus(tmp_path / "one", {"proj-a/sess-0001.jsonl": fx.window_records()})
-    resumed = fx.corpus(tmp_path / "resumed", {
-        "proj-a/sess-0001.jsonl": fx.window_records(),
-        "proj-a/sess-0002.jsonl": fx.window_records()})
-    forked = fx.corpus(tmp_path / "forked", {
-        "proj-a/sess-0001.jsonl": fx.window_records(),
-        "proj-a/sess-0001/subagents/agent-fake1.jsonl": fx.window_records("fork-")})
-
-    def totals(root):
-        loaded, facts = fx.load_facts(root)
-        return loaded, {m: sum(f.metrics.get(m, 0) for f in facts) for m in schema.METRICS
-                        if schema.METRICS[m].aggregation == schema.ADDITIVE}
-
-    base_loaded, base = totals(one)
-    resumed_loaded, same = totals(resumed)
-    forked_loaded, double = totals(forked)
-    assert resumed_loaded.duplicate_records == len(fx.window_records())
-    assert forked_loaded.duplicate_records == 0
-    assert base_loaded.duplicate_records == 0
-    assert same == base
-    assert double == pytest.approx({m: 2 * v for m, v in base.items()})
-    assert base[fx.DELTA] == fx.FINAL_OCCUPANCY
-
-
-def test_the_longest_running_copy_owns_a_replayed_prefix_whatever_its_filename(tmp_path):
-    """A partial replay plus continuation: the continuation starts at the same
-    moment and runs later, so it owns the shared prefix; the original's
-    remaining tail becomes a window of its own, booking window_head at its
-    first live call."""
-    original = fx.stamped(fx.window_records(), 0)
-    continuation = fx.stamped(fx.window_records()[:5], 0) + fx.stamped(
-        fx.window_records("c-")[5:], 20)
-    results = []
-    for names in (("sess-0001", "sess-0002"), ("sess-0002", "sess-0001")):
-        root = fx.corpus(tmp_path / names[0], {
-            "proj-a/%s.jsonl" % names[0]: original,
-            "proj-a/%s.jsonl" % names[1]: continuation})
-        loaded, facts = fx.load_facts(root)
-        assert loaded.duplicate_records == 5
-        by_file = {s.path.stem: [r.duplicate for r in s.records] for s in loaded.files}
-        assert by_file[names[0]] == [True] * 5 + [False] * 9
-        assert by_file[names[1]] == [False] * 14
-        heads = [f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.WINDOW_HEAD]
-        assert sorted(f.metrics[fx.DELTA] for f in heads) == [1000, 1500]
-        results.append(query.reconcile(facts).by_cause)
-    assert results[0] == results[1]
-    assert sum(results[0].values()) == 2 * fx.FINAL_OCCUPANCY
-
-
-def test_a_tool_result_keeps_its_tool_when_its_tool_use_was_replayed(tmp_path):
-    original = fx.stamped(fx.window_records(), 0)
-    branch = fx.stamped(fx.window_records()[:1], 0) + fx.stamped([
-        fx.assistant("b-uuid-0002", "msg-0001", fx.usage(1000, 50)),  # same call, split
-        fx.tool_result("b-uuid-0003", "toolu_0001"),
-        fx.assistant("b-uuid-0004", "b-msg-0002", fx.usage(1300, 0)),
-    ], 1)  # ends before the original does, so the original owns the prefix
-    root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": original,
-                                "proj-a/sess-0002.jsonl": branch})
+def test_a_call_split_across_files_is_one_call_owned_by_the_earlier_file(tmp_path):
+    """D-MESSAGE-ID-DEDUP: a fork re-mints its parent's last call under a new
+    uuid. The parent owns it, the fork's copy is a duplicate the population
+    line counts, its usage still max-merges into the one call, and spend is
+    counted once; the same fork under its own id is a second call."""
+    fork_ref = {"type": "fork-context-ref", "parentSessionId": fx.SESSION,
+                "parentLastUuid": "uuid-0001", "agentId": "agent-fake1"}
+    parent = fx.assistant("uuid-0001", "msg-0001", fx.usage(1000, 50))
+    copy = fx.assistant("fork-uuid-0001", "msg-0001", fx.usage(1000, 70))
+    root = fx.corpus(tmp_path / "shared", {
+        "proj-a/sess-0001.jsonl": fx.stamped([parent], 0),
+        "proj-a/sess-0001/subagents/agent-fake1.jsonl": [fork_ref] + fx.stamped([copy], 1)})
     loaded, facts = fx.load_facts(root)
-    source = next(s for s in loaded.files if s.path.stem == "sess-0002")
-    assert [r.duplicate for r in source.records] == [True, False, False, False]
-    assert walk.tool_uses([r for r in source.records if not r.duplicate]) == {}
-    (exact,) = [f for f in facts if f.locator.file == source.name
-                and f.dims.get(schema.CAUSE_DIM) in schema.EXACT_CAUSES]
-    assert (exact.dims[schema.TOOL_DIM], exact.dims[schema.HEAD_DIM], exact.metrics[fx.DELTA]) == (
-        "Bash", "Bash:pytest", fx.EXACT_FIRST_DELTA)
+    assert {s.path.stem: [r.duplicate for r in s.records] for s in loaded.files} == {
+        "sess-0001": [False], "agent-fake1": [False, True]}
+    assert loaded.duplicate_records == 1
+    (call,) = [f for f in facts if f.kind == CALL]
+    assert call.locator.file == "proj-a/sess-0001.jsonl"
+    assert query.reconcile(facts).holds
+    code, out, err = fx.run_cli("spend", "--root", str(root))
+    assert code == 0, err
+    assert "; 2 files read, 1 windows, 1 call facts, 1 increment facts; " \
+           "0 lines skipped, 1 duplicate records excluded" in out
+    # Merged over both files' constituents: the same metrics as the split within one file.
+    (within,) = [f for f in _one_window(tmp_path / "within", [parent, copy]) if f.kind == CALL]
+    assert call.metrics == within.metrics
+    # Vacuity guards: under its own id the copy is a second call, billed again,
+    # and the two differ on some metric, so the merge above did something.
+    own = fx.corpus(tmp_path / "own", {
+        "proj-a/sess-0001.jsonl": fx.stamped([parent], 0),
+        "proj-a/sess-0001/subagents/agent-fake1.jsonl":
+            [fork_ref] + fx.stamped([dict(copy, message={**copy["message"], "id": "fork-msg-0001"})], 1)})
+    own_loaded, own_facts = fx.load_facts(own)
+    two = [f for f in own_facts if f.kind == CALL]
+    assert (own_loaded.duplicate_records, len(two)) == (0, 2)
+    assert any(two[0].metrics[m] != two[1].metrics[m] for m in ADDITIVE_CALL_METRICS)
+    assert sum(f.metrics[schema.SPEND] for f in two) == 2 * call.metrics[schema.SPEND]
 
 
 def test_split_message_id_merges_every_additive_metric_by_max(tmp_path):

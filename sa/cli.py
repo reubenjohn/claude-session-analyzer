@@ -28,9 +28,12 @@ from .render import View
 SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What put"
               " the tokens there is answered by `sa context` (--by tool, --by head).")
 
-VIEWS = {"context": View(schema.CONTEXT_DELTA, (schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM)
-                         + schema.WINDOW_DIMENSIONS[::-1], True, ()),
-         "spend": View(schema.SPEND, schema.WINDOW_DIMENSIONS, False, (SPEND_NOTE,))}
+VIEWS = {"context": View(metric=schema.CONTEXT_DELTA,
+                         tables=(schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM)
+                         + schema.WINDOW_DIMENSIONS[::-1],
+                         reconciles=True, notes=()),
+         "spend": View(metric=schema.SPEND, tables=schema.WINDOW_DIMENSIONS,
+                       reconciles=False, notes=(SPEND_NOTE,))}
 
 
 def _days(text: str) -> float:
@@ -91,10 +94,10 @@ def _modified_within(days: Optional[float]) -> Optional[corpus.Keep]:
 
 def _narrow(facts: List[schema.Fact], where: List[Tuple[str, str]], metric: str) -> List[schema.Fact]:
     """Select pair by pair. A pair that no fact still carries is refused like
-    an undeclared value, naming the values present by descending mass: the
+    an undeclared value, naming the values present by descending |mass|: the
     data's own vocabulary, given the pairs before it."""
     for dim, value in where:
-        present = [r.value for r in query.group(facts, dim, metric).rows if r.kind == query.REGULAR]
+        present = query.values(facts, dim, metric)
         if value not in present:
             raise schema.SchemaError("no facts carry %s=%s; present: %s"
                                      % (dim, value, ", ".join(present[:20]) or "none"))
@@ -106,10 +109,11 @@ def _select(root: Path, since: Optional[float], where: List[Tuple[str, str]],
             metric: str) -> Selection:
     loaded = corpus.load(root, _modified_within(since))
     facts = [f for source in loaded.files for f in walk.walk(source)]
-    window_facts = _narrow(facts, [p for p in where if p[0] in schema.WINDOW_DIMENSIONS], metric)
-    kept = _narrow(window_facts, [p for p in where if p[0] not in schema.WINDOW_DIMENSIONS], metric)
-    return Selection(root, since, where, loaded, window_facts, kept, query.total(kept, metric),
-                     query.reconcile(window_facts))
+    window_where, drill = query.split(where)
+    window_facts = _narrow(facts, window_where, metric)
+    kept = _narrow(window_facts, drill, metric)
+    return Selection(root, since, window_where, drill, loaded, window_facts, kept,
+                     query.total(kept, metric), query.reconcile(window_facts))
 
 
 def main(argv: Optional[List[str]] = None) -> int:

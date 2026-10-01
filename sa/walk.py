@@ -9,11 +9,11 @@ right contributor; that is why only an interval with exactly one
 token-relevant contributor is booked as exact and everything else is one
 ``ambiguous`` bucket with its reason, never a spread.
 
-Records marked duplicate (replays owned by another file) mint no call, no
-contributor and no fact; the tool_use join index spans every record so a
-tool_result whose tool_use was replayed still resolves to its tool. A file
-whose first calls are replays books ``window_head`` at its first live call,
-the ruled inherited-context row.
+Records marked duplicate (replays owned by another file, by uuid or by the
+call's message.id) mint no call, no contributor and no fact; the tool_use
+join index spans every record so a tool_result whose tool_use was replayed
+still resolves to its tool. A file whose first calls are replays books
+``window_head`` at its first live call, the ruled inherited-context row.
 
 Every figure below marked "local corpus" was measured by this package over
 the live local corpus, 33 files, 2026-10-01; the Phase 0 figures name their
@@ -22,7 +22,7 @@ own population.
 from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
 
 from . import heads, schema, usage
-from .corpus import Record, SourceFile
+from .corpus import Record, SourceFile, message_id
 from .schema import Candidate, Fact, Locator
 
 ToolUses = Dict[str, Tuple[str, dict]]
@@ -46,26 +46,28 @@ class Call(NamedTuple):
     usage: dict     # max-merged over the constituents
 
 
-def calls(records: List[Record]) -> List[Call]:
+def calls(records: List[Record], usages: Dict[str, List[dict]]) -> List[Call]:
     """Usage-carrying calls in first-constituent order.
 
     Assistant records sharing a ``message.id`` are one call, merged by
-    ``usage.max_merge_usage`` (its docstring has why a field-wise max). A
-    record without ``message.id`` is a call by itself. A call carries usage
-    iff it has occupancy or output: a ``<synthetic>`` zero-usage record is
-    not a call and does not advance the chain.
+    ``usage.max_merge_usage`` (its docstring has why a field-wise max) over
+    every constituent the forest carries under that id (``usages``), so a
+    split spread over a fork and its parent merges whole and is credited
+    once, to the owning file. A record without ``message.id`` is a call by
+    itself. A call carries usage iff it has occupancy or output: a
+    ``<synthetic>`` zero-usage record is not a call and does not advance
+    the chain.
     """
     groups: Dict[object, List[int]] = {}
     for index, record in enumerate(records):
         if record.data.get("type") != "assistant":
             continue
-        message_id = _message(record.data).get("id")
-        key = message_id if message_id is not None else ("line", record.line)
-        groups.setdefault(key, []).append(index)
+        key = message_id(record.data)
+        groups.setdefault(key if key is not None else ("line", record.line), []).append(index)
     found = []
-    for indices in groups.values():
+    for key, indices in groups.items():
         merged = usage.max_merge_usage(
-            [_message(records[i].data).get("usage") for i in indices])
+            usages.get(key) or [_message(records[i].data).get("usage") for i in indices])
         if usage.usage_context(merged) or merged.get("output_tokens"):
             found.append(Call(indices[0], records[indices[0]], merged))
     return found
@@ -212,7 +214,7 @@ def walk(source: SourceFile) -> Iterator[Fact]:
             **shared_dims(found))
 
     previous = None
-    for call in calls(live):
+    for call in calls(live, source.usages):
         yield schema.fact(schema.CALL, dict(window), {
             name: spec.read(call.usage) for name, spec in schema.METRICS.items()
             if spec.carrier == schema.CALL}, locator(call.record))

@@ -18,6 +18,28 @@ def select(facts: Iterable[Fact], where: Where) -> List[Fact]:
             if all(dim in f.dims and str(f.dims[dim]) == value for dim, value in pairs)]
 
 
+def split(where: Where) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
+    """The ``--where`` pairs that keep whole windows, and those that drill
+    within them."""
+    pairs = list(where)
+    return ([p for p in pairs if p[0] in schema.WINDOW_DIMENSIONS],
+            [p for p in pairs if p[0] not in schema.WINDOW_DIMENSIONS])
+
+
+def values(facts: Iterable[Fact], dim: str, metric: str) -> List[str]:
+    """Every value of ``dim`` the metric's carrier facts carry, by descending
+    |mass|: the data's own vocabulary for a filter. Read from the facts, not
+    from a table's rows, so a value every table files as signed (shrink) is
+    present like any other."""
+    carrier = schema.metric(metric).carrier
+    mass: Dict[str, float] = {}
+    for f in facts:
+        if f.kind == carrier and f.dims.get(dim) is not None:
+            value = str(f.dims[dim])
+            mass[value] = mass.get(value, 0) + abs(f.metrics[metric])
+    return sorted(mass, key=lambda v: -mass[v])
+
+
 def total(facts: List[Fact], metric: str) -> float:
     """The metric summed once, in fact order, over its carrier kind: the one
     figure a headline and every table's base are taken from."""
@@ -154,18 +176,19 @@ class Selection(NamedTuple):
     filters kept, the facts the drill filters kept within them, and the
     population they were read from."""
     root: Path
-    since: Optional[float]          # days, when --since narrowed the files read
-    where: List[Tuple[str, str]]    # every --where pair
+    since: Optional[float]           # days, when --since narrowed the files read
+    window_where: List[Tuple[str, str]]  # the --where pairs that kept whole windows
+    drill: List[Tuple[str, str]]     # the --where pairs that selected within them
     loaded: Corpus
-    window_facts: List[Fact]        # whole windows kept by the window-dimension filters
-    facts: List[Fact]               # the windows' facts kept by the drill filters too
+    window_facts: List[Fact]        # whole windows kept by ``window_where``
+    facts: List[Fact]               # the windows' facts kept by ``drill`` too
     total: float                    # the view's metric over ``facts``, summed once
     reconciliation: Reconciliation  # over ``window_facts``: a drill never changes it
 
     @property
-    def drill(self) -> List[Tuple[str, str]]:
-        """The ``--where`` pairs that select within a window, not whole windows."""
-        return [p for p in self.where if p[0] not in schema.WINDOW_DIMENSIONS]
+    def where(self) -> List[Tuple[str, str]]:
+        """Every pair, in the order they were applied."""
+        return self.window_where + self.drill
 
     @property
     def n_windows(self) -> int:

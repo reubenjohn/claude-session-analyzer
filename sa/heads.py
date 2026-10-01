@@ -8,9 +8,12 @@ COMMAND word that can produce the tokens, so what precedes one is skipped:
 leading ``VAR=value`` assignments and ``cd <dir>`` prefixes ended by a
 separator; a ``KEYWORDS`` word with everything through the ``BODY_OPENERS``
 word that opens its body (``for f in x; do cmd`` is ``cmd``, not ``for``); a
-bare ``WRAPPERS`` word; ``timeout`` with its duration; and an output-less
+bare ``WRAPPERS`` word; ``timeout`` with its options and duration; a
+``TESTS`` bracket through its closer; a bare separator; and an output-less
 ``BUILTINS`` word with its arguments up to the next separator (``echo "==
 $f"; cat $f`` is ``cat``), so a command that is only builtins is ``other``.
+Separators are ``&&``, ``||``, ``;``, ``|``, a newline and either
+parenthesis, each padded into a word of its own.
 A path-shaped command word is its basename (``./check.sh`` is ``check.sh``,
 ``/usr/bin/python3`` is ``python3``). For the tools whose input carries
 ``file_path`` the summary is the file extension. A summary is kept only if
@@ -25,12 +28,14 @@ from typing import List, Optional, Tuple
 
 HEAD_SHAPE = re.compile(r"^[A-Za-z0-9_.+-]{1,32}$")
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-_SEPARATORS = ("&&", "||", ";", "|")
-_SEPARATOR = re.compile(r"(&&|\|\||;|\|)")  # padded so each is its own word
+_SEPARATORS = ("&&", "||", ";", "|", "(", ")")
+_SEPARATOR = re.compile(r"(&&|\|\||;|\||[()])")  # padded so each is its own word
 KEYWORDS = ("for", "while", "until", "if", "elif")  # the command is in the body they open
 BODY_OPENERS = ("do", "then")
-WRAPPERS = ("{", "(", "!", "time", "sudo", "env", "nohup", "xargs")  # run the word after them
-BUILTINS = ("echo", "printf", "true", "false", "set", "export", "unset", "shift")  # no output
+WRAPPERS = ("{", "!", "time", "sudo", "env", "nohup", "xargs")  # run the word after them
+TIMEOUT_VALUED = ("-s", "--signal", "-k", "--kill-after")  # timeout options taking a word
+TESTS = {"[": "]", "[[": "]]"}  # a condition, closed by its bracket; no output
+BUILTINS = ("echo", "printf", "true", "false", "set", "export", "unset", "shift", "exit")  # no output
 OTHER = "other"
 
 
@@ -44,16 +49,22 @@ def _past(words: List[str], stop: Tuple[str, ...]) -> int:
 
 
 def bash_head(tool_input: dict) -> str:
-    words = _SEPARATOR.sub(r" \1 ", str(tool_input.get("command", ""))).split()
+    command = str(tool_input.get("command", "")).replace("\n", ";")  # a newline ends a command
+    words = _SEPARATOR.sub(r" \1 ", command).split()
     while words:
-        if _ASSIGNMENT.match(words[0]) or words[0] in WRAPPERS:
+        if _ASSIGNMENT.match(words[0]) or words[0] in WRAPPERS or words[0] in _SEPARATORS:
             del words[0]
         elif words[0] == "timeout":
-            del words[:2]
+            del words[0]
+            while words and words[0].startswith("-"):
+                del words[:2 if words[0] in TIMEOUT_VALUED else 1]
+            del words[:1]  # the duration
         elif words[0] == "cd" and len(words) > 2 and words[2] in _SEPARATORS:
             del words[:3]
         elif words[0] in KEYWORDS:
             del words[:_past(words, BODY_OPENERS)]
+        elif words[0] in TESTS:
+            del words[:_past(words, (TESTS[words[0]],))]
         elif words[0] in BUILTINS:
             del words[:_past(words, _SEPARATORS)]
         else:
