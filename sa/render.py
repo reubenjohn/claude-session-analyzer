@@ -1,43 +1,21 @@
-"""Plain-text rendering of a selection: headline, population, tables, leaves, footer."""
-from pathlib import Path
+"""Plain-text rendering of a selection: headline, population, tables, leaves,
+footer. The tables are grouped here from the selection's facts; its total
+and reconciliation come with it, so nothing here decides the exit status."""
 from typing import Iterator, List, NamedTuple, Optional, Tuple
 
-from . import corpus, heads, query, schema
+from . import heads, query, schema
+from .query import Selection
 from .schema import Fact
 
 
 class View(NamedTuple):
+    """The shape of one report: which metric, which tables by default, and
+    whether the total is the windows' final occupancies, which the footer
+    then checks."""
     metric: str
     tables: Tuple[str, ...]  # printed by default; the first one not pinned by --where leads
-    reconciles: bool         # the total is the windows' final occupancies, and the footer checks it
+    reconciles: bool
     notes: Tuple[str, ...]   # printed under the headline
-
-
-SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What put"
-              " the tokens there is answered by `sa context` (--by tool, --by head).")
-
-VIEWS = {"context": View(schema.CONTEXT_DELTA, (schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM)
-                         + schema.WINDOW_DIMENSIONS[::-1], True, ()),
-         "spend": View(schema.SPEND, schema.WINDOW_DIMENSIONS, False, (SPEND_NOTE,))}
-
-
-class Selection(NamedTuple):
-    root: Path
-    since: Optional[float]          # days, when --since narrowed the files read
-    where: List[Tuple[str, str]]    # every --where pair
-    loaded: corpus.Corpus
-    window_facts: List[Fact]        # whole windows kept by the window-dimension filters
-    facts: List[Fact]               # the windows' facts kept by the drill filters too
-    total: float                    # the view's metric over ``facts``, summed once
-
-    @property
-    def drill(self) -> List[Tuple[str, str]]:
-        """The ``--where`` pairs that select within a window, not whole windows."""
-        return [p for p in self.where if p[0] not in schema.WINDOW_DIMENSIONS]
-
-    @property
-    def n_windows(self) -> int:
-        return len({f.locator.file for f in self.window_facts})
 
 
 RESIDUAL_LABEL = "∅"  # the row for facts that lack the grouped dimension
@@ -81,20 +59,19 @@ def _tags(dims: dict) -> str:
     return " ".join("%s=%s" % (d, dims[d]) for d in schema.DIMENSIONS if d in dims)
 
 
-def report(view: View, sel: Selection, by: Optional[str], limit: int) -> Tuple[List[str], bool]:
-    """Every line of the view, and whether its reconciliation held. The
-    headline names the top row of the first table shown that ``--where``
-    did not pin (its top row would be the filter itself)."""
+def report(view: View, sel: Selection, by: Optional[str], limit: int) -> List[str]:
+    """Every line of the view. The headline names the top row of the first
+    table shown that ``--where`` did not pin (its top row would be the
+    filter itself)."""
+    spec = schema.metric(view.metric)
     if by == "fact":
         lead, body = None, _leaves(sel.facts, view.metric, limit)
     else:
         shown = [query.group(sel.facts, dim, view.metric) for dim in ([by] if by else view.tables)]
         pinned = {dim for dim, _ in sel.where}
         lead = next((t for t in shown if t.dim not in pinned), None)
-        unit = schema.metric(view.metric).unit
-        body = [line for t in shown if t.rows for line in _table(t, unit, limit) + [""]]
-    closing, holds = footer(view, sel)
-    return headline(view, sel, lead) + [population(sel), ""] + body + closing, holds
+        body = [line for t in shown if t.rows for line in _table(t, spec, limit) + [""]]
+    return headline(view, sel, lead) + [population(sel), ""] + body + footer(view, sel)
 
 
 def headline(view: View, sel: Selection, lead: Optional[query.Table]) -> List[str]:
@@ -159,9 +136,10 @@ def _label(row: query.Row) -> str:
     return row.value + (" (signed)" if row.kind == query.SIGNED else "")
 
 
-def _table(table: query.Table, unit: str, limit: int) -> List[str]:
+def _table(table: query.Table, spec: schema.Metric, limit: int) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
     still adds up, then the residual and signed rows, which are never hidden.
+    The count column is named for what it counts, the metric's carrier kind.
     A table with no base (no regular mass) prints ``share`` alone."""
     title = "by " + table.dim
     regular = [r for r in table.rows if r.kind == query.REGULAR]
@@ -173,11 +151,12 @@ def _table(table: query.Table, unit: str, limit: int) -> List[str]:
     shown += [r for r in table.rows if r.kind != query.REGULAR]
     labels = [_label(r) for r in shown]
     width = max(len(label) for label in labels + [title])
+    count = spec.carrier + "s"
     share = "share of %s" % _num(table.base) if table.base else "share"
-    lines = ["%-*s  %16s  %7s  %s" % (width, title, unit, "count", share)]
+    lines = ["%-*s  %16s  %s  %s" % (width, title, spec.unit, count, share)]
     for label, r in zip(labels, shown):
-        lines.append("%-*s  %16s  %7d  %*s" % (
-            width, label, _num(r.mass), r.count, len(share),
+        lines.append("%-*s  %16s  %*d  %*s" % (
+            width, label, _num(r.mass), len(count), r.count, len(share),
             _pct(table.share(r.mass) if r.kind == query.REGULAR else None)))
     lines += ["%s: %s" % (r.value, UNSPLITTABLE[r.value]) for r in shown if r.value in UNSPLITTABLE]
     if table.dim in RESIDUAL_NOTES and any(r.kind == query.RESIDUAL for r in shown):
@@ -241,13 +220,13 @@ def _call_totals(sel: Selection, headline_metric: str) -> List[str]:
             and name != headline_metric]
 
 
-def footer(view: View, sel: Selection) -> Tuple[List[str], bool]:
-    """The closing lines and whether the reconciliation held."""
+def footer(view: View, sel: Selection) -> List[str]:
+    """The closing lines: the reconciliation in full, as a pointer when a
+    drill is shown above it, or the other call totals for a view that does
+    not reconcile."""
     if not view.reconciles:
-        return _call_totals(sel, view.metric), True
-    reconciliation = query.reconcile(sel.window_facts)
+        return _call_totals(sel, view.metric)
     if sel.drill:
         return ["reconciliation: applies to the %d whole windows above, not to this"
-                " drill: %s" % (sel.n_windows, _status(reconciliation.holds))], \
-               reconciliation.holds
-    return _reconciliation(reconciliation), reconciliation.holds
+                " drill: %s" % (sel.n_windows, _status(sel.reconciliation.holds))]
+    return _reconciliation(sel.reconciliation)

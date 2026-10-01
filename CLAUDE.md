@@ -4,7 +4,7 @@ Answers TWO questions about Claude Code sessions: where is my context going
 (`context_delta`) and what did it cost (`spend`), from the JSONL transcripts
 under `Path.home()/".claude"/"projects"` (computed at runtime, never a
 literal path). Standard library only, Python 3.8. TIME/scheduling questions
-are deliberately deferred: design so they can be added, do not add them.
+are deferred: design so they can be added, do not add them.
 Standing premise: NO USERS, NO DEPLOYMENTS — breaking changes are free,
 legacy is deleted not accommodated, published numbers move when the old
 number was wrong. Branch: `v2-build`.
@@ -28,16 +28,18 @@ names its one carrier kind (`spend` -> call,
 double-counting is impossible. Window dimensions `project`,
 `session`, `agent` are on both kinds (a main window has no `agent`,
 D-AGENT-DIM); `cause`, `tool`, `head`, `reason` on increments only. A head
-is `<tool>:<summary>` (`Bash:pytest`, `Read:py`; R5 as amended), never a
-path. Unknown names and undeclared `cause`/`reason` values fail closed. A
-window IS a file (R2): `window_head` is the first usage-carrying call's
+is `<tool>:<summary>`: a Bash command's first COMMAND word, a path's
+basename (`Bash:pytest`, `Bash:check.sh`), or a file tool's extension
+(`Read:py`); never a path (R5, R5-BASENAME). Unknown names, undeclared `cause`/`reason` values and a
+`--where` value no fact carries fail closed (exit 2, naming what is
+present). A window IS a file (R2): `window_head` is the first usage-carrying call's
 occupancy — inherited for a fork, boot context for a fresh session — its
 own row, never spread, never the headline.
 
 CLI surface: `python3 -m sa context --help`; README.md and SKILL.md mirror
-live output. The headline names
-the top splittable row of the first table shown, its mass, and its share's
-base when that is not the total.
+live output. The headline names the top splittable row of the first table
+shown, its mass, and its share's base when that is not the total; a count
+column is named for its carrier (`increments`, `calls`).
 
 ## Non-negotiables
 
@@ -59,10 +61,9 @@ base when that is not the total.
 
 ## Measured corrections — stay pinned by tests
 
-`sa/usage.py` docstrings carry these (D-USAGE-DOCSTRINGS: the fact, its
-population and date, nothing else); `tests/test_usage.py` pins the
-bodies. Any engine-level choice (fact shape, carriers, causes, the
-attribution walk, a measured correction) changes only via a logged ruling in
+`sa/usage.py` docstrings carry these (D-USAGE-DOCSTRINGS);
+`tests/test_usage.py` pins the bodies. Any engine-level choice (fact shape, carriers, causes, the walk, a
+correction) changes only via a logged ruling in
 `references/DECISION_LOG.md` (argument or new measurement, plus an opus
 second opinion). The recorded failure mode is the confident in-place
 "improvement" that deletes a measured correction.
@@ -79,8 +80,7 @@ second opinion). The recorded failure mode is the confident in-place
 - Physical line numbers, not parsed index. A filename is not a session.
 - Contributors are token-relevant only (tool_result + user text), one per
   tool_result block; counting 2.1.28x bookkeeping attachments collapses the
-  "exactly one non-assistant record" rate from 84% to under 1%, and their
-  text folds into the one contributor's remainder.
+  exact rate from 84% to under 1%; their text folds into the remainder.
 - parentUuid links never cross files (0 of 1,523; 21 files, 2026-09-30):
   no parentUuid-chain window model.
 - Local corpus (33 files, 2026-10-01): 67 user records sit inside 44 of 588
@@ -109,17 +109,16 @@ Pre-commit warns on `.py` > 15,000 bytes and `.md` > 20,000. Privacy gate
 FAILS CLOSED (`tests/test_privacy.py`): no literal `/home/...` or
 `/Users/...` paths, no real-looking UUIDs, no transcript text in any tracked
 file. `.githooks/pre-push` does not fire under the global `core.hooksPath`:
-run `python3 -m pytest -q tests/` before every push. Doc caps: README ≤
-5,000, SKILL.md ≤ 6,000, this file ≤ 7,000; example lines match live CLI
-output (placeholder ids), so resync after any output change.
+run the suite before every push. Doc caps: README ≤ 5,000, SKILL.md ≤
+6,000, this file ≤ 7,000; example lines match live CLI output, so resync
+after any output change.
 
 ## Pointers, never copies
 
 - `references/DESIGN_BRIEF.md` — §2 (the attribution walk) is the spec;
-  the rest, 94.98% exact rate included, is dated.
+  the rest is dated. `DESIGN_COMPETITION.md`
+  and `designs/` beside it — the design phase.
 - `references/DECISION_LOG.md` — rulings and status table;
   `DECISION_LOG_HISTORY.md` beside it — the rows as proposed.
-- `references/DESIGN_COMPETITION.md`, `references/designs/` — design
-  charter, competing designs, panel report.
 - `references/PHASE0_MEASUREMENT.md` — what the raw transcripts carry.
 - `references/PUBLISHING_PLAN.md` — extraction and distribution.

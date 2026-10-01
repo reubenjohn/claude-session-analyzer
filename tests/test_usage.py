@@ -11,8 +11,8 @@ from sa import usage as L
 # failure mode and needs a new measurement plus a logged ruling.
 PORTED_BODIES = {
     "usage_context": "6cd87dea08b2fe13",
-    "_cache_creation_tiers": "1de2fd93b04bfbf8",
-    "usage_spend": "6b24d2d5c3596e24",
+    "cache_creation_tiers": "c9ec4437b107509d",
+    "usage_spend": "5365900f616c3156",
     "context_delta": "cc285c61b0efc9af",
     "max_merge_usage": "6851868ac33864ad",
 }

@@ -32,10 +32,6 @@ class Metric(NamedTuple):
     read: Optional[Callable[[dict], float]] = None
 
 
-def _tier(key: str) -> Callable[[dict], int]:
-    return lambda u: int((u.get("cache_creation") or {}).get(key, 0) or 0)
-
-
 # The two metrics the reconciliation joins: every booked increment against
 # the occupancy the window's last call reports.
 CONTEXT_DELTA = "context_delta"
@@ -46,8 +42,8 @@ METRICS: Dict[str, Metric] = {
     CONTEXT_DELTA: Metric(ADDITIVE, INCREMENT, "context tokens"),
     SPEND: Metric(ADDITIVE, CALL, "input-side base-token-equivalents", usage.usage_spend),
     "output_tokens": Metric(ADDITIVE, CALL, "tokens", lambda u: u["output_tokens"]),
-    "cache_write_1h_tokens": Metric(ADDITIVE, CALL, "tokens", _tier("ephemeral_1h_input_tokens")),
-    "cache_write_5m_tokens": Metric(ADDITIVE, CALL, "tokens", _tier("ephemeral_5m_input_tokens")),
+    "cache_write_1h_tokens": Metric(ADDITIVE, CALL, "tokens", lambda u: usage.cache_creation_tiers(u)[0]),
+    "cache_write_5m_tokens": Metric(ADDITIVE, CALL, "tokens", lambda u: usage.cache_creation_tiers(u)[1]),
     CONTEXT_TOKENS: Metric(PEAK, CALL, "context tokens", usage.usage_context),
 }
 

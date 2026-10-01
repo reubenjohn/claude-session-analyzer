@@ -30,7 +30,7 @@ CACHE_READ_WEIGHT = 0.1
 CACHE_WRITE_WEIGHT = {"1h": 2.0, "5m": 1.25}
 
 
-def _cache_creation_tiers(u):
+def cache_creation_tiers(u):
     """(1h tokens, 5m tokens) from ``usage.cache_creation``; (0, 0) if absent."""
     if not isinstance(u, dict):
         return 0, 0
@@ -59,7 +59,7 @@ def usage_spend(u):
     """
     if not isinstance(u, dict):
         return 0.0
-    hour, five = _cache_creation_tiers(u)
+    hour, five = cache_creation_tiers(u)
     declared = int(u.get("cache_creation_input_tokens", 0) or 0)
     untiered = max(0, declared - hour - five)
     return (float(int(u.get("input_tokens", 0) or 0))

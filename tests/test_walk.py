@@ -251,11 +251,6 @@ def _ambiguous(facts):
     return closing
 
 
-def test_contributor_fields_are_the_dimensions_an_exact_increment_books():
-    assert walk.Contributor._fields[0] == "record"
-    assert set(walk.Contributor._fields[1:]) < set(schema.KIND_DIMENSIONS[INCREMENT])
-
-
 def test_a_batched_result_record_is_one_contributor_per_block(tmp_path):
     batched = fx.tool_result("uuid-0002", "toolu_0001", "toolu_0004")
     closing = _ambiguous(_after_one_call(tmp_path / "batched", [READ_A, BASH], [batched]))

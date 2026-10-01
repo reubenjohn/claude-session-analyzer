@@ -11,15 +11,26 @@ dedup runs over the selected files only; ``--where`` selects facts after
 dedup. A ``--where`` on a window dimension (project, session, agent) keeps
 whole windows; any other dimension is a drill, and the reconciliation and
 the single-call peak then apply to the whole-window population they are
-printed for.
+printed for. A pair that no fact carries is refused (exit 2) naming the
+values that are present, as a misspelt cause is: it would print a
+confident zero.
 """
 import argparse
+import sys
 import time
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 from . import corpus, query, render, schema, walk
-from .render import VIEWS, Selection
+from .query import Selection
+from .render import View
+
+SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What put"
+              " the tokens there is answered by `sa context` (--by tool, --by head).")
+
+VIEWS = {"context": View(schema.CONTEXT_DELTA, (schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM)
+                         + schema.WINDOW_DIMENSIONS[::-1], True, ()),
+         "spend": View(schema.SPEND, schema.WINDOW_DIMENSIONS, False, (SPEND_NOTE,))}
 
 
 def _days(text: str) -> float:
@@ -78,20 +89,36 @@ def _modified_within(days: Optional[float]) -> Optional[corpus.Keep]:
     return lambda path: path.stat().st_mtime >= cutoff
 
 
+def _narrow(facts: List[schema.Fact], where: List[Tuple[str, str]], metric: str) -> List[schema.Fact]:
+    """Select pair by pair. A pair that no fact still carries is refused like
+    an undeclared value, naming the values present by descending mass: the
+    data's own vocabulary, given the pairs before it."""
+    for dim, value in where:
+        present = [r.value for r in query.group(facts, dim, metric).rows if r.kind == query.REGULAR]
+        if value not in present:
+            raise schema.SchemaError("no facts carry %s=%s; present: %s"
+                                     % (dim, value, ", ".join(present[:20]) or "none"))
+        facts = query.select(facts, [(dim, value)])
+    return facts
+
+
 def _select(root: Path, since: Optional[float], where: List[Tuple[str, str]],
             metric: str) -> Selection:
     loaded = corpus.load(root, _modified_within(since))
     facts = [f for source in loaded.files for f in walk.walk(source)]
-    whole = [p for p in where if p[0] in schema.WINDOW_DIMENSIONS]
-    window_facts = query.select(facts, whole)
-    kept = query.select(window_facts, where)
-    return Selection(root, since, where, loaded, window_facts, kept, query.total(kept, metric))
+    window_facts = _narrow(facts, [p for p in where if p[0] in schema.WINDOW_DIMENSIONS], metric)
+    kept = _narrow(window_facts, [p for p in where if p[0] not in schema.WINDOW_DIMENSIONS], metric)
+    return Selection(root, since, where, loaded, window_facts, kept, query.total(kept, metric),
+                     query.reconcile(window_facts))
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     view = VIEWS[args.view]
-    sel = _select(args.root, args.since, args.where, view.metric)
-    lines, holds = render.report(view, sel, args.by, args.limit)
-    print("\n".join(lines))
-    return 0 if holds else 1
+    try:
+        sel = _select(args.root, args.since, args.where, view.metric)
+    except schema.SchemaError as error:
+        print("sa %s: error: %s" % (args.view, error.args[0]), file=sys.stderr)
+        return 2
+    print("\n".join(render.report(view, sel, args.by, args.limit)))
+    return 0 if not view.reconciles or sel.reconciliation.holds else 1

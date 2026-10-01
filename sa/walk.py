@@ -92,9 +92,9 @@ class Contributor(NamedTuple):
 
     @property
     def dims(self) -> dict:
-        """What an exact increment books for it: the fields that are set,
-        named by the dimensions they are."""
-        return {k: v for k, v in self._asdict().items() if k != "record" and v is not None}
+        """What an exact increment books for it: the dimensions that are set."""
+        named = {schema.CAUSE_DIM: self.cause, schema.TOOL_DIM: self.tool, schema.HEAD_DIM: self.head}
+        return {dim: value for dim, value in named.items() if value is not None}
 
 
 def contributors(records: List[Record], uses: ToolUses) -> Iterator[Contributor]:

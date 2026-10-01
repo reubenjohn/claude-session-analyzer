@@ -154,6 +154,34 @@ the base is the total); and a `--where` value of a closed-vocabulary
 dimension (`cause`, `reason`) is validated at parse time, since
 `--where cause=bogus` had printed a confident zero.
 
+**R5-BASENAME — the Bash head is the first COMMAND word; a path's
+basename.** RULED 2026-10-01, on a fourth judge's rejection of 859225b;
+opus agreed. R5's "first token" is read as the first command word:
+`for f in …; do cmd; done` had yielded `Bash:for` (the #2 Bash head on the
+live corpus, 164k tokens: a keyword, not a command). Now `for`, `while`,
+`until`, `if`, `elif` drop everything through the `do` or `then` that opens
+their body; the bare wrappers `{`, `(`, `!`, `time`, `sudo`, `env`,
+`nohup`, `xargs` drop, and `timeout` with its duration, as a leading
+assignment does; each list is one declared tuple in `heads.py`. Amendment:
+a path-shaped first command word is its basename (`./check.sh` ->
+`Bash:check.sh`, `/usr/bin/python3` -> `Bash:python3`), still subject to
+`HEAD_SHAPE` and never a directory (`scripts/` -> `other`); it is one
+expression in `heads.bash_head`, revertible in one edit. Known gaps, logged
+and not widened now: an interpreter followed by a script (`python3
+scripts/x.py`, `bash x.sh`) still yields the interpreter; and a loop whose
+body opens with a label (`for f in …; do echo "== $f"; cat "$f"; done`)
+yields `Bash:echo`, so on the live corpus (31 windows, 2026-10-01)
+`Bash:echo` rose from under 44k to 167k tokens as `Bash:for`'s mass
+dispersed. Same pass: a `--where` value that no fact carries (`tool=bash`)
+exits 2 naming the values present by descending mass, narrowed pair by
+pair, instead of printing a confident zero; each table's count column is
+named for its carrier kind (`increments`, `calls`), since one ambiguous
+increment counts several results; `cli` computes the reconciliation once
+on the `Selection` (now in `query`, with `VIEWS` in `cli`) and `render`
+only formats; `schema` reads the cache tiers through
+`usage.cache_creation_tiers`, the ported helper made public with its body
+unchanged; `walk.Contributor.dims` names its dimensions explicitly.
+
 ---
 
 ## Phase 3 synthesis — the rows as proposed (history)

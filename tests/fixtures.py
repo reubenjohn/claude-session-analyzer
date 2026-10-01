@@ -6,11 +6,15 @@ arithmetic is written out so a test can assert exact figures rather than
 re-derive them.
 """
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from sa import corpus as corpus_module, schema, walk
 
 SESSION = "sess-0001"
+FORK_PARENT = "sess-0000"
+REPO = Path(__file__).resolve().parents[1]
 
 
 def metric_named(**spec):
@@ -132,3 +136,26 @@ def corpus(tmp_path, files):
 def load_facts(root, keep=None):
     loaded = corpus_module.load(root, keep)
     return loaded, [f for source in loaded.files for f in walk.walk(source)]
+
+
+def cli_corpus(tmp_path):
+    """Two projects, three windows: a main window, its forked subagent (a
+    sibling fork: same text, new ids), another project's window, and a
+    file with no call at all."""
+    fork = {"type": "fork-context-ref", "parentSessionId": FORK_PARENT,
+            "parentLastUuid": "uuid-0000", "agentId": "agent-fake1"}
+    return corpus(tmp_path, {
+        "proj-a/sess-0001.jsonl": window_records(),
+        "proj-a/sess-0001/subagents/agent-fake1.jsonl":
+            [fork] + window_records("fork-", session="sess-0001"),
+        "proj-b/sess-0002.jsonl": window_records("b-", session="sess-0002"),
+        "proj-b/empty.jsonl": [user_text("uuid-9001", session="sess-0003")],
+    })
+
+
+def run_cli(*args):
+    """``python3 -m sa <args>`` as a subprocess: (exit status, stdout, stderr)."""
+    done = subprocess.run([sys.executable, "-m", "sa"] + list(args), cwd=str(REPO),
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          universal_newlines=True)
+    return done.returncode, done.stdout, done.stderr

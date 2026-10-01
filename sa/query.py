@@ -1,7 +1,9 @@
 """Select, group and reconcile facts. No rendering here."""
+from pathlib import Path
 from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 from . import schema
+from .corpus import Corpus
 from .schema import Fact
 
 Where = Iterable[Tuple[str, str]]
@@ -145,3 +147,26 @@ def reconcile(facts: Iterable[Fact]) -> Reconciliation:
         by_cause, len(final), calls, sum(final.values()),
         sum(counts[c] for c in schema.EXACT_CAUSES),
         counts[schema.AMBIGUOUS], by_reason, counts[schema.SHRINK])
+
+
+class Selection(NamedTuple):
+    """What a view is answered over: the whole windows the window-dimension
+    filters kept, the facts the drill filters kept within them, and the
+    population they were read from."""
+    root: Path
+    since: Optional[float]          # days, when --since narrowed the files read
+    where: List[Tuple[str, str]]    # every --where pair
+    loaded: Corpus
+    window_facts: List[Fact]        # whole windows kept by the window-dimension filters
+    facts: List[Fact]               # the windows' facts kept by the drill filters too
+    total: float                    # the view's metric over ``facts``, summed once
+    reconciliation: Reconciliation  # over ``window_facts``: a drill never changes it
+
+    @property
+    def drill(self) -> List[Tuple[str, str]]:
+        """The ``--where`` pairs that select within a window, not whole windows."""
+        return [p for p in self.where if p[0] not in schema.WINDOW_DIMENSIONS]
+
+    @property
+    def n_windows(self) -> int:
+        return len({f.locator.file for f in self.window_facts})
