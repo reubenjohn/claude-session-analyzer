@@ -7,6 +7,7 @@ first line, which a docstring cites. Aggregate counts only: no transcript
 text, no ids, no paths.
 """
 import datetime
+from bisect import bisect_left, bisect_right
 from typing import Dict, List, Tuple
 
 from . import query, schema, usage, walk
@@ -39,15 +40,16 @@ def batched_results(loaded: Corpus) -> Tuple[int, int]:
 
 def inside_spans(loaded: Corpus) -> Tuple[int, int, int]:
     """User records strictly inside a split call's span (first to last
-    constituent), the calls holding any, and every call."""
+    constituent), the calls holding any, and every call. One pass per file
+    indexes its user records; each span then counts them by bisection."""
     records = calls = holding = 0
     for source in loaded.files:
         live = source.live
-        users = [i for i, r in enumerate(live) if r.data.get("type") == "user"]
+        users = [i for i, r in enumerate(live) if r.data.get("type") == "user"]  # ascending
         last_of = last_constituents(live)
         for call in walk.calls(live, loaded.usages):
             first, last = span(last_of, call)
-            inside = sum(first < i < last for i in users)
+            inside = bisect_left(users, last) - bisect_right(users, first)
             records, calls, holding = records + inside, calls + 1, holding + (inside > 0)
     return records, holding, calls
 

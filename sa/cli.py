@@ -61,6 +61,13 @@ def _pair(text: str) -> Tuple[str, str]:
     return dim, value
 
 
+def _by(text: str) -> str:
+    if text != render.FACT and text not in schema.DIMENSIONS:
+        raise argparse.ArgumentTypeError("expected %s or a dimension: %s"
+                                         % (render.FACT, ", ".join(schema.DIMENSIONS)))
+    return text
+
+
 def _rows(text: str) -> int:
     if not text.isdigit() or int(text) < 1:
         raise argparse.ArgumentTypeError("expected a positive number of rows")
@@ -81,8 +88,8 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
         sub.add_argument("--where", action="append", default=[], type=_pair,
                          metavar="DIM=VALUE", help="repeatable; dims: %s"
                          % ", ".join(schema.DIMENSIONS))
-        sub.add_argument("--by", metavar="DIM|fact",
-                         help="one dimension's table, or 'fact' for leaf facts")
+        sub.add_argument("--by", type=_by, metavar="DIM|" + render.FACT,
+                         help="one dimension's table, or '%s' for leaf facts" % render.FACT)
         sub.add_argument("--limit", type=_rows, default=10, help="rows per table (at least 1)")
     return parser.parse_args(argv)
 
@@ -95,7 +102,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         sel = query.selection(walk.forest(loaded), args.where, view.metric)
         lines = render.report(view, sel, loaded, args.by, args.limit)
     except schema.SchemaError as error:
-        print("sa %s: error: %s" % (args.view, error.args[0]), file=sys.stderr)
+        print("sa %s: error: %s" % (args.view, error), file=sys.stderr)
         return 2
     print("\n".join(lines))
     return 0 if not view.reconciles or sel.reconciliation.holds else 1

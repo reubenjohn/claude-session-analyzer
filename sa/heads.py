@@ -13,12 +13,13 @@ bracket through its closer, and a ``BUILTINS`` or ``SILENT`` word with its
 arguments up to the next separator. For the tools
 whose input carries ``file_path`` the summary is the file extension. A
 summary is kept only if it matches ``HEAD_SHAPE`` (no slash, no leading
-``-``), else ``other``, as is a command shlex cannot tokenize (an unclosed
-quote). Known gap: a wrapper option that takes a value but is not in
-``VALUED`` leaves its value as the head; the fix is one more entry, never a
-looser shape. Every other tool has no head: Glob and Grep take a pattern
-and a directory, and NotebookEdit's extension is always the same. The cases
-are ``tests/test_heads.py``.
+``-``), else ``other``. A quote shlex cannot close ends the words there:
+the head stands when it comes before (an apostrophe in an argument or a
+heredoc body), else ``other``. Known gap: a wrapper option that takes a
+value but is not in ``VALUED`` leaves its value as the head; the fix is one
+more entry, never a looser shape. Every other tool has no head: Glob and
+Grep take a pattern and a directory, and NotebookEdit's extension is always
+the same. The cases are ``tests/test_heads.py``.
 """
 import re
 import shlex
@@ -50,6 +51,7 @@ TESTS = {"[": "]", "[[": "]]"}  # a condition, closed by its bracket; no output
 BUILTINS = ("cd", "echo", "printf", "read", "true", "false", "test", ":", "set", "export",
             "unset", "shift", "exit", "source", ".")
 SILENT = ("mkdir", "touch", "mv", "cp", "rm", "chmod", "sleep", "ln")  # common commands that print nothing
+NO_OUTPUT = BUILTINS + SILENT
 OTHER = "other"
 
 
@@ -73,10 +75,13 @@ def _words(command: str) -> List[str]:
     lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
     lexer.commenters = ""  # a comment is not modelled: ``#`` is a word
+    words: List[str] = []
     try:
-        return list(lexer)
-    except ValueError:  # an unclosed quote
-        return []
+        for word in lexer:
+            words.append(word)
+    except ValueError:  # an unclosed quote: the words before it stand
+        pass
+    return words
 
 
 def bash_head(tool_input: dict) -> str:
@@ -95,7 +100,7 @@ def bash_head(tool_input: dict) -> str:
         elif words[0] in TESTS:
             closer = TESTS[words[0]]
             del words[:_past(words, lambda w: w == closer)]
-        elif words[0] in BUILTINS + SILENT:
+        elif words[0] in NO_OUTPUT:
             del words[:_past(words, _separator)]
         else:
             break

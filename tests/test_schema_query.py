@@ -44,7 +44,7 @@ def test_group_refuses_every_peak_and_sums_every_additive(facts):
     peaks = [n for n, s in schema.METRICS.items() if s.aggregation == schema.PEAK]
     assert peaks
     for name in peaks:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="peak"):
             query.group(facts, schema.CAUSE_DIM, name)
         assert query.largest(facts, name).metrics[name] == fx.FINAL_OCCUPANCY
     for name, spec in schema.METRICS.items():
@@ -107,7 +107,7 @@ def test_narrow_refuses_an_undeclared_value_and_an_open_one_no_fact_carries(fact
         assert query.narrow(without, [(dim, vocabulary[0])], fx.DELTA) == []  # declared: a zero, answered
     with pytest.raises(schema.SchemaError) as refused:
         query.narrow(facts, [(schema.TOOL_DIM, "bogus")], fx.DELTA)
-    assert refused.value.args[0].endswith("present: Bash")  # the one tool an exact increment carries
+    assert str(refused.value).endswith("present: Bash")  # the one tool an exact increment carries
     assert not query.select(facts, [(schema.TOOL_DIM, "bogus")])  # the plain filter just matches nothing
 
 
@@ -118,12 +118,12 @@ def test_a_refusal_names_the_first_values_present_and_counts_the_rest():
     many = [booked("t%02d" % i) for i in range(query.LISTED + 3)]
     with pytest.raises(schema.SchemaError) as refused:
         query.narrow(many, [(schema.TOOL_DIM, "bogus")], fx.DELTA)
-    message = refused.value.args[0]
+    message = str(refused.value)  # what the cli prints: the text, never a repr
     assert message.endswith("t%02d (+3 more; --by %s lists them all)" % (query.LISTED - 1, schema.TOOL_DIM))
     assert "t%02d" % query.LISTED not in message
     with pytest.raises(schema.SchemaError) as refused:
         query.narrow(many[:query.LISTED], [(schema.TOOL_DIM, "bogus")], fx.DELTA)
-    assert refused.value.args[0].endswith("t%02d" % (query.LISTED - 1))  # at the cap, every value is named
+    assert str(refused.value).endswith("t%02d" % (query.LISTED - 1))  # at the cap, every value is named
 
 
 def test_select_matches_every_pair_regardless_of_order(facts):

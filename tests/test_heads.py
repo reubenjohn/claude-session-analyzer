@@ -75,7 +75,10 @@ CASES = [
     ("Bash", {"command": "echo if x; make"}, "Bash:make"),
     ("Bash", {"command": 'echo "if x"; make'}, "Bash:make"),
     ("Bash", {"command": 'echo "a; b"; make'}, "Bash:make"),
-    ("Bash", {"command": "echo 'unclosed; make"}, "Bash:other"),  # shlex cannot tokenize it
+    # A quote shlex cannot close ends the words there: the head stands if it came before.
+    ("Bash", {"command": "echo 'unclosed; make"}, "Bash:other"),
+    ("Bash", {"command": "grep -c it's f"}, "Bash:grep"),
+    ("Bash", {"command": "python3 - <<'EOF'\n# don't\nx = 1\nEOF"}, "Bash:python3"),
     ("Bash", {"command": "cd x # to x\nmake"}, "Bash:make"),  # a comment is not modelled: a word
     # R5-BUILTINS: an output-less builtin and its arguments, to the next separator.
     ("Bash", {"command": 'for f in a b; do echo "== $f"; cat "$f"; done'}, "Bash:cat"),
@@ -170,8 +173,7 @@ def test_head_of(tool, tool_input, expected):
 def test_every_declared_keyword_wrapper_test_builtin_and_silent_word_opens_a_case():
     firsts = {tool_input["command"].split()[0] for tool, tool_input, _ in CASES
               if tool == "Bash" and isinstance(tool_input, dict) and tool_input.get("command")}
-    declared = (tuple(heads.KEYWORDS) + heads.WRAPPERS + heads.BUILTINS + heads.SILENT
-                + tuple(heads.TESTS))
+    declared = tuple(heads.KEYWORDS) + heads.WRAPPERS + heads.NO_OUTPUT + tuple(heads.TESTS)
     assert set(declared) <= firsts
     assert set(heads.VALUED) | set(heads.OPERANDS) <= set(heads.WRAPPERS)
     for wrapper, options in heads.VALUED.items():  # some valued option of each has a case

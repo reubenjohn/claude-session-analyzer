@@ -169,6 +169,19 @@ def test_limit_never_hides_a_row_whose_note_prints_under_the_table(tmp_path):
         assert "%s: %s" % (value, note) in out
 
 
+def test_a_row_named_like_a_cause_folds_and_gets_no_note_outside_the_cause_table():
+    """A project called ``ambiguous`` is an ordinary row: ``--limit 1`` folds
+    it and no cause note prints; the same rows as the cause table keep it."""
+    rows = [query.Row("a", 60, 2, query.REGULAR)] + [
+        query.Row(cause, 10, 1, query.REGULAR) for cause in tables.UNSPLITTABLE]
+    assert DIM != schema.CAUSE_DIM and len(rows) > 2  # vacuity guard
+    lines = tables.table(query.Table(DIM, rows, 80), M, limit=1, whole=False)
+    assert [l.split()[0] for l in lines[1:]] == ["a", "+%d" % len(tables.UNSPLITTABLE)]
+    kept = tables.table(query.Table(schema.CAUSE_DIM, rows, 80), M, limit=1, whole=False)
+    assert [l.split()[0] for l in kept[1:] if l.endswith("%")] == ["a"] + list(tables.UNSPLITTABLE)
+    assert all("%s: %s" % (cause, note) in kept for cause, note in tables.UNSPLITTABLE.items())
+
+
 def test_the_ambiguous_note_names_every_declared_reason():
     note = tables.UNSPLITTABLE[schema.AMBIGUOUS]
     assert len(schema.REASONS) > 1 and all(reason in note for reason in schema.REASONS)

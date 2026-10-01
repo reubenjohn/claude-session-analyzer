@@ -9,6 +9,8 @@ from .query import Selection
 from .schema import Fact
 from .tables import at, count, leaves, num, pct, table
 
+FACT = "fact"  # the ``--by`` that prints the leaves, not a table
+
 
 class View(NamedTuple):
     """The shape of one report: which metric, which tables by default, and
@@ -30,7 +32,7 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
     default tables a pin left open (``--by`` one dimension's table with its
     labels whole, or the leaves for ``fact``) and the footer."""
     spec = schema.metric(view.metric)
-    if by == "fact":
+    if by == FACT:
         body = leaves(sel.facts, view.metric, limit)
     else:
         dims = [by] if by else _open(sel, view.tables, spec.carrier)

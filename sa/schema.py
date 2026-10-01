@@ -98,7 +98,7 @@ PARENT_SESSION = "parent_session"
 PARENT_LAST_UUID = "parent_last_uuid"
 
 
-class SchemaError(KeyError):
+class SchemaError(ValueError):
     pass
 
 

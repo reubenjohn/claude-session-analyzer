@@ -6,7 +6,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, query, schema
+from sa import cli, query, render, schema
 
 CONTEXT = cli.VIEWS["context"]
 CAUSE, TOOL = schema.CAUSE_DIM, schema.TOOL_DIM
@@ -28,6 +28,15 @@ def test_spend_refuses_a_dimension_its_carrier_never_has(tmp_path, flag, value):
     assert code == 2 and not out
     assert "'%s' is never carried by call facts" % value.split("=")[0] in err
     _answers(*fx.run_cli("context", "--root", str(root), flag, value))  # vacuity guard
+
+
+def test_by_refuses_what_is_neither_fact_nor_a_dimension_naming_both(tmp_path):
+    root = fx.cli_corpus(tmp_path)
+    code, out, err = fx.run_cli("context", "--root", str(root), "--by", render.FACT + "s")
+    assert code == 2 and not out
+    assert "expected %s or a dimension: %s" % (render.FACT, ", ".join(schema.DIMENSIONS)) in err
+    for by in (render.FACT, schema.DIMENSIONS[0]):
+        _answers(*fx.run_cli("context", "--root", str(root), "--by", by))  # vacuity guard
 
 
 def test_unknown_dimension_is_refused(tmp_path):

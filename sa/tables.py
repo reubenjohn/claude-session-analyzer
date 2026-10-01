@@ -7,8 +7,9 @@ from .schema import Fact
 RESIDUAL_LABEL = "∅"  # the row for facts that lack the grouped dimension
 LABEL_WIDTH = 40      # a default table keeps a longer label's tail behind "…"; --by prints it whole
 
-# Rows whose mass is not splittable by content: each prints its note under
-# its table. Neither can lead the headline: ``cause`` is no view's lever.
+# Cause rows whose mass is not splittable by content: each prints its note
+# under the cause table. Neither can lead the headline: ``cause`` is no
+# view's lever.
 UNSPLITTABLE = {schema.WINDOW_HEAD: "first call's context: boot prompt + first message, or"
                                     " context inherited from a parent (fork, resume or branch);"
                                     " not splittable by content",
@@ -85,16 +86,18 @@ def _label(row: query.Row, whole: bool) -> str:
 def table(grouped: query.Table, metric: str, limit: int, whole: bool) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
     still adds up, then the residual and signed rows. Those, and a regular
-    row whose note prints under the table (``UNSPLITTABLE``), are never hidden.
+    cause row whose note prints under the table (``UNSPLITTABLE``), are never
+    hidden.
     A label is cut to ``LABEL_WIDTH`` unless ``whole``, which an asked-for
     (``--by``) table is, so its labels can be copied into ``--where``.
     The mass column is named for the metric (its unit is stated once, on the
     headline), the count column for what it counts, the metric's carrier
     kind. A table with no base (no regular mass) prints ``share`` alone."""
     title = "by " + grouped.dim
+    noted = UNSPLITTABLE if grouped.dim == schema.CAUSE_DIM else {}
     regular = [r for r in grouped.rows if r.kind == query.REGULAR]
-    shown = regular[:limit] + [r for r in regular[limit:] if r.value in UNSPLITTABLE]
-    hidden = [r for r in regular[limit:] if r.value not in UNSPLITTABLE]
+    shown = regular[:limit] + [r for r in regular[limit:] if r.value in noted]
+    hidden = [r for r in regular[limit:] if r.value not in noted]
     if hidden:
         shown.append(query.Row("+" + count(len(hidden), "more row"), sum(r.mass for r in hidden),
                                sum(r.count for r in hidden), query.REGULAR))
@@ -108,7 +111,7 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool) -> List[st
         lines.append("%-*s  %16s  %*s  %*s" % (
             width, label, num(r.mass), len(counts), num(r.count), len(share),
             pct(grouped.share(r.mass) if r.kind == query.REGULAR else None)))
-    lines += ["%s: %s" % (r.value, UNSPLITTABLE[r.value]) for r in shown if r.value in UNSPLITTABLE]
+    lines += ["%s: %s" % (r.value, noted[r.value]) for r in shown if r.value in noted]
     if grouped.dim in RESIDUAL_NOTES and any(r.kind == query.RESIDUAL for r in shown):
         lines.append(residual_note(grouped.dim, grouped.residual))
     return lines
