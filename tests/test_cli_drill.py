@@ -105,9 +105,27 @@ def test_a_main_window_is_selected_by_its_file_name_alone(tmp_path):
         code, out, err = fx.run_cli(view, "--root", str(root), "--by", schema.WINDOW_DIM)
         assert code == 0, err
         rows = [l.split()[0] for l in out.splitlines() if l.endswith("%")]  # the regular rows
-        labels = {render._label(query.Row(f.locator.file, 0, 0, query.REGULAR)) for f in facts}
-        assert sorted(rows) == sorted(labels)  # one row per window, main included
-        assert any(r.startswith("…") for r in rows) and main in rows  # the long path capped, the short whole
+        assert sorted(rows) == sorted({f.locator.file for f in facts})  # one row per window, whole
+        assert main in rows and len(max(rows, key=len)) > render.LABEL_WIDTH  # one a default table cuts
+
+
+def test_an_asked_for_table_prints_its_labels_whole_so_they_copy_into_where(tmp_path):
+    """A default table cuts a long label to its tail; ``--by`` names its
+    table on purpose, so the labels print whole and one pasted into
+    ``--where`` selects."""
+    project = "-home-me-workspace-" + "x" * 40
+    assert len(project) > render.LABEL_WIDTH  # vacuity guard
+    root = fx.corpus(tmp_path, {project + "/sess-0001.jsonl": fx.window_records()})
+    cut = "…" + project[1 - render.LABEL_WIDTH:]
+    for by, label in (([], cut), (["--by", schema.PROJECT_DIM], project)):
+        code, out, err = fx.run_cli("context", "--root", str(root), *by)
+        assert code == 0, err
+        rows = [l.split()[0] for l in out.splitlines() if l.endswith("%")]
+        assert label in rows and ({cut, project} - {label}).isdisjoint(rows), by
+    code, out, err = fx.run_cli("context", "--root", str(root),
+                                "--where", "%s=%s" % (schema.PROJECT_DIM, project))
+    assert code == 0, err
+    assert "; where %s=%s" % (schema.PROJECT_DIM, project) in out
 
 
 def test_by_fact_lists_leaves_with_their_dimensions_and_evidence(tmp_path):

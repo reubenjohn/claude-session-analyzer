@@ -21,7 +21,7 @@ python3 -m sa context --since 7d --by cause
 ```
 
 ```
-context_delta: 3,872,684 context tokens = the 32 windows' final occupancies summed; top cause=tool_result 1,287,069 (33.2% of the 3,872,684 total)
+context_delta: 3,872,684 context tokens = the 32 windows' final occupancies summed; top tool=Bash 1,049,312 (27.1% of the 3,872,684 total); within it head=Bash:cat 554,879 (14.3%)
 single-call peak context_tokens over the 32 whole windows: 255,333 context tokens at -home-me-workspace-myproject/<session-id>.jsonl:807
 population: root ~/.claude/projects; 39 files read (modified within 7d), 32 windows, 863 call facts, 1693 increment facts; 0 lines skipped, 0 duplicate records excluded
 
@@ -34,7 +34,7 @@ user_text               58,365          40                1.5%
 window_head: first call's context: boot prompt + first message, or inherited parent context for a fork; not splittable by content
 ambiguous: intervals with several candidates: the one residual bucket, never spread over them (--by fact lists them)
 
-reconciliation over 32 windows: window_head 1,323,189 + feed_forward 205,510 + tool_result 1,287,069 + user_text 58,365 + ambiguous 998,551 + shrink 0 = 3,872,684; final occupancy 3,872,684: OK
+reconciliation over 32 windows: window_head 1,323,189 + feed_forward 205,510 + tool_result 1,287,069 + user_text 58,365 + ambiguous 998,551 + shrink 0 = 3,872,684; final occupancy 3,872,684: OK; holds by construction (walk.py), so a mismatch is a bug in this tool
 intervals 831 (= 863 calls - 32 windows): exact 631 (75.9%) + ambiguous 200 (24.1%) [multi_contributor 199, negative_remainder 1] + shrink 0 (0.0%): OK
 exact: the interval's one token-relevant contributor (a tool_result or user text) after subtracting the previous call's output. Exact given the feed-forward model; bookkeeping attachments are folded into the single contributor's remainder.
 ```
@@ -64,7 +64,8 @@ cache_write_5m_tokens: 2,728,855 tokens
 
 Spend weights cache reads 0.1x, 5m writes 1.25x, 1h writes 2.0x; never
 dollars. No estimated attribution (one `ambiguous` row, never a spread),
-no summed peaks; `MISMATCH` exits 1.
+no summed peaks; the reconciliation holds by construction: `MISMATCH`
+is a bug, exit 1.
 
 ## The drill
 
@@ -79,22 +80,19 @@ head, reason) is repeatable and exact: on the first four it keeps whole
 windows (`window`, a root-relative file name, isolates one main window);
 otherwise it drills: the headline counts the windows hit, the footer
 shrinks to one line. `cause=bogus` (undeclared) or `tool=bash` (absent)
-exits 2, naming what is declared or present. `--limit N` folds the rest
-into `+k more rows`. A head is a Bash call's first command word
-(`Bash:pytest`) or a file tool's extension (`Read:py`). The headline
-names the largest tool or head row (`spend`: agent; ties to the more
-specific) or `--by`'s top row, with its share of the total; never
-`window_head` or `ambiguous`. Columns: the metric, its
-`increments`/`calls`, `share of <base>`; the residual `∅` row ends a
-table. `--by fact` lists the heaviest leaves as
+exits 2, naming what is declared or present. A head is a Bash call's
+first command word (`Bash:pytest`) or a file tool's extension
+(`Read:py`). The headline names the top tool with its share of the
+total, then `within it` the top head when it lies under that tool
+(`spend`: the top agent), whatever `--by` shows; never a cause or a
+window row. `--by fact` lists the heaviest leaves as
 `<metric>  file:line  uuid  dimensions`, an ambiguous leaf's
 `candidates:` under it.
 
 ## Layout
 
 `sa/` is the package, `skills/` and `.claude-plugin/` the plugin,
-`references/` the design docs; `python3 -m pytest tests/` runs the tests
-and the privacy gate.
+`references/` the design docs; `python3 -m pytest tests/` runs the tests.
 
 ## License
 

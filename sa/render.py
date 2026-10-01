@@ -14,16 +14,16 @@ class View(NamedTuple):
     then checks."""
     metric: str
     tables: Tuple[str, ...]  # printed by default
-    levers: Tuple[str, ...]  # the dimensions whose rows may lead the headline (``report``)
+    levers: Tuple[str, ...]  # the headline walks down these, general to specific (``_top``)
     reconciles: bool
     notes: Tuple[str, ...]   # printed under the headline
 
 
 RESIDUAL_LABEL = "∅"  # the row for facts that lack the grouped dimension
-LABEL_WIDTH = 40      # a longer label keeps its tail behind a leading "…" (--by fact has it whole)
+LABEL_WIDTH = 40      # a default table keeps a longer label's tail behind "…"; --by prints it whole
 
 # Rows whose mass is not splittable by content: each prints its note under
-# its table, and the headline never names one as the lever.
+# its table. Neither can lead the headline: ``cause`` is no view's lever.
 UNSPLITTABLE = {schema.WINDOW_HEAD: "first call's context: boot prompt + first message, or"
                                     " inherited parent context for a fork; not splittable by"
                                     " content",
@@ -33,9 +33,10 @@ UNSPLITTABLE = {schema.WINDOW_HEAD: "first call's context: boot prompt + first m
 # Printed under a table that shows the residual row, saying what it holds.
 RESIDUAL_NOTES = {
     schema.AGENT_DIM: "%s: main windows (no subagent)" % RESIDUAL_LABEL,
-    schema.TOOL_DIM: "%s: no tool: %s, %s, %s, and %s whose candidates share no one tool"
+    schema.TOOL_DIM: "%s: no tool: %s, %s, %s, %s whose candidates share no one tool, or a"
+                     " %s whose tool_use did not resolve"
                      % (RESIDUAL_LABEL, schema.WINDOW_HEAD, schema.FEED_FORWARD,
-                        schema.USER_TEXT, schema.AMBIGUOUS),
+                        schema.USER_TEXT, schema.AMBIGUOUS, schema.TOOL_RESULT),
     schema.HEAD_DIM: "%s: no head: no tool, a tool with no head (any but %s), or %s with"
                      " mixed heads"
                      % (RESIDUAL_LABEL, ", ".join(sorted(heads.EXTRACTORS)), schema.AMBIGUOUS),
@@ -70,25 +71,25 @@ def _tags(dims: dict) -> str:
 
 
 def report(view: View, sel: Selection, by: Optional[str], limit: int) -> List[str]:
-    """Every line of the view. The headline's lever is the largest row
-    across the shown tables of the view's lever dimensions, ties to the
-    more specific one; ``--by`` makes its table the lever. Never ``cause``,
-    whose rows are categories, nor a window dimension, whose one row on a
-    drill is the whole total (D-HEADLINE-SPECIFIC as amended); never a
-    table ``--where`` pinned, whose top row would be the filter itself."""
+    """Every line of the view: the headline, the population, the default
+    tables (``--by`` one dimension's table with its labels whole, or the
+    leaves for ``fact``) and the footer."""
     spec = schema.metric(view.metric)
     if by == "fact":
-        levers, body = [], _leaves(sel.facts, view.metric, limit)
+        body = _leaves(sel.facts, view.metric, limit)
     else:
-        shown = [query.group(sel.facts, dim, view.metric) for dim in ([by] if by else view.tables)]
-        pinned = {dim for dim, _ in sel.where}
-        levers = [t for t in shown if t.dim not in pinned and (by or t.dim in view.levers)]
-        body = [line for t in shown if t.rows
-                for line in _table(t, view.metric, spec.carrier, limit) + [""]]
-    return headline(view, sel, levers) + [population(sel), ""] + body + footer(view, sel)
+        tables = [query.group(sel.facts, dim, view.metric) for dim in ([by] if by else view.tables)]
+        body = [line for t in tables if t.rows
+                for line in _table(t, view.metric, spec.carrier, limit, whole=bool(by)) + [""]]
+    return headline(view, sel) + [population(sel), ""] + body + footer(view, sel)
 
 
-def headline(view: View, sel: Selection, levers: List[query.Table]) -> List[str]:
+def headline(view: View, sel: Selection) -> List[str]:
+    """The total, how it was taken, and the lever walk over the view's
+    levers that ``--where`` did not pin (a pinned one's top row would be
+    the filter itself); the walk is grouped here whatever ``--by`` shows,
+    since a category (``cause``) or a population row (a window dimension)
+    is never the answer (D-HEADLINE-SPECIFIC as amended)."""
     spec = schema.metric(view.metric)
     line = "%s: %s %s" % (view.metric, _num(sel.total), spec.unit)
     if view.reconciles and not sel.drill:
@@ -100,22 +101,36 @@ def headline(view: View, sel: Selection, levers: List[query.Table]) -> List[str]
             _count(sum(f.kind == spec.carrier for f in sel.facts), spec.carrier + " fact"),
             "%d of %s" % (drilled, _count(sel.n_windows, "window")) if drilled != sel.n_windows
             else _count(drilled, "window"))
-    return [line + _top(levers, sel.total)] + _peaks(sel) + list(view.notes)
+    pinned = {dim for dim, _ in sel.where}
+    levers = [dim for dim in view.levers if dim not in pinned]
+    return [line + _top(sel.facts, levers, view.metric, sel.total)] + _peaks(sel) + list(view.notes)
 
 
-def _top(tables: List[query.Table], total: float) -> str:
-    """The largest splittable row across ``tables``, ties to the more
-    specific dimension (later in ``schema.DIMENSIONS``), with its mass and
-    its share of the headline total, named as such: a table's own share
-    column is over its base, which the residual and signed rows make
-    smaller."""
-    rows = [(t.dim, r) for t in tables for r in t.rows
-            if r.kind == query.REGULAR and r.value not in UNSPLITTABLE]
-    if not rows or not total:
+def _largest(table: query.Table) -> Optional[query.Row]:
+    """The largest regular row: the first, the rows being sorted by mass."""
+    return next((r for r in table.rows if r.kind == query.REGULAR), None)
+
+
+def _top(facts: List[Fact], levers: List[str], metric: str, total: float) -> str:
+    """The first lever's largest row with its share of the headline total,
+    named as such (a table's own share column is over its base, which the
+    residual and signed rows make smaller); then each more specific
+    lever's largest row while it lies within the row before, i.e. the
+    table over that row's facts alone holds the very same row: ``top
+    tool=Bash ...; within it head=Bash:cat ...``. A top head under another
+    tool ends the walk, as does a lever with no regular row."""
+    if not total:
         return ""
-    dim, top = max(rows, key=lambda pair: (pair[1].mass, schema.DIMENSIONS.index(pair[0])))
-    return "; top %s=%s %s (%s of the %s total)" % (
-        dim, top.value, _num(top.mass), _pct(top.mass / total), _num(total))
+    text, lead = "", facts
+    for dim in levers:
+        top = _largest(query.group(facts, dim, metric))
+        if top is None or top not in query.group(lead, dim, metric).rows:
+            break
+        text += "; %s %s=%s %s (%s%s)" % (
+            "within it" if text else "top", dim, top.value, _num(top.mass), _pct(top.mass / total),
+            "" if text else " of the %s total" % _num(total))
+        lead = query.select(lead, [(dim, top.value)])
+    return text
 
 
 def _peaks(sel: Selection) -> List[str]:
@@ -145,15 +160,17 @@ def population(sel: Selection) -> str:
                "".join("; where %s=%s" % p for p in sel.where)))
 
 
-def _label(row: query.Row) -> str:
+def _label(row: query.Row, whole: bool) -> str:
     label = RESIDUAL_LABEL if row.kind == query.RESIDUAL else (
         row.value + (" (signed)" if row.kind == query.SIGNED else ""))
-    return label if len(label) <= LABEL_WIDTH else "…" + label[1 - LABEL_WIDTH:]
+    return label if whole or len(label) <= LABEL_WIDTH else "…" + label[1 - LABEL_WIDTH:]
 
 
-def _table(table: query.Table, metric: str, carrier: str, limit: int) -> List[str]:
+def _table(table: query.Table, metric: str, carrier: str, limit: int, whole: bool) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
     still adds up, then the residual and signed rows, which are never hidden.
+    A label is cut to ``LABEL_WIDTH`` unless ``whole``, which an asked-for
+    (``--by``) table is, so its labels can be copied into ``--where``.
     The mass column is named for the metric (its unit is stated once, on the
     headline), the count column for what it counts, the metric's carrier
     kind. A table with no base (no regular mass) prints ``share`` alone."""
@@ -165,7 +182,7 @@ def _table(table: query.Table, metric: str, carrier: str, limit: int) -> List[st
         shown.append(query.Row("+" + _count(len(hidden), "more row"), sum(r.mass for r in hidden),
                                sum(r.count for r in hidden), query.REGULAR))
     shown += [r for r in table.rows if r.kind != query.REGULAR]
-    labels = [_label(r) for r in shown]
+    labels = [_label(r, whole) for r in shown]
     width = max(len(label) for label in labels + [title])
     count = carrier + "s"
     share = "share of %s" % _num(table.base) if table.base else "share"
@@ -215,7 +232,8 @@ def _reconciliation(r: query.Reconciliation) -> List[str]:
     def rate(n: int) -> str:
         return "%d (%.1f%%)" % (n, 100.0 * n / r.intervals) if r.intervals else "0"
     return [
-        "reconciliation over %s: %s = %s; final occupancy %s: %s"
+        "reconciliation over %s: %s = %s; final occupancy %s: %s; holds by construction"
+        " (walk.py), so a mismatch is a bug in this tool"
         % (_count(r.windows, "window"), terms, _num(r.booked), _num(r.final_occupancy),
            _status(r.mass_holds)),
         "intervals %d (= %s - %s): exact %s + ambiguous %s [%s] + shrink %s: %s"

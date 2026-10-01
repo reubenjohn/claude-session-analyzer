@@ -36,15 +36,15 @@ file tool's extension
 values and a `--where` value no fact carries exit 2 (`query.narrow`),
 naming what is present. A window IS a file (R2);
 `window_head` (the first call's occupancy, inherited for a fork) and
-`ambiguous` are rows, never spread, never the headline's lever.
+`ambiguous` are rows, never spread, never a lever.
 
-CLI: `python3 -m sa context --help`. The headline names the largest
-splittable row across the view's lever tables (`View.levers`: context
-`tool`+`head`, spend `agent`; ties to the more specific; `--by`
-overrides) and its share of the total; a drill's headline counts the
-windows its facts come from; columns are named for the metric and its
-carrier (`increments`, `calls`); a label longer than
-`render.LABEL_WIDTH` keeps its tail behind `…`.
+CLI: `python3 -m sa context --help`. The headline walks `View.levers`
+(context `tool` then `head`, spend `agent`) whatever `--by` shows: the
+top tool with its share of the total, then `within it` the top head when
+it lies under that tool; a drill's headline counts the windows its facts
+come from; only a default table cuts a label over `render.LABEL_WIDTH`
+to `…tail`. The reconciliation holds by construction (`walk`): MISMATCH
+is a bug, exit 1.
 
 ## Non-negotiables
 

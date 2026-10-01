@@ -3,8 +3,9 @@ print the view, exit 1 if the reconciliation did not hold.
 
 Every figure prints with the population it was counted over, every table
 shows its residual and signed rows, and the ``context`` view ends with the
-reconciliation that proves the increments telescope to the windows' final
-occupancy. A mismatch there is an exit status of 1, not a footnote.
+reconciliation of the increments against the windows' final occupancy. It
+is a regression guard: ``walk`` books every interval's whole delta, so it
+holds by construction, and a MISMATCH is a bug in this tool, exit status 1.
 
 Filters: ``--since`` selects FILES by modification time before reading, so
 dedup runs over the selected files only; ``--where`` selects facts after

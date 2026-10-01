@@ -251,18 +251,18 @@ word) before its duration, skips a `[`…`]` / `[[`…`]]` test, and skips
 `exit` as a builtin (`cd x || exit 1; make` is `Bash:make`, re-pinned).
 AMENDED 2026-10-01, seventh judge: picking the lead by position had led
 a subagent window (72% of its mass ambiguous, sharing a tool but no head)
-with `head=Edit:py 19,214` while `tool=Bash` carried 99,422 below it. Now
-the lead is the LARGEST splittable regular row across the shown, unpinned
-tables of the view's lever dimensions, ties to the more specific; `--by`
-makes its table the lever; `window_head` and `ambiguous` stay excluded.
-The levers are declared per view (`render.View.levers`): context `tool`
-and `head`, spend `agent`. `cause` is never one (its rows are categories),
-nor is a window dimension: on the local corpus (46 files, 2026-10-01) the
-top project row is 81.0% of the context total and on a window drill each
-window table's one row is 100%, so "largest across every table but
-cause" would lead with the population, not the lever.
-The `--where` split into window and drill halves is computed once
-(`query.split`) and both halves live on the `Selection`.
+with `head=Edit:py 19,214` while `tool=Bash` carried 99,422 below it.
+Levers are declared per view (`render.View.levers`): context `tool` and
+`head`, spend `agent`; never `cause` (categories) nor a window dimension
+(local corpus, 46 files, 2026-10-01: the top project row is 81.0% of the
+context total; on a window drill each window table's one row is 100%).
+AMENDED again, eighth judge: `--by` had made its table the lever, so
+`spend --by session` and `context --by window` led with a population row
+and `--by cause` with a category. Now the headline is grouped from the
+levers alone, whatever `--by` shows (`fact` too), and since a head row
+can never exceed its tool row it walks down: the top tool with its share
+of the total, then `within it` the top head when it lies under that tool
+(a top head under another tool ends the walk); a pinned lever drops out.
 
 **D-WINDOW-DIM — a window is selectable by its file name.** RULED
 2026-10-01, on a sixth judge's rejection of 8746202. A main window could

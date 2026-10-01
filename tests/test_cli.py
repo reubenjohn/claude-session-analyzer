@@ -20,12 +20,13 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
     first, peak, population = out.splitlines()[:3]
-    # window_head is the largest cause (3,000 of 4,560) but is not splittable
-    # and cause is the least specific table: the headline leads with the top
-    # head, as a share of the total.
+    # window_head is the largest cause (3,000 of 4,560) but cause is no lever:
+    # the headline walks down the top tool and its top head, as shares of
+    # the total.
     assert re.search(r"^%s\s+3,000\s" % schema.WINDOW_HEAD, out, re.M)
-    assert first == "%s: %s %s = the 3 windows' final occupancies summed; top %s=Bash:pytest 750 (16.4%% of the 4,560 total)" % (
-        CONTEXT.metric, format(3 * fx.FINAL_OCCUPANCY, ",d"), fx.unit(CONTEXT.metric), HEAD)
+    assert first == ("%s: %s %s = the 3 windows' final occupancies summed; top %s=Bash 750"
+                     " (16.4%% of the 4,560 total); within it %s=Bash:pytest 750 (16.4%%)") % (
+        CONTEXT.metric, format(3 * fx.FINAL_OCCUPANCY, ",d"), fx.unit(CONTEXT.metric), TOOL, HEAD)
     assert peak == "single-call peak %s over the 3 whole windows: %s %s at proj-a/sess-0001.jsonl:14" % (
         fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), fx.unit(fx.PEAK))
     assert population == (
@@ -34,7 +35,8 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
         % (root, len(loaded.files), sum(f.kind == CALL for f in facts),
            sum(f.kind == INCREMENT for f in facts)))
     assert out.count(str(root)) == 1  # locators are root-relative
-    assert "final occupancy %s: OK" % format(3 * fx.FINAL_OCCUPANCY, ",d") in out
+    assert ("final occupancy %s: OK; holds by construction (walk.py), so a mismatch is a bug"
+            " in this tool" % format(3 * fx.FINAL_OCCUPANCY, ",d")) in out
     reasons = ", ".join("%s 3" % r for r in schema.REASONS)
     assert "intervals 18 (= 21 calls - 3 windows): exact 6 (33.3%) + ambiguous 9 (50.0%) " \
            "[" + reasons + "] + shrink 3 (16.7%): OK" in out
@@ -76,64 +78,82 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     assert "by %s" % CAUSE in fx.run_cli("context", "--root", str(root))[1]  # vacuity guard
 
 
-def _top_of(out):
-    return re.search(r"; top (\w+)=", out.splitlines()[0]).group(1)
+def _levers_of(out):
+    """The dimensions the headline walks, in order."""
+    return re.findall(r"; (?:top|within it) (\w+)=", out.splitlines()[0])
 
 
-def test_headline_leads_with_the_largest_lever_row_ties_to_the_more_specific(tmp_path):
-    """The default tables print cause first, but cause is no lever (a
-    category is not an answer): Bash:pytest carries all of Bash's 750, so
-    the head leads, being as large and more specific; pinning a lever hands
-    the lead to the other; both pinned, nothing leads; ``--by`` overrides."""
+def _largest_shown(out):
+    """The mass of the first (largest) regular row of the first table shown."""
+    return int(next(l for l in out.splitlines() if l.endswith("%")).split()[1].replace(",", ""))
+
+
+def test_headline_walks_the_view_levers_whatever_by_shows(tmp_path):
+    """The headline is grouped from the view's levers alone: a shown table
+    whose top row is larger (a cause, a session, a window) never leads, and
+    ``--by fact`` shows no table at all. Pinning a lever drops it from the
+    walk; every lever pinned, nothing leads."""
     root = fx.cli_corpus(tmp_path)
     assert CONTEXT.tables[0] == CAUSE and CAUSE not in CONTEXT.levers
-    assert set(CONTEXT.levers) == {TOOL, HEAD}
-    code, out, err = fx.run_cli("context", "--root", str(root))
+    assert CONTEXT.levers == (TOOL, HEAD) and SPEND.levers == (schema.AGENT_DIM,)
+    lead = ("; top %s=Bash 750 (16.4%% of the 4,560 total); within it %s=Bash:pytest 750 (16.4%%)"
+            % (TOOL, HEAD))
+    for by in (CAUSE, schema.SESSION_DIM, schema.WINDOW_DIM):
+        code, out, err = fx.run_cli("context", "--root", str(root), "--by", by)
+        assert code == 0, err
+        assert out.splitlines()[0].endswith(lead), by
+        assert _largest_shown(out) > 750, by  # vacuity guard: the shown table's top row is larger
+    code, out, err = fx.run_cli("context", "--root", str(root), "--by", "fact")
     assert code == 0, err
-    assert "; top %s=Bash:pytest 750 (16.4%% of the 4,560 total)" % HEAD in out.splitlines()[0]
-    assert re.search(r"^Bash\s+750\s", out, re.M)  # the tie: the tool row is as large
-    assert re.search(r"^%s\s+750\s" % schema.TOOL_RESULT, out, re.M)  # the top cause, not led with
-    where = ["--where", "%s=Bash:pytest" % HEAD]
-    assert _top_of(fx.run_cli("context", "--root", str(root), *where)[1]) == TOOL
-    where += ["--where", "%s=Bash" % TOOL]
-    assert "; top " not in fx.run_cli("context", "--root", str(root), *where)[1].splitlines()[0]
-    assert _top_of(fx.run_cli("context", "--root", str(root), "--by", CAUSE)[1]) == CAUSE
-    assert _top_of(fx.run_cli("spend", "--root", str(root))[1]) == schema.AGENT_DIM
+    assert out.splitlines()[0].endswith(lead)
+    for by in ([], ["--by", schema.SESSION_DIM], ["--by", "fact"]):
+        code, out, err = fx.run_cli("spend", "--root", str(root), *by)
+        assert code == 0, err
+        assert _levers_of(out) == [schema.AGENT_DIM], by
     assert SPEND.tables[0] != schema.AGENT_DIM  # vacuity guard: not the first table printed
+    pin = ["--where", "%s=Bash:pytest" % HEAD]
+    assert _levers_of(fx.run_cli("context", "--root", str(root), *pin)[1]) == [TOOL]
+    only_tool = ["--where", "%s=Bash" % TOOL]
+    assert _levers_of(fx.run_cli("context", "--root", str(root), *only_tool)[1]) == [HEAD]
+    pin += ["--where", "%s=Bash" % TOOL]
+    assert _levers_of(fx.run_cli("context", "--root", str(root), *pin)[1]) == []
 
 
-def test_headline_names_the_largest_lever_row_even_from_a_less_specific_table(tmp_path):
-    """One interval with two Bash results of different heads (ambiguous,
-    sharing tool=Bash and no head) and one exact Read: the top head,
-    Read:py 70, is not under the top tool, Bash 100, and is smaller, so the
-    tool leads. The window tables' one row is the whole total and never
-    leads: they are no lever."""
-    uses = [fx.tool_use("toolu_0001", "Bash", command="ls"),
-            fx.tool_use("toolu_0002", "Bash", command="make")]
-    records = [fx.assistant("uuid-0001", "msg-0001", fx.usage(1000, 0), uses),
-               fx.tool_result("uuid-0002", "toolu_0001"), fx.tool_result("uuid-0003", "toolu_0002"),
-               fx.assistant("uuid-0004", "msg-0002", fx.usage(1100, 0),
-                            [fx.tool_use("toolu_0003", "Read", file_path="/x/a.py")]),
-               fx.tool_result("uuid-0005", "toolu_0003"),
-               fx.assistant("uuid-0006", "msg-0003", fx.usage(1170, 0))]
-    root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": records})
+def test_headline_refines_the_top_tool_only_by_a_head_within_it(tmp_path):
+    """Three exact results: Bash:ls 60 and Bash:make 40 under Bash, and
+    Read:py under Read. At 70 the top head lies under another tool, so the
+    tool clause stands alone; at 30 it is Bash:ls, within Bash, and the
+    headline walks down to it."""
+    def records(read_py):
+        return [fx.assistant("uuid-0001", "msg-0001", fx.usage(1000, 0),
+                             [fx.tool_use("toolu_0001", "Bash", command="ls")]),
+                fx.tool_result("uuid-0002", "toolu_0001"),
+                fx.assistant("uuid-0003", "msg-0002", fx.usage(1060, 0),
+                             [fx.tool_use("toolu_0002", "Bash", command="make")]),
+                fx.tool_result("uuid-0004", "toolu_0002"),
+                fx.assistant("uuid-0005", "msg-0003", fx.usage(1100, 0),
+                             [fx.tool_use("toolu_0003", "Read", file_path="/x/a.py")]),
+                fx.tool_result("uuid-0006", "toolu_0003"),
+                fx.assistant("uuid-0007", "msg-0004", fx.usage(1100 + read_py, 0))]
+    root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": records(70)})
     facts = fx.load_facts(root)[1]
-
-    def top(dim):
-        return next((r.value, r.mass) for r in query.group(facts, dim, fx.DELTA).rows
-                    if r.kind == query.REGULAR and r.value not in render.UNSPLITTABLE)
-    assert (top(TOOL), top(HEAD)) == (("Bash", 100), ("Read:py", 70))  # guard: the masses
-    assert not top(HEAD)[0].startswith(top(TOOL)[0])  # the top head is not under the top tool
-    assert top(schema.PROJECT_DIM)[1] == 1170 > 100  # the window row is larger still
+    heads = [(r.value, r.mass) for r in query.group(facts, HEAD, fx.DELTA).rows
+             if r.kind == query.REGULAR]
+    assert heads == [("Read:py", 70), ("Bash:ls", 60), ("Bash:make", 40)]  # guard: the masses
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
-    assert "; top %s=Bash 100 (8.5%% of the 1,170 total)" % TOOL in out.splitlines()[0]
-    assert re.search(r"^%s\s+100\s" % schema.AMBIGUOUS, out, re.M)  # Bash's mass, by its tool only
+    assert out.splitlines()[0].endswith("; top %s=Bash 100 (8.5%% of the 1,170 total)" % TOOL)
+    root = fx.corpus(tmp_path / "within", {"proj-a/sess-0001.jsonl": records(30)})
+    code, out, err = fx.run_cli("context", "--root", str(root))
+    assert code == 0, err
+    assert out.splitlines()[0].endswith(
+        "; top %s=Bash 100 (8.8%% of the 1,130 total); within it %s=Bash:ls 60 (5.3%%)" % (TOOL, HEAD))
 
 
-def test_the_headline_never_names_ambiguous_as_the_lever(tmp_path):
-    """One interval with two Read results: ambiguous is the largest regular
-    cause after window_head, and the headline passes over both."""
+def test_the_headline_never_names_a_cause(tmp_path):
+    """One interval with two Read results of one head: ambiguous is the
+    largest cause after window_head and carries the shared tool and head,
+    which lead; no cause does, even under ``--by cause``."""
     uses = [fx.tool_use("toolu_0001", "Read", file_path="/x/a.py"),
             fx.tool_use("toolu_0002", "Read", file_path="/x/b.py")]
     records = [fx.assistant("uuid-0001", "msg-0001", fx.usage(1000, 50), uses),
@@ -144,13 +164,15 @@ def test_the_headline_never_names_ambiguous_as_the_lever(tmp_path):
     assert code == 0, err
     rows = [l.split() for l in out.splitlines() if l.endswith("%")]
     assert [r[0] for r in rows] == [schema.WINDOW_HEAD, schema.AMBIGUOUS, schema.FEED_FORWARD]
-    assert "; top %s=%s 50 (3.8%% of the 1,300 total)" % (CAUSE, schema.FEED_FORWARD) in out.splitlines()[0]
+    assert _largest_shown(out) == 1000 > 250  # vacuity guard: the cause rows are the larger
+    assert out.splitlines()[0].endswith(
+        "; top %s=Read 250 (19.2%% of the 1,300 total); within it %s=Read:py 250 (19.2%%)" % (TOOL, HEAD))
     for value in (schema.WINDOW_HEAD, schema.AMBIGUOUS):
         assert "%s: %s" % (value, render.UNSPLITTABLE[value]) in out
-    # Vacuity guard: with one result the interval is exact and leads.
+    # With one result the interval is exact: the same lead, no ambiguous note.
     root = fx.corpus(tmp_path / "exact", {"proj-a/sess-0001.jsonl": records[:2] + records[3:]})
     out = fx.run_cli("context", "--root", str(root), "--by", CAUSE)[1]
-    assert "; top %s=%s 250 " % (CAUSE, schema.TOOL_RESULT) in out.splitlines()[0]
+    assert "; top %s=Read 250 " % TOOL in out.splitlines()[0]
     assert "%s: %s" % (schema.AMBIGUOUS, render.UNSPLITTABLE[schema.AMBIGUOUS]) not in out
 
 
@@ -191,7 +213,7 @@ def test_a_reconciliation_mismatch_is_exit_status_1(tmp_path, monkeypatch, capsy
         f for f in whole(source, usages) if f.dims.get(CAUSE) != schema.SHRINK])
     assert cli.main(["context", "--root", str(root)] + drill) == 1
     out = capsys.readouterr().out
-    assert "MISMATCH" in out and "OK" not in out
+    assert ": MISMATCH" in out and ": OK" not in out
     monkeypatch.undo()
     assert cli.main(["context", "--root", str(root)] + drill) == 0  # vacuity guard
 
