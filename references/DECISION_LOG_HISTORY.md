@@ -242,3 +242,35 @@ naming an unknown metric dies in `statistic_for`; unknown `cause.kind` fails
 closed. **Recommendation:** build as stated; this is the replacement for
 v1's ~40 hand-maintained tables (three fail-silent) the charter orders
 killed.
+
+---
+
+## Phase 3 synthesis — the rows as proposed (history)
+
+Travels with `DESIGN_BRIEF.md`. Every open or disputed choice is a numbered
+row. **Original STATUS meanings:** `NEEDS-RULING` — the build BLOCKS until
+the owner answers; `proposed` — synthesis will build it as recommended unless
+the owner vetoes. The status column now shows the 2026-09-30 ruling
+(RULED / DEFERRED / MOOT / RECORD-ONLY). The per-row discussions as
+originally proposed are above. Populations for every
+figure: see the brief; corpus figures are 2026-07-28 sweeps and drift.
+
+| id | choice | status |
+|---|---|---|
+| D-ENGINE | Retire the ported ranking engine | RULED |
+| R1 | Carrier of attributed mass (ENGINE_CONTRACT §5) | RULED |
+| R2 | §6 file=lane re-tag + continuation-head probe | RULED |
+| R3 | Misfile-lens re-tag batch (9 verdicts) | RECORD-ONLY |
+| R4 | Bless 94.98%/~5% headline over ~77%/~23% | RULED (neither) |
+| R5 | `tool_input_head` normalization rule (privacy) | RULED |
+| R6 | `sa_schema.py` import surface (allowlist vs strip) | MOOT |
+| P1 | METRICS single declaration (B graft) | RULED |
+| P2 | Shrink's home: exclude from `context` preset | MOOT |
+| P3 | Residual-aware `top_key` rendering | MOOT |
+| P4 | `cause.candidates` → evidence + `candidate_count` | RULED |
+| P5 | `lib_corpus.py` shared-parser tangent | RULED |
+| P6 | Usage-less call: keep ported 0-without-advancing | RULED |
+| P7 | Keep v1's untouched [OPEN] engine choices | MOOT |
+| P8 | Schema rules: depth-2 nesting, one lane home | MOOT |
+| P9 | Presets-as-data; computed denominators | RULED |
+

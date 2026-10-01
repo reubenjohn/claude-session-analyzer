@@ -20,7 +20,9 @@ CASES = [
     ("Bash", {"command": "cd /x&&ls"}, "Bash:ls"),
     ("Bash", {"command": "cd /x||ls"}, "Bash:ls"),
     ("Bash", {"command": "cd /x || exit 1; make"}, "Bash:make"),
-    ("Bash", {"command": "cd /x"}, "Bash:cd"),
+    ("Bash", {"command": "cd /x"}, "Bash:other"),  # a builtin alone, like `echo done`
+    ("Bash", {"command": "cd -P /x && make"}, "Bash:make"),
+    ("Bash", {"command": "cd && make"}, "Bash:make"),
     # A newline ends a command like `;`; a parenthesis is a separator too.
     ("Bash", {"command": "cd /x\npytest -q"}, "Bash:pytest"),
     ("Bash", {"command": "echo start\n\npytest"}, "Bash:pytest"),

@@ -2,7 +2,7 @@
 
 Answers TWO questions about Claude Code sessions: where is my context going
 (`context_delta`) and what did it cost (`spend`), from the JSONL transcripts
-under `Path.home()/".claude"/"projects"`. Stdlib only, Python 3.8.
+under `Path.home()/".claude"/"projects"`. Stdlib, Python 3.8.
 TIME/scheduling questions are deferred: design for them, do not add them.
 Standing premise: NO USERS, NO DEPLOYMENTS — breaking changes are free,
 legacy is deleted not accommodated, published numbers move when the old
@@ -29,21 +29,21 @@ double-counting is impossible. Window dimensions `project`, `session`,
 D-AGENT-DIM; `window`, the root-relative file name, alone isolates one,
 never a default table, D-WINDOW-DIM); `cause`, `tool`, `head`, `reason`
 on increments only. A head
-is `<tool>:<summary>`: a Bash command's first COMMAND word (after keywords,
-wrappers, builtins) as a basename (`Bash:pytest`), or a
-file tool's extension
-(`Read:py`); never a path (R5 and amendments). Unknown names, undeclared
+is `<tool>:<summary>`: a Bash command's first COMMAND word (past keywords,
+wrappers, builtins) as a basename (`Bash:pytest`), or a file tool's
+extension (`Read:py`); never a path (R5). Unknown names, undeclared
 values and a `--where` value no fact carries exit 2 (`query.narrow`),
 naming what is present. A window IS a file (R2);
-`window_head` (the first call's occupancy, inherited for a fork) and
-`ambiguous` are rows, never spread, never a lever.
+`window_head` and `ambiguous` are rows, never spread, never a lever.
 
 CLI: `python3 -m sa context --help`. The headline walks `View.levers`
 (context `tool` then `head`, spend `agent`) whatever `--by` shows: the
-top tool with its share of the total, then `within it` the top head when
-it lies under that tool; a drill's headline counts the windows its facts
-come from; only a default table cuts a label over `render.LABEL_WIDTH`
-to `…tail`. The reconciliation holds by construction (`walk`): MISMATCH
+top tool with its share of the total, `within it` that tool's largest
+head with its share of the tool and of the total, then a larger head
+elsewhere `under tool=`; a `--where` pin omits every default table and
+lever whose facts share one value (a head implies its tool); a drill
+counts the windows its facts come from; only a default table cuts a
+label over `render.LABEL_WIDTH` to `…tail`. The reconciliation holds by construction (`walk`): MISMATCH
 is a bug, exit 1.
 
 ## Non-negotiables
@@ -68,10 +68,9 @@ is a bug, exit 1.
 ## Measured corrections — stay pinned by tests
 
 `sa/usage.py` docstrings carry these (D-USAGE-DOCSTRINGS);
-`tests/test_usage.py` pins the bodies. Any engine-level choice (fact
-shape, carriers, causes, the walk, a correction) changes only via a logged
-ruling in `references/DECISION_LOG.md` (argument or measurement, plus an
-opus second opinion). The recorded failure mode is the confident in-place
+`tests/test_usage.py` pins the bodies. Any engine-level choice changes
+only via a logged ruling in `references/DECISION_LOG.md` (argument or
+measurement, plus an opus second opinion). The recorded failure mode is the confident in-place
 "improvement" that deletes a measured correction.
 
 - Split `message.id`s are MAX-MERGED field-wise: 80.5% of ids split,
@@ -116,12 +115,12 @@ FAILS CLOSED (`tests/test_privacy.py`): no literal `/home/...` or
 `/Users/...` paths, no real-looking UUIDs, no transcript text in any tracked
 file. `.githooks/pre-push` does not fire under the global `core.hooksPath`:
 run the suite before pushing. Doc caps: README ≤ 5,000, SKILL.md ≤ 6,000,
-this file ≤ 7,000; example lines mirror live CLI output: resync after any
-output change.
+this file ≤ 7,000; example lines mirror live output: resync after any
+change.
 
 ## Pointers, never copies
 
 - `references/DESIGN_BRIEF.md` §2 (the attribution walk) is the spec.
 - Also in `references/`: `DECISION_LOG.md` (rulings; `_HISTORY.md` the rows
   as proposed), `PHASE0_MEASUREMENT.md` (the raw transcripts),
-  `PUBLISHING_PLAN.md` (distribution), `DESIGN_COMPETITION.md` (dated).
+  `PUBLISHING_PLAN.md` (distribution), `DESIGN_COMPETITION.md`.

@@ -65,7 +65,9 @@ def test_a_drill_headline_counts_the_windows_its_facts_come_from(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (CAUSE, schema.TOOL_RESULT))
     assert code == 0, err
-    assert " over 2 increment facts in 2 windows; top " in out.splitlines()[0]
+    assert out.splitlines()[0].endswith(" over 2 increment facts in 2 windows")
+    assert query.values(query.select(facts, [(CAUSE, schema.TOOL_RESULT)]), TOOL, CONTEXT.metric
+                        ) == ["Bash"]  # the one tool every drilled fact shares leads nothing
 
 
 def test_a_drill_reports_the_peak_over_the_whole_windows_it_names(tmp_path):

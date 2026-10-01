@@ -5,17 +5,17 @@ second column.
 Ruled (DECISION_LOG R5, R5-BASENAME, R5-BUILTINS): a head is never a full
 command line and never a file path. For Bash the summary is the first
 COMMAND word that can produce the tokens, so what precedes one is skipped:
-leading ``VAR=value`` assignments and ``cd <dir>`` prefixes ended by a
-separator; a ``KEYWORDS`` word with everything through the word(s) that
-open its body (``for f in x; do cmd`` is ``cmd``, not ``for``; ``case $x in
-a) cmd`` is ``cmd``); a ``WRAPPERS`` word with its ``-``-prefixed options,
-each skipped alone unless ``VALUED`` declares it takes the next word, and
-its ``OPERANDS`` (``timeout``'s duration); a ``TESTS`` bracket through its
-closer; a bare separator; and an output-less ``BUILTINS`` word with its
-arguments up to the next separator (``echo "== $f"; cat $f`` is ``cat``,
-``source env.sh && pytest`` is ``pytest``), so a command that is only
-builtins is ``other``. Separators are ``&&``, ``||``, ``;``, ``|``, a
-newline and either parenthesis, each padded into a word of its own.
+leading ``VAR=value`` assignments; a ``KEYWORDS`` word with everything
+through the word(s) that open its body (``for f in x; do cmd`` is ``cmd``,
+not ``for``; ``case $x in a) cmd`` is ``cmd``); a ``WRAPPERS`` word with
+its ``-``-prefixed options, each skipped alone unless ``VALUED`` declares
+it takes the next word, and its ``OPERANDS`` (``timeout``'s duration); a
+``TESTS`` bracket through its closer; a bare separator; and an output-less
+``BUILTINS`` word with its arguments up to the next separator (``echo "==
+$f"; cat $f`` is ``cat``, ``cd -P /x && make`` is ``make``), so a command
+that is only builtins (``cd /x``, ``echo done``) is ``other``. Separators
+are ``&&``, ``||``, ``;``, ``|``, a newline and either parenthesis, each
+padded into a word of its own.
 A path-shaped command word is its basename (``./check.sh`` is ``check.sh``,
 ``/usr/bin/python3`` is ``python3``). For the tools whose input carries
 ``file_path`` the summary is the file extension. A summary is kept only if
@@ -52,7 +52,7 @@ VALUED = {  # a wrapper's options that take the next word; any other option is s
 }
 OPERANDS = {"timeout": 1}  # positional words a wrapper takes before the command
 TESTS = {"[": "]", "[[": "]]"}  # a condition, closed by its bracket; no output
-BUILTINS = ("echo", "printf", "true", "false", "set", "export", "unset", "shift", "exit",
+BUILTINS = ("cd", "echo", "printf", "true", "false", "set", "export", "unset", "shift", "exit",
             "source", ".")  # no output
 OTHER = "other"
 
@@ -77,8 +77,6 @@ def bash_head(tool_input: dict) -> str:
             while words and words[0].startswith("-"):
                 del words[:2 if words[0] in VALUED.get(wrapper, ()) else 1]
             del words[:OPERANDS.get(wrapper, 0)]
-        elif words[0] == "cd" and len(words) > 2 and words[2] in _SEPARATORS:
-            del words[:3]
         elif words[0] in KEYWORDS:
             for opener in KEYWORDS[words[0]]:
                 del words[:_past(words, (opener,))]

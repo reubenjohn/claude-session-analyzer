@@ -1,9 +1,11 @@
 """Plain-text rendering of a selection: headline, population, tables, leaves,
 footer. The tables are grouped here from the selection's facts; its total
 and reconciliation come with it, so nothing here decides the exit status."""
+from pathlib import Path
 from typing import Iterator, List, NamedTuple, Optional, Tuple
 
 from . import heads, query, schema
+from .corpus import Corpus
 from .query import Selection
 from .schema import Fact
 
@@ -27,8 +29,8 @@ LABEL_WIDTH = 40      # a default table keeps a longer label's tail behind "…"
 UNSPLITTABLE = {schema.WINDOW_HEAD: "first call's context: boot prompt + first message, or"
                                     " inherited parent context for a fork; not splittable by"
                                     " content",
-                schema.AMBIGUOUS: "intervals with several candidates: the one residual"
-                                  " bucket, never spread over them (--by fact lists them)"}
+                schema.AMBIGUOUS: "intervals not attributable to one contributor (by reason: %s);"
+                                  " never spread; --by fact lists them" % ", ".join(schema.REASONS)}
 
 # Printed under a table that shows the residual row, saying what it holds.
 RESIDUAL_NOTES = {
@@ -70,26 +72,38 @@ def _tags(dims: dict) -> str:
                     if d in dims and d != schema.WINDOW_DIM)
 
 
-def report(view: View, sel: Selection, by: Optional[str], limit: int) -> List[str]:
-    """Every line of the view: the headline, the population, the default
-    tables (``--by`` one dimension's table with its labels whole, or the
-    leaves for ``fact``) and the footer."""
+def report(view: View, sel: Selection, population: str, by: Optional[str], limit: int) -> List[str]:
+    """Every line of the view: the headline, the population line, the
+    default tables a pin left open (``--by`` one dimension's table with its
+    labels whole, or the leaves for ``fact``) and the footer."""
     spec = schema.metric(view.metric)
     if by == "fact":
         body = _leaves(sel.facts, view.metric, limit)
     else:
-        tables = [query.group(sel.facts, dim, view.metric) for dim in ([by] if by else view.tables)]
+        dims = [by] if by else _open(sel, view.tables, spec.carrier)
+        tables = [query.group(sel.facts, dim, view.metric) for dim in dims]
         body = [line for t in tables if t.rows
                 for line in _table(t, view.metric, spec.carrier, limit, whole=bool(by)) + [""]]
-    return headline(view, sel) + [population(sel), ""] + body + footer(view, sel)
+    return headline(view, sel) + [population, ""] + body + footer(view, sel)
+
+
+def _open(sel: Selection, dims: Tuple[str, ...], carrier: str) -> List[str]:
+    """The dimensions a ``--where`` pin left open: all when nothing is
+    pinned, else those whose carrier facts do not all share one value (a
+    pinned head implies its tool, a pinned window its agent, session and
+    project): a table or lever over one value only repeats the filter."""
+    if not sel.where:
+        return list(dims)
+    return [dim for dim in dims
+            if len({f.dims.get(dim) for f in sel.facts if f.kind == carrier}) != 1]
 
 
 def headline(view: View, sel: Selection) -> List[str]:
     """The total, how it was taken, and the lever walk over the view's
-    levers that ``--where`` did not pin (a pinned one's top row would be
-    the filter itself); the walk is grouped here whatever ``--by`` shows,
-    since a category (``cause``) or a population row (a window dimension)
-    is never the answer (D-HEADLINE-SPECIFIC as amended)."""
+    levers a ``--where`` pin left open; the walk is grouped here whatever
+    ``--by`` shows, since a category (``cause``) or a population row (a
+    window dimension) is never the answer (D-HEADLINE-SPECIFIC as
+    amended)."""
     spec = schema.metric(view.metric)
     line = "%s: %s %s" % (view.metric, _num(sel.total), spec.unit)
     if view.reconciles and not sel.drill:
@@ -101,8 +115,7 @@ def headline(view: View, sel: Selection) -> List[str]:
             _count(sum(f.kind == spec.carrier for f in sel.facts), spec.carrier + " fact"),
             "%d of %s" % (drilled, _count(sel.n_windows, "window")) if drilled != sel.n_windows
             else _count(drilled, "window"))
-    pinned = {dim for dim, _ in sel.where}
-    levers = [dim for dim in view.levers if dim not in pinned]
+    levers = _open(sel, view.levers, spec.carrier)
     return [line + _top(sel.facts, levers, view.metric, sel.total)] + _peaks(sel) + list(view.notes)
 
 
@@ -113,23 +126,35 @@ def _largest(table: query.Table) -> Optional[query.Row]:
 
 def _top(facts: List[Fact], levers: List[str], metric: str, total: float) -> str:
     """The first lever's largest row with its share of the headline total,
-    named as such (a table's own share column is over its base, which the
-    residual and signed rows make smaller); then each more specific
-    lever's largest row while it lies within the row before, i.e. the
-    table over that row's facts alone holds the very same row: ``top
-    tool=Bash ...; within it head=Bash:cat ...``. A top head under another
-    tool ends the walk, as does a lever with no regular row."""
-    if not total:
+    named as such (a table's share column is over its base, which the
+    residual and signed rows make smaller). Each next lever refines the
+    row before: the largest row over that row's facts alone, with its share
+    of that row and of the total (``within it head=Bash:cat 60 (66.7% of
+    Bash, 61.2% of the total)``); when the lever's largest row overall is
+    another, it follows with what it lies under (``top head=Read:py 70
+    (41.2% of the total) under tool=Read``), never silent. A lever with no
+    regular row ends the walk."""
+    if not total or not levers:
         return ""
-    text, lead = "", facts
-    for dim in levers:
-        top = _largest(query.group(facts, dim, metric))
-        if top is None or top not in query.group(lead, dim, metric).rows:
+    top = _largest(query.group(facts, levers[0], metric))
+    if top is None:
+        return ""
+    text = "; top %s=%s %s (%s of the %s total)" % (
+        levers[0], top.value, _num(top.mass), _pct(top.mass / total), _num(total))
+    lead = query.select(facts, [(levers[0], top.value)])
+    for above, dim in zip(levers, levers[1:]):
+        within = _largest(query.group(lead, dim, metric))
+        if within is None:
             break
-        text += "; %s %s=%s %s (%s%s)" % (
-            "within it" if text else "top", dim, top.value, _num(top.mass), _pct(top.mass / total),
-            "" if text else " of the %s total" % _num(total))
-        lead = query.select(lead, [(dim, top.value)])
+        text += "; within it %s=%s %s (%s of %s, %s of the total)" % (
+            dim, within.value, _num(within.mass), _pct(within.mass / top.mass if top.mass else None),
+            top.value, _pct(within.mass / total))
+        overall = _largest(query.group(facts, dim, metric))
+        if overall.value != within.value:
+            under = query.values(query.select(facts, [(dim, overall.value)]), above, metric)[0]
+            text += "; top %s=%s %s (%s of the total) under %s=%s" % (
+                dim, overall.value, _num(overall.mass), _pct(overall.mass / total), above, under)
+        top, lead = within, query.select(lead, [(dim, within.value)])
     return text
 
 
@@ -148,15 +173,17 @@ def _peaks(sel: Selection) -> List[str]:
     return lines
 
 
-def population(sel: Selection) -> str:
+def population(sel: Selection, loaded: Corpus, root: Path, since: Optional[float]) -> str:
+    """What the selection was read from (the root, the files ``--since``
+    kept, what the read skipped or excluded) and what it kept."""
     return ("population: root %s; %s read%s, %s, %s, %s; %s skipped, %s excluded%s"
-            % (sel.root, _count(len(sel.loaded.files), "file"),
-               "" if sel.since is None else " (modified within %gd)" % sel.since,
+            % (root, _count(len(loaded.files), "file"),
+               "" if since is None else " (modified within %gd)" % since,
                _count(sel.n_windows, "window"),
                _count(sum(f.kind == schema.CALL for f in sel.window_facts), "call fact"),
                _count(sum(f.kind == schema.INCREMENT for f in sel.window_facts), "increment fact"),
-               _count(sel.loaded.skipped_lines, "line"),
-               _count(sel.loaded.duplicate_records, "duplicate record"),
+               _count(loaded.skipped_lines, "line"),
+               _count(loaded.duplicate_records, "duplicate record"),
                "".join("; where %s=%s" % p for p in sel.where)))
 
 

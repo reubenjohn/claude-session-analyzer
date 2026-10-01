@@ -263,6 +263,19 @@ levers alone, whatever `--by` shows (`fact` too), and since a head row
 can never exceed its tool row it walks down: the top tool with its share
 of the total, then `within it` the top head when it lies under that tool
 (a top head under another tool ends the walk); a pinned lever drops out.
+AMENDED 2026-10-01, ninth judge: `within it head=Bash:cat 839,141
+(15.4%)` was a share of the total that read as a share of Bash, and a
+top head under another tool was silent. Now the refining clause is the
+largest head of the top tool's facts, grouped once, with both bases
+(`47.0% of Bash, 15.4% of the total`), and when the largest head overall
+lies elsewhere it follows: `top head=Read:py N (x% of the total) under
+tool=Read`. A `--where` pin omits every default table and lever whose
+facts all share one value (a pinned head implies its tool, a pinned
+window its agent, session and project; `--by` still prints on request).
+Same pass: `cd` joined `BUILTINS` in place of its own branch (`cd -P /x
+&& make` -> `Bash:make`; a lone `cd /x` -> `Bash:other`, like `echo
+done`); `query.Selection` dropped the CLI's root, since and corpus,
+which `cli` now hands to `render.population`.
 
 **D-WINDOW-DIM — a window is selectable by its file name.** RULED
 2026-10-01, on a sixth judge's rejection of 8746202. A main window could
@@ -287,35 +300,3 @@ or value, a dimension the carrier never has, a value no fact carries) and
 `query.group` checks `--by` against the carrier, the CLI only surfacing
 the library's error as exit 2; the fork evidence keys and `candidates`
 are declared once in `schema`.
-
----
-
-## Phase 3 synthesis — the rows as proposed (history)
-
-Travels with `DESIGN_BRIEF.md`. Every open or disputed choice is a numbered
-row. **Original STATUS meanings:** `NEEDS-RULING` — the build BLOCKS until
-the owner answers; `proposed` — synthesis will build it as recommended unless
-the owner vetoes. The status column now shows the 2026-09-30 ruling
-(RULED / DEFERRED / MOOT / RECORD-ONLY). The per-row discussions as
-originally proposed are in `DECISION_LOG_HISTORY.md`. Populations for every
-figure: see the brief; corpus figures are 2026-07-28 sweeps and drift.
-
-| id | choice | status |
-|---|---|---|
-| D-ENGINE | Retire the ported ranking engine | RULED |
-| R1 | Carrier of attributed mass (ENGINE_CONTRACT §5) | RULED |
-| R2 | §6 file=lane re-tag + continuation-head probe | RULED |
-| R3 | Misfile-lens re-tag batch (9 verdicts) | RECORD-ONLY |
-| R4 | Bless 94.98%/~5% headline over ~77%/~23% | RULED (neither) |
-| R5 | `tool_input_head` normalization rule (privacy) | RULED |
-| R6 | `sa_schema.py` import surface (allowlist vs strip) | MOOT |
-| P1 | METRICS single declaration (B graft) | RULED |
-| P2 | Shrink's home: exclude from `context` preset | MOOT |
-| P3 | Residual-aware `top_key` rendering | MOOT |
-| P4 | `cause.candidates` → evidence + `candidate_count` | RULED |
-| P5 | `lib_corpus.py` shared-parser tangent | RULED |
-| P6 | Usage-less call: keep ported 0-without-advancing | RULED |
-| P7 | Keep v1's untouched [OPEN] engine choices | MOOT |
-| P8 | Schema rules: depth-2 nesting, one lane home | MOOT |
-| P9 | Presets-as-data; computed denominators | RULED |
-

@@ -88,23 +88,23 @@ def _modified_within(days: Optional[float]) -> Optional[corpus.Keep]:
     return lambda path: path.stat().st_mtime >= cutoff
 
 
-def _select(root: Path, since: Optional[float], where: List[Tuple[str, str]],
-            metric: str) -> Selection:
-    loaded = corpus.load(root, _modified_within(since))
+def _select(loaded: corpus.Corpus, where: List[Tuple[str, str]], metric: str) -> Selection:
     facts = [f for source in loaded.files for f in walk.walk(source, loaded.usages)]
     window_where, drill = query.split(where)
     window_facts = query.narrow(facts, window_where, metric)
     kept = query.narrow(window_facts, drill, metric)
-    return Selection(root, since, window_where, drill, loaded, window_facts, kept,
+    return Selection(window_where, drill, window_facts, kept,
                      query.total(kept, metric), query.reconcile(window_facts))
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     view = VIEWS[args.view]
+    loaded = corpus.load(args.root, _modified_within(args.since))
     try:
-        sel = _select(args.root, args.since, args.where, view.metric)
-        lines = render.report(view, sel, args.by, args.limit)
+        sel = _select(loaded, args.where, view.metric)
+        lines = render.report(view, sel, render.population(sel, loaded, args.root, args.since),
+                              args.by, args.limit)
     except schema.SchemaError as error:
         print("sa %s: error: %s" % (args.view, error.args[0]), file=sys.stderr)
         return 2

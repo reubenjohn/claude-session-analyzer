@@ -1,9 +1,7 @@
 """Select, group and reconcile facts. No rendering here."""
-from pathlib import Path
 from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 from . import schema
-from .corpus import Corpus
 from .schema import Fact
 
 Where = Iterable[Tuple[str, str]]
@@ -195,13 +193,9 @@ def reconcile(facts: Iterable[Fact]) -> Reconciliation:
 
 class Selection(NamedTuple):
     """What a view is answered over: the whole windows the window-dimension
-    filters kept, the facts the drill filters kept within them, and the
-    population they were read from."""
-    root: Path
-    since: Optional[float]           # days, when --since narrowed the files read
+    filters kept and the facts the drill filters kept within them."""
     window_where: List[Tuple[str, str]]  # the --where pairs that kept whole windows
     drill: List[Tuple[str, str]]     # the --where pairs that selected within them
-    loaded: Corpus
     window_facts: List[Fact]        # whole windows kept by ``window_where``
     facts: List[Fact]               # the windows' facts kept by ``drill`` too
     total: float                    # the view's metric over ``facts``, summed once

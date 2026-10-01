@@ -52,6 +52,8 @@ def test_a_zero_base_table_truncates_without_a_share():
     assert render._top(facts, [TOOL], fx.DELTA, total=0) == ""
     assert render._top(facts, [TOOL], fx.DELTA, total=5) == (
         "; top %s=Bash 0 (0.0%% of the 5 total)" % TOOL)  # vacuity guard
+    assert render._top(facts, [TOOL, HEAD], fx.DELTA, total=5).endswith(
+        "; within it %s=Bash:cat 0 (- of Bash, 0.0%% of the total)" % HEAD)  # no share of a 0 row
 
 
 def _inc(mass, line, tool=None, head=None, cause=schema.TOOL_RESULT):
@@ -80,18 +82,35 @@ def test_headline_top_row_shares_the_total_it_is_given_never_the_table_base():
     assert render._top(FACTS, [], fx.DELTA, total=98) == ""          # every lever pinned
 
 
-def test_the_headline_walks_down_the_levers_while_the_top_row_lies_within_the_one_before():
-    """The top head Bash:cat lies within the top tool Bash: a refinement.
-    With Bash = Bash:ls 60 + Bash:make 40 and Read:py 70 the top head lies
-    under another tool, so the tool clause stands alone."""
+def test_the_headline_refines_the_top_row_and_names_both_bases():
+    """The head within the top tool Bash is Bash:cat, 60 of Bash's 90 and
+    of the 98 total: both bases are named, since a share of the total
+    beside ``within it`` would read as a share of Bash. Here it is also
+    the top head overall, so nothing follows."""
     assert render._top(FACTS, [TOOL, HEAD], fx.DELTA, total=98) == (
-        "; top %s=Bash 90 (91.8%% of the 98 total); within it %s=Bash:cat 60 (61.2%%)" % (TOOL, HEAD))
+        "; top %s=Bash 90 (91.8%% of the 98 total); within it %s=Bash:cat 60"
+        " (66.7%% of Bash, 61.2%% of the total)" % (TOOL, HEAD))
+
+
+def test_a_top_row_under_another_lead_follows_the_refinement_naming_what_it_lies_under():
+    """Bash = Bash:ls 60 + Bash:make 40 and Read:py 70: the head within
+    Bash is Bash:ls, but the top head overall is Read:py, under Read, so
+    it is named too with its tool and its share of the total."""
     other = [_inc(60, 1, "Bash", "Bash:ls"), _inc(40, 2, "Bash", "Bash:make"),
              _inc(70, 3, "Read", "Read:py")]
-    assert render._top(other, [HEAD], fx.DELTA, total=170).startswith(
-        "; top %s=Read:py 70 " % HEAD)  # the top head on its own
+    assert render._top(other, [HEAD], fx.DELTA, total=170) == (
+        "; top %s=Read:py 70 (41.2%% of the 170 total)" % HEAD)  # the top head on its own
     assert render._top(other, [TOOL, HEAD], fx.DELTA, total=170) == (
-        "; top %s=Bash 100 (58.8%% of the 170 total)" % TOOL)
+        "; top %s=Bash 100 (58.8%% of the 170 total); within it %s=Bash:ls 60"
+        " (60.0%% of Bash, 35.3%% of the total); top %s=Read:py 70 (41.2%% of the total)"
+        " under %s=Read" % (TOOL, HEAD, HEAD, TOOL))
+    assert "under" not in render._top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
+
+
+def test_the_ambiguous_note_names_every_declared_reason():
+    note = render.UNSPLITTABLE[schema.AMBIGUOUS]
+    assert len(schema.REASONS) > 1 and all(reason in note for reason in schema.REASONS)
+    assert "several" not in note  # negative_remainder and no_contributor have one or none
 
 
 def test_a_long_label_keeps_its_tail_behind_an_ellipsis_unless_the_table_is_whole():

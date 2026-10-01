@@ -6,7 +6,7 @@ description: Measures where a Claude Code session's context went and what it cos
 # session-analyzer
 
 Two questions, two commands, from the JSONL transcripts under
-`~/.claude/projects`; stdlib only.
+`~/.claude/projects`.
 
 ```bash
 cd "${CLAUDE_PLUGIN_ROOT}" && python3 -m sa context   # where did my context go
@@ -30,8 +30,9 @@ Narrow, then drill:
 *increment* with one `cause`: `window_head` (the first call's occupancy:
 boot, or inherited for a fork), `feed_forward` (the previous turn's own
 output),
-`tool_result`, `user_text`, `ambiguous` (more than one candidate) and
-`shrink` (a window that got smaller, signed). Default tables: cause, tool,
+`tool_result`, `user_text`, `ambiguous` (not attributable to one
+contributor; `reason` says why) and `shrink` (a window that got smaller,
+signed). Default tables: cause, tool,
 head, agent, session, project (`reason` and `window` via `--by`).
 
 **`spend`** sums each call's cost in input-side base-token-equivalents:
@@ -42,11 +43,14 @@ windows. A note says spend is paid per call: context shares are not cost
 shares.
 
 Whatever `--by` shows, the `context` headline names the top tool with
-its mass and share of the total, then `within it` the top head when it
-lies under that tool: `top tool=Bash 1,553,915 (31.5% of the 4,936,844
-total); within it head=Bash:cat 712,004 (14.4%)`; `spend` names the top
-agent. Never a cause or a window row. A drill's headline counts the windows
-its facts come from (`in 29 of 36 windows`). `single-call peak
+its mass and share of the total, `within it` that tool's largest head
+with its share of the tool and of the total, then a larger head under
+another tool: `top tool=Bash 1,553,915 (31.5% of the 4,936,844 total);
+within it head=Bash:cat 712,004 (45.8% of Bash, 14.4% of the total)`;
+`spend` names the top agent. Never a cause or a window row. A `--where`
+pin omits the default tables and levers it implies (a head its tool, a
+window its agent, session, project). A drill's headline counts the windows its
+facts come from (`in 29 of 36 windows`). `single-call peak
 context_tokens` under it is the fullest call over the N whole windows,
 even under a drill.
 
@@ -64,11 +68,11 @@ python3 -m sa context --where cause=ambiguous --by fact --limit 2
 (no `agent=` on a main-window leaf), and under an ambiguous one
 `candidates:`, then a line per contributor with its cause/tool/head:
 `<file>:<line> <uuid>  cause=tool_result tool=Read head=Read:py`. The row
-carries a tool only when all candidates share one. Open the locator to
+carries a tool only when all candidates share it. Open the locator to
 see what landed.
-A `head` is a Bash call's first command word (keywords, wrappers and
-output-less builtins (`echo`, `source`) skipped) as a basename
-(`Bash:pytest`), or a file tool's extension (`Read:py`); never a path.
+A `head` is a Bash call's first command word (past keywords, wrappers
+and output-less builtins: `cd`, `echo`) as a basename (`Bash:pytest`),
+or a file tool's extension (`Read:py`); never a path.
 Exit 2, naming what is declared or present: `spend --where cause=...`
 (calls carry only the window dims), `cause=bogus` (undeclared),
 `tool=bash` (no fact carries it).
@@ -77,8 +81,8 @@ Exit 2, naming what is declared or present: `spend --where cause=...`
 
 Every run prints a **population** line: corpus root, files read, windows,
 call and increment facts, lines skipped, duplicates excluded, `where`
-filters. Quote it with any figure; a number without its population is not
-a finding. Table columns: the metric, its carrier's count
+filters. Quote it with any figure: a number without its population is no
+finding. Table columns: the metric, its carrier's count
 (`increments`, `calls`) and `share of <base>`, the mass the shares are
 over. Tables end with the residual row `∅` (facts lacking
 the grouped dimension, a note saying what it holds) and any `(signed)`
@@ -94,19 +98,17 @@ reconciliation over 32 windows: window_head 1,323,189 + feed_forward 205,510 + t
 intervals 831 (= 863 calls - 32 windows): exact 631 (75.9%) + ambiguous 200 (24.1%) [multi_contributor 199, negative_remainder 1] + shrink 0 (0.0%): OK
 ```
 
-Line 1 holds by construction (walk.py), a regression guard: `MISMATCH`
-is a bug in this tool, exit 1. Line 2 is this run's attribution quality
-over the
-intervals (calls minus windows); line 3 defines *exact* (one token-relevant
-contributor after subtracting the previous call's output). Report the
-rates with the headline. A drill replaces the footer with one line,
-`reconciliation: applies to the N whole windows above, not to this
-drill: OK`. `spend` ends with the output and cache-write token totals.
+Line 1 holds by construction: `MISMATCH` is a bug in this tool, exit 1.
+Line 2 is this run's attribution quality over the intervals (calls minus
+windows); line 3 defines *exact*. A drill replaces the footer with one
+line naming the N whole windows it applies to. `spend` ends with the
+output and cache-write token totals.
 
-## Refusals, and why
+## Refusals
 
-No dollars (rates differ per model and tier); no estimated attribution (several candidates: one `ambiguous` row, never
-a spread); no summed peaks (`context_tokens` is a high-water mark).
+No dollars (rates differ per model and tier); no estimated attribution
+(one `ambiguous` row, never a spread); no summed peaks (`context_tokens`
+is a high-water mark).
 
 ## Answering a user
 
