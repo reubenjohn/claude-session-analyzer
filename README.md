@@ -6,9 +6,9 @@ transcripts under `~/.claude/projects`:
 - **Where is my context going?** (`context_delta`)
 - **What did it cost?** (`spend`)
 
-**Status: design phase.** Nothing is ready to use yet. The rebuild is waiting
-on design rulings; start with [`references/DESIGN_BRIEF.md`](references/DESIGN_BRIEF.md)
-and [`references/DECISION_LOG.md`](references/DECISION_LOG.md).
+**Status: build in progress.** Design rulings landed 2026-09-30 (see
+[`references/DECISION_LOG.md`](references/DECISION_LOG.md)); the build is
+under way on branch `v2-build`. Nothing is runnable yet.
 
 ## Layout
 

@@ -1,86 +1,120 @@
 # session-analyzer v2 — standing context
 
-> **Moved out of the dotfiles. Read `references/PUBLISHING_PLAN.md` first.**
-> It has the open extraction steps and the distribution decision. Until step 2
-> there is done, any mention below of the dotfiles branch, the worktree, or v1's
-> dotfiles path is stale: v1 now lives on this repo's `v1-legacy` branch.
+Answers TWO questions about Claude Code sessions: where is my context going
+(`context_delta`) and what did it cost (`spend`). Reads the JSONL transcripts
+under `Path.home()/".claude"/"projects"` (computed at runtime, never a
+literal path). Standard library only, Python 3.8. TIME/scheduling questions
+are real and deliberately deferred: design so they can be added, do not add
+them. Standing premise: NO USERS, NO DEPLOYMENTS — breaking changes are free,
+legacy is deleted not accommodated, published numbers move when the old
+number was wrong. Work happens on branch `v2-build`.
 
-Clean-room rebuild of session-analyzer, built on the disposable branch
-`session-analyzer-v2`. Never checkout or commit to main from this worktree.
+## Build charter (rulings of 2026-09-30, `references/DECISION_LOG.md`)
 
-**Scope of build v1: TWO questions** — where is my context going
-(`context_delta`) and what did it cost (`spend`). TIME/scheduling questions are
-real and deliberately DEFERRED: design so they can be added, do not add them.
+Owner directive: an elegant, simple implementation from which powerful
+capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE); the
+path is a minimal clean implementation.
 
-**Standing premise, inherited from v1 and still in force:** this tool has NO
-USERS and NO DEPLOYMENTS. Breaking changes are free, legacy is deleted not
-accommodated, published numbers may move when the old number was wrong.
+Package `sa/`: `usage.py` (lib_usage, VERBATIM), `corpus.py` (read files,
+dedup, physical line numbers), `walk.py` (calls, intervals, attribution),
+`schema.py` (the one METRICS table: name -> class, carrier, unit),
+`query.py` (group/aggregate by dims, reconciliation), `cli.py` (two
+subcommands: `context`, `spend`); `tests/`. The parser module IS the
+product: probes import it, never copy it.
 
-## The clean-room boundary — binding on every session and subagent
+One data model, `Fact`: `kind` is `call` or `increment`; `metrics`; `dims`;
+`locator` `file:line:uuid`. Every metric declares its single carrier kind
+(`spend` -> call, `context_delta` -> increment) and the query layer reads it
+only from that kind, so double-counting is impossible by construction.
+Increment `cause` vocabulary: `feed_forward | tool_result | user_text |
+ambiguous | shrink | window_head`. Unknown metric or cause fails closed.
+A window IS a file in build v1 (R2): `window_head` is the first
+usage-carrying call's occupancy — inherited context for a fork, boot context
+for a fresh session — always its own labelled row, never spread. The parser
+records a fork's `fork-context-ref` (`parentSessionId`, `parentLastUuid`) as
+evidence on the window_head fact so stitching can be added later without a
+schema change; no stitching ships in v1.
 
-v1 lives at `user_home/.claude/skills/session-analyzer/`. The ONLY files you
-may open there:
-
-- `references/PURPOSE.md` — why anyone cares; read first
-- `references/ENGINE_CONTRACT.md` — what is true, and what kind of claim each
-  invariant is (ARITHMETIC / MEASURED / RULING / OPEN)
-- `references/glossary.md` — the nouns; never invent a synonym for a term that
-  exists
-- `CLAUDE.md` (v1's own) — the standing premise above
-- `scripts/lib/lib_drill.py`, `scripts/sa_schema.py`,
-  `tests/generate_fixtures.py` — already ported verbatim into this tree
-- `scripts/lib/lib_parse.py` — the usage helpers only (`usage_context`,
-  `max_merge_usage`, `usage_spend`, `context_delta`, `usage_cache_tier`)
-
-Everything else under the v1 directory is OFF LIMITS — code, tests, docs, git
-history. Several of its most authoritative-sounding documents instruct a reader
-to build what a test forbids (ENGINE_CONTRACT §10). Wanting to see how v1
-solved something is the exact impulse this boundary exists to catch. If you
-need a file not on this list, STOP AND ASK the owner.
-
-## Ported verbatim — the starting state, not a frozen ceiling
-
-`scripts/lib/lib_drill.py` and `scripts/sa_schema.py` are the engine, taken as
-files per ENGINE_CONTRACT §9. Their docstrings ARE the specification, and each
-docstring in `scripts/lib/lib_usage.py` carries a measured correction. The rule
-here is about the CHANNEL of change, not changeability: the engine's
-[OPEN]-tagged choices (score combinator, cover definition, residual
-unification, the purity boundary, …) are legitimate challenge targets — raise
-them in a design brief's decision log with argument or new measurement, and
-they land only after an owner ruling. What is forbidden is the silent in-place
-rewrite: this domain's recorded failure mode is the confident, plausible
-"improvement" that deletes a measured correction, and the ported files are the
-ones that survived mutation testing.
-
-## Non-negotiables (from the owner's build brief)
+## Non-negotiables
 
 - Forest-level uuid-keyed dedup at the aggregation boundary from day one —
   never per-file, never content-keyed. A window is not a file (bg, /branch,
   --fork-session, sibling forks); per-file reading inflates totals by 94%.
-- The tree INVERTS under these metrics: the injected subtree (~95% of observed
-  chars) carries ZERO mass. Design output for that before drawing any.
-- No estimated attribution in build v1. ~77% of intervals attribute exactly by
-  subtracting the feed-forward term; the other ~23% gets ONE residual bucket
-  named *ambiguous*, never a silent spread.
-- Every figure names the population it was measured over; estimates are
-  labelled estimates.
-- Tests, from the first one: derive assertions from the schema (never
-  enumerate metric names as literals) and put a vacuity guard beside every
-  negative assertion.
+- The tree INVERTS under these metrics: the injected subtree (~95% of
+  observed chars) carries ZERO mass. Design output for that before drawing.
+- No estimated attribution. Exact attribution by subtracting the feed-forward
+  term; everything else goes to ONE residual bucket, `ambiguous`, never a
+  silent spread.
+- Every figure names its population. Exact/ambiguous/shrink/window-head rates
+  are measured per run and printed with their population — never hard-coded.
+- Tests derive assertions from the schema (never enumerate metric names as
+  literals); every negative assertion has a vacuity guard beside it.
+- Never sum a peak; a peak reports no value at a node.
+- Never quote dollars. Spend is in weighted tokens.
+- Shrink is a signed row: excluded from share percentages, always present in
+  the reconciliation footer. The headline names the top non-residual row.
+
+## Measured corrections — stay pinned by tests
+
+Docstrings in `sa/usage.py` carry these; a change is a new measurement plus a
+logged ruling, never a plausible rewrite.
+
+- Split `message.id`s are MAX-MERGED field-wise: 80.5% of ids are split, and
+  73% of those disagree on `output_tokens`.
+- `cache_creation` is NOT the increment; the occupancy identity (input +
+  cache_read + cache_creation) holds on only 92.21% of pairs for it.
+- Peak is never summed: 4,950,327 summed vs 131,612 true peak.
+- Cache tiers priced per call: 1h write x2.0, 5m write x1.25, read x0.1.
+- Shrinks are real and unclamped: 830 of 45,555 pairs.
+- Feed-forward subtraction (`delta_occ >= out_prev`) holds on 97.79% of pairs.
+- Physical line numbers, not parsed index. A filename is not a session.
+- Contributors are token-relevant only (tool_result + user text): 2.1.28x
+  transcripts emit per-turn bookkeeping attachments that collapse the
+  "exactly one non-assistant record" rate from 84% to under 1% if counted.
+  Attachment mass is an [OPEN] caveat: exact remainders include injected
+  reminder text.
+- parentUuid links never cross files (0 of 1,523; 21-file probe,
+  2026-09-30), so no parentUuid-chain window model.
+
+## Clean-room boundary — binding on every session and subagent
+
+v1 is frozen. Once the `v1-legacy` branch is pushed, read it with
+`git show v1-legacy:<path>`; until then the installed skill at
+`~/.claude/skills/session-analyzer/`. The ONLY files you may open there:
+
+- `references/PURPOSE.md`, `references/ENGINE_CONTRACT.md`,
+  `references/glossary.md` (never invent a synonym for an existing term),
+  v1's own `CLAUDE.md`
+- `scripts/lib/lib_drill.py`, `scripts/sa_schema.py`,
+  `tests/generate_fixtures.py`
+- `scripts/lib/lib_parse.py` — usage helpers only (`usage_context`,
+  `max_merge_usage`, `usage_spend`, `context_delta`, `usage_cache_tier`)
+
+Everything else is OFF LIMITS: code, tests, docs, history. Several of v1's
+most authoritative documents instruct a reader to build what a test forbids.
+Wanting to see how v1 solved something is the impulse this boundary catches.
+Need another file? STOP AND ASK the owner.
+
+## Channel of change
+
+Engine-level choices (fact shape, carrier table, cause vocabulary, the
+attribution walk, any measured correction) change only via a logged ruling
+in `references/DECISION_LOG.md` with an argument or a new measurement, plus
+an opus second opinion. The recorded failure mode is the confident in-place
+"improvement" that deletes a measured correction.
 
 ## Repo gates
 
-The global pre-commit hook warns on .py > 15,000 chars and .md > 20,000
-(verbatim ports are the accepted exception), and the privacy gate FAILS CLOSED:
-no literal /home/... or /Users/... paths, no real-looking UUIDs, no transcript
-text in any tracked file. Compute the corpus root at runtime as
-`Path.home()/".claude"/"projects"`.
+Pre-commit warns on `.py` > 15,000 chars and `.md` > 20,000 (verbatim
+`usage.py` is the accepted exception). Privacy gate FAILS CLOSED: no literal
+`/home/...` or `/Users/...` paths, no real-looking UUIDs, no transcript text
+in any tracked file. The global hook's checker is not yet wired to this
+standalone repo, so scan before every push (PUBLISHING_PLAN standing rules).
 
-## Where everything else lives — pointers, never copies
+## Pointers, never copies
 
-- `references/DESIGN_COMPETITION.md` — the design-phase charter: the two open
-  problems, design gates, the owner's four required brief questions.
-- `references/PHASE0_MEASUREMENT.md` — what the raw transcripts actually carry
-  (attribution-join feasibility). If absent, Phase 0 has not landed yet.
-- Design decisions await OWNER RULINGS before any build starts; the decision
-  log travels with the design brief.
+- `references/DESIGN_BRIEF.md` — historical design; §2 (the attribution
+  walk) is still the spec. The 94.98% exact-rate note is dated, not blessed.
+- `references/DECISION_LOG.md` — rulings and their history.
+- `references/PHASE0_MEASUREMENT.md` — what the raw transcripts carry.
+- `references/PUBLISHING_PLAN.md` — extraction steps and distribution.

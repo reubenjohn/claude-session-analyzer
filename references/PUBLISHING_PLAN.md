@@ -21,10 +21,10 @@ publishing session data that old commits might contain.
    the owner pushes it. Known breakage outside the dotfiles: two tests in
    `tests/test_v2.py` expect the dotfiles' `settings.json` and the
    `deny-ad-hoc-bash.js` hook next to the directory. 595 tests pass.
-2. [ ] **Rewrite `CLAUDE.md` for standalone use.** It still refers to the
-   dotfiles branch, "this worktree", and v1's dotfiles path for the clean-room
-   boundary. Point the clean-room allowlist at the `v1-legacy` branch instead
-   (for example `git show v1-legacy:references/PURPOSE.md`).
+2. [x] **Rewrite `CLAUDE.md` for standalone use.** Done 2026-09-30: no
+   dotfiles-branch or worktree references remain; the clean-room allowlist
+   points at `git show v1-legacy:<path>` once step 1 lands, and at the
+   installed skill under `~/.claude/skills/session-analyzer/` until then.
 3. [ ] **Remove both copies from the dotfiles.** This needs owner approval. v2
    has no `SKILL.md`, so nothing loads it as a skill and it can simply be
    deleted. v1 is still the installed `session-analyzer` skill; remove it
