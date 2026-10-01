@@ -40,6 +40,11 @@ CASES = [
     ("Bash", {"command": "for f in x; do if [ -f $f ]; then cmd; fi; done"}, "Bash:cmd"),
     ("Bash", {"command": "cd /x && for f in *; do cmd; done"}, "Bash:cmd"),
     ("Bash", {"command": "for f in a b"}, "Bash:other"),  # no body, no command
+    # case: past `in`, then past the first pattern's `)`.
+    ("Bash", {"command": "case $x in a) make;; esac"}, "Bash:make"),
+    ("Bash", {"command": 'case "$1" in\n  start) ./run.sh ;;\n  *) ls ;;\nesac'}, "Bash:run.sh"),
+    ("Bash", {"command": "case $(uname) in Linux) make;; esac"}, "Bash:make"),
+    ("Bash", {"command": "case $x in"}, "Bash:other"),
     # R5-BUILTINS: an output-less builtin and its arguments, to the next separator.
     ("Bash", {"command": 'for f in a b; do echo "== $f"; cat "$f"; done'}, "Bash:cat"),
     ("Bash", {"command": "echo hi && pytest"}, "Bash:pytest"),
@@ -52,7 +57,10 @@ CASES = [
     ("Bash", {"command": "unset FOO && cmd"}, "Bash:cmd"),
     ("Bash", {"command": "shift 2 && cmd"}, "Bash:cmd"),
     ("Bash", {"command": "cd /x && echo start; ./check.sh"}, "Bash:check.sh"),
-    # Wrappers: bare prefixes that run the word after them.
+    ("Bash", {"command": "source .venv/bin/activate && pytest"}, "Bash:pytest"),
+    ("Bash", {"command": ". ./env.sh; pytest"}, "Bash:pytest"),
+    ("Bash", {"command": ". ./env.sh"}, "Bash:other"),
+    # Wrappers: prefixes that run the word after them and their options.
     ("Bash", {"command": "{ cmd; }"}, "Bash:cmd"),
     ("Bash", {"command": "( cmd )"}, "Bash:cmd"),
     ("Bash", {"command": "! cmd"}, "Bash:cmd"),
@@ -64,11 +72,25 @@ CASES = [
     ("Bash", {"command": "timeout 30s cmd"}, "Bash:cmd"),
     ("Bash", {"command": "sudo timeout 30 env cmd"}, "Bash:cmd"),
     ("Bash", {"command": "timeout 30"}, "Bash:other"),
-    # timeout's options, valued or not, come before its duration.
+    # A wrapper's options are skipped, a VALUED one with its word; timeout's
+    # duration follows its options.
     ("Bash", {"command": "timeout -s KILL 30 make"}, "Bash:make"),
     ("Bash", {"command": "timeout --signal=KILL -k 5 30 make"}, "Bash:make"),
     ("Bash", {"command": "timeout --foreground 30 make"}, "Bash:make"),
     ("Bash", {"command": "timeout -s KILL 30"}, "Bash:other"),
+    ("Bash", {"command": "xargs -n1 wc -l"}, "Bash:wc"),
+    ("Bash", {"command": "xargs -n 1 -P 4 wc -l"}, "Bash:wc"),
+    ("Bash", {"command": "xargs -I {} cp {} /dest"}, "Bash:cp"),
+    ("Bash", {"command": "sudo -u bob make"}, "Bash:make"),
+    ("Bash", {"command": "sudo -E -- make"}, "Bash:make"),
+    ("Bash", {"command": "env -i make"}, "Bash:make"),
+    ("Bash", {"command": "env -u HOME -i FOO=1 make"}, "Bash:make"),
+    ("Bash", {"command": "time -p make"}, "Bash:make"),
+    ("Bash", {"command": "time -f %e make"}, "Bash:make"),
+    ("Bash", {"command": "sudo -u"}, "Bash:other"),
+    # HEAD_SHAPE: a leading `-` is an option, never a command.
+    ("Bash", {"command": "-n1 wc -l"}, "Bash:other"),
+    ("Bash", {"command": "--version"}, "Bash:other"),
     ("Bash", {"command": "exit 0"}, "Bash:other"),
     # R5-BASENAME: a path-shaped command word is its basename, never a directory.
     ("Bash", {"command": "./check.sh"}, "Bash:check.sh"),
@@ -99,12 +121,14 @@ def test_head_of(tool, tool_input, expected):
 def test_every_declared_keyword_wrapper_test_and_builtin_opens_a_case():
     firsts = {tool_input["command"].split()[0] for tool, tool_input, _ in CASES
               if tool == "Bash" and isinstance(tool_input, dict) and tool_input.get("command")}
-    declared = heads.KEYWORDS + heads.WRAPPERS + heads.BUILTINS + tuple(heads.TESTS) + ("timeout",)
+    declared = tuple(heads.KEYWORDS) + heads.WRAPPERS + heads.BUILTINS + tuple(heads.TESTS)
     assert set(declared) <= firsts
-    valued = {tool_input["command"].split()[1] for tool, tool_input, _ in CASES
-              if tool == "Bash" and isinstance(tool_input, dict)
-              and tool_input.get("command", "").startswith("timeout -")}
-    assert valued & set(heads.TIMEOUT_VALUED)  # some valued option has a case
+    assert set(heads.VALUED) | set(heads.OPERANDS) <= set(heads.WRAPPERS)
+    for wrapper, options in heads.VALUED.items():  # some valued option of each has a case
+        seconds = {tool_input["command"].split()[1] for tool, tool_input, _ in CASES
+                   if tool == "Bash" and isinstance(tool_input, dict)
+                   and tool_input.get("command", "").startswith(wrapper + " -")}
+        assert seconds & set(options), wrapper
 
 
 def test_every_declared_extractor_reads_its_real_input_shape():

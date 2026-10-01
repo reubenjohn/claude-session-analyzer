@@ -74,8 +74,8 @@ def test_a_call_split_across_files_is_one_call_owned_by_the_earlier_file(tmp_pat
     assert query.reconcile(facts).holds
     code, out, err = fx.run_cli("spend", "--root", str(root))
     assert code == 0, err
-    assert "; 2 files read, 1 windows, 1 call facts, 1 increment facts; " \
-           "0 lines skipped, 1 duplicate records excluded" in out
+    assert "; 2 files read, 1 window, 1 call fact, 1 increment fact; " \
+           "0 lines skipped, 1 duplicate record excluded" in out
     # Merged over both files' constituents: the same metrics as the split within one file.
     (within,) = [f for f in _one_window(tmp_path / "within", [parent, copy]) if f.kind == CALL]
     assert call.metrics == within.metrics
@@ -173,6 +173,22 @@ def test_usage_less_synthetic_record_is_not_a_call(tmp_path):
     strip = lambda facts: [(f.kind, f.dims[schema.CAUSE_DIM] if f.kind == INCREMENT else None,
                             f.metrics) for f in facts]
     assert strip(plain) == strip(with_synthetic)
+
+
+def test_window_dimensions_come_from_the_live_records(tmp_path):
+    """A continuation whose replayed prefix is owned by the original and
+    carries the original's sessionId: its facts name the session its live
+    records carry, not the first record's."""
+    original = fx.stamped(fx.window_records() + [fx.user_text("uuid-0099")], 0)  # runs longest
+    continuation = fx.stamped(fx.window_records()[:5], 0) + fx.stamped(
+        fx.window_records("c-", session="sess-0002")[5:], 5)
+    root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": original,
+                                "proj-a/sess-0002.jsonl": continuation})
+    loaded, facts = fx.load_facts(root)
+    source = next(s for s in loaded.files if s.path.stem == "sess-0002")
+    assert [r.duplicate for r in source.records] == [True] * 5 + [False] * 9
+    assert walk._first_value(source.records, "sessionId") == fx.SESSION  # the first record's: replayed
+    assert {f.dims[schema.SESSION_DIM] for f in facts if f.locator.file == source.name} == {"sess-0002"}
 
 
 def test_fork_context_ref_is_evidence_on_the_window_head(tmp_path):

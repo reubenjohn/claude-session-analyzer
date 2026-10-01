@@ -13,12 +13,14 @@ class View(NamedTuple):
     whether the total is the windows' final occupancies, which the footer
     then checks."""
     metric: str
-    tables: Tuple[str, ...]  # printed by default; the most specific one not pinned by --where leads
+    tables: Tuple[str, ...]  # printed by default
+    levers: Tuple[str, ...]  # the dimensions whose rows may lead the headline (``report``)
     reconciles: bool
     notes: Tuple[str, ...]   # printed under the headline
 
 
 RESIDUAL_LABEL = "∅"  # the row for facts that lack the grouped dimension
+LABEL_WIDTH = 40      # a longer label keeps its tail behind a leading "…" (--by fact has it whole)
 
 # Rows whose mass is not splittable by content: each prints its note under
 # its table, and the headline never names one as the lever.
@@ -34,11 +36,15 @@ RESIDUAL_NOTES = {
     schema.TOOL_DIM: "%s: no tool: %s, %s, %s, and %s whose candidates share no one tool"
                      % (RESIDUAL_LABEL, schema.WINDOW_HEAD, schema.FEED_FORWARD,
                         schema.USER_TEXT, schema.AMBIGUOUS),
-    schema.HEAD_DIM: "%s: no head: everything %s holds under `by %s`, %s whose candidates share"
-                     " a tool but not its head, and every tool without a head (all but %s)"
-                     % (RESIDUAL_LABEL, RESIDUAL_LABEL, schema.TOOL_DIM,
-                        schema.AMBIGUOUS, ", ".join(sorted(heads.EXTRACTORS))),
+    schema.HEAD_DIM: "%s: no head: no tool, a tool with no head (any but %s), or %s with"
+                     " mixed heads"
+                     % (RESIDUAL_LABEL, ", ".join(sorted(heads.EXTRACTORS)), schema.AMBIGUOUS),
 }
+
+
+def _count(n: int, singular: str, plural: Optional[str] = None) -> str:
+    """A count before its noun: ``1 window``, ``2 windows``."""
+    return "%d %s" % (n, singular if n == 1 else plural or singular + "s")
 
 
 def _num(value: float) -> str:
@@ -64,50 +70,52 @@ def _tags(dims: dict) -> str:
 
 
 def report(view: View, sel: Selection, by: Optional[str], limit: int) -> List[str]:
-    """Every line of the view. The headline names the top row of the most
-    specific table shown (the latest in ``schema.DIMENSIONS``) that
-    ``--where`` did not pin (its top row would be the filter itself):
-    ``head`` before ``tool`` before ``cause``, ``agent`` before ``session``
-    before ``project``, so it says what put the mass there rather than which
-    broad category it fell in."""
+    """Every line of the view. The headline's lever is the largest row
+    across the shown tables of the view's lever dimensions, ties to the
+    more specific one; ``--by`` makes its table the lever. Never ``cause``,
+    whose rows are categories, nor a window dimension, whose one row on a
+    drill is the whole total (D-HEADLINE-SPECIFIC as amended); never a
+    table ``--where`` pinned, whose top row would be the filter itself."""
     spec = schema.metric(view.metric)
     if by == "fact":
-        lead, body = None, _leaves(sel.facts, view.metric, limit)
+        levers, body = [], _leaves(sel.facts, view.metric, limit)
     else:
         shown = [query.group(sel.facts, dim, view.metric) for dim in ([by] if by else view.tables)]
         pinned = {dim for dim, _ in sel.where}
-        unpinned = [t for t in shown if t.dim not in pinned]
-        lead = max(unpinned, key=lambda t: schema.DIMENSIONS.index(t.dim)) if unpinned else None
+        levers = [t for t in shown if t.dim not in pinned and (by or t.dim in view.levers)]
         body = [line for t in shown if t.rows
                 for line in _table(t, view.metric, spec.carrier, limit) + [""]]
-    return headline(view, sel, lead) + [population(sel), ""] + body + footer(view, sel)
+    return headline(view, sel, levers) + [population(sel), ""] + body + footer(view, sel)
 
 
-def headline(view: View, sel: Selection, lead: Optional[query.Table]) -> List[str]:
+def headline(view: View, sel: Selection, levers: List[query.Table]) -> List[str]:
     spec = schema.metric(view.metric)
     line = "%s: %s %s" % (view.metric, _num(sel.total), spec.unit)
     if view.reconciles and not sel.drill:
-        line += " = the %d windows' final occupancies summed" % sel.n_windows
+        line += " = the " + _count(sel.n_windows, "window's final occupancy",
+                                   "windows' final occupancies summed")
     else:
         drilled = query.window_count(sel.facts)  # the windows the facts shown come from
-        line += " over %d %s facts in %s windows" % (
-            sum(f.kind == spec.carrier for f in sel.facts), spec.carrier,
-            "%d of %d" % (drilled, sel.n_windows) if drilled != sel.n_windows else drilled)
-    if lead:
-        line += _top(lead, sel.total)
-    return [line] + _peaks(sel) + list(view.notes)
+        line += " over %s in %s" % (
+            _count(sum(f.kind == spec.carrier for f in sel.facts), spec.carrier + " fact"),
+            "%d of %s" % (drilled, _count(sel.n_windows, "window")) if drilled != sel.n_windows
+            else _count(drilled, "window"))
+    return [line + _top(levers, sel.total)] + _peaks(sel) + list(view.notes)
 
 
-def _top(table: query.Table, total: float) -> str:
-    """The top splittable row with its mass and its share of the headline
-    total, named as such: the table's own share column is over its base,
-    which the residual and signed rows make smaller."""
-    top = next((r for r in table.rows
-                if r.kind == query.REGULAR and r.value not in UNSPLITTABLE), None)
-    if top is None or not total:
+def _top(tables: List[query.Table], total: float) -> str:
+    """The largest splittable row across ``tables``, ties to the more
+    specific dimension (later in ``schema.DIMENSIONS``), with its mass and
+    its share of the headline total, named as such: a table's own share
+    column is over its base, which the residual and signed rows make
+    smaller."""
+    rows = [(t.dim, r) for t in tables for r in t.rows
+            if r.kind == query.REGULAR and r.value not in UNSPLITTABLE]
+    if not rows or not total:
         return ""
+    dim, top = max(rows, key=lambda pair: (pair[1].mass, schema.DIMENSIONS.index(pair[0])))
     return "; top %s=%s %s (%s of the %s total)" % (
-        table.dim, top.value, _num(top.mass), _pct(top.mass / total), _num(total))
+        dim, top.value, _num(top.mass), _pct(top.mass / total), _num(total))
 
 
 def _peaks(sel: Selection) -> List[str]:
@@ -119,27 +127,28 @@ def _peaks(sel: Selection) -> List[str]:
         if spec.aggregation == schema.PEAK:
             top = query.largest(sel.window_facts, name)
             if top is not None:
-                lines.append("single-call peak %s over the %d whole windows: %s %s at %s"
-                             % (name, sel.n_windows, _num(top.metrics[name]), spec.unit,
-                                _at(top.locator)))
+                lines.append("single-call peak %s over the %s: %s %s at %s"
+                             % (name, _count(sel.n_windows, "whole window"),
+                                _num(top.metrics[name]), spec.unit, _at(top.locator)))
     return lines
 
 
 def population(sel: Selection) -> str:
-    return ("population: root %s; %d files read%s, %d windows, %d call facts, %d increment"
-            " facts; %d lines skipped, %d duplicate records excluded%s"
-            % (sel.root, len(sel.loaded.files),
+    return ("population: root %s; %s read%s, %s, %s, %s; %s skipped, %s excluded%s"
+            % (sel.root, _count(len(sel.loaded.files), "file"),
                "" if sel.since is None else " (modified within %gd)" % sel.since,
-               sel.n_windows, sum(f.kind == schema.CALL for f in sel.window_facts),
-               sum(f.kind == schema.INCREMENT for f in sel.window_facts),
-               sel.loaded.skipped_lines, sel.loaded.duplicate_records,
+               _count(sel.n_windows, "window"),
+               _count(sum(f.kind == schema.CALL for f in sel.window_facts), "call fact"),
+               _count(sum(f.kind == schema.INCREMENT for f in sel.window_facts), "increment fact"),
+               _count(sel.loaded.skipped_lines, "line"),
+               _count(sel.loaded.duplicate_records, "duplicate record"),
                "".join("; where %s=%s" % p for p in sel.where)))
 
 
 def _label(row: query.Row) -> str:
-    if row.kind == query.RESIDUAL:
-        return RESIDUAL_LABEL
-    return row.value + (" (signed)" if row.kind == query.SIGNED else "")
+    label = RESIDUAL_LABEL if row.kind == query.RESIDUAL else (
+        row.value + (" (signed)" if row.kind == query.SIGNED else ""))
+    return label if len(label) <= LABEL_WIDTH else "…" + label[1 - LABEL_WIDTH:]
 
 
 def _table(table: query.Table, metric: str, carrier: str, limit: int) -> List[str]:
@@ -153,7 +162,7 @@ def _table(table: query.Table, metric: str, carrier: str, limit: int) -> List[st
     shown = regular[:limit]
     hidden = regular[limit:]
     if hidden:
-        shown.append(query.Row("+%d more rows" % len(hidden), sum(r.mass for r in hidden),
+        shown.append(query.Row("+" + _count(len(hidden), "more row"), sum(r.mass for r in hidden),
                                sum(r.count for r in hidden), query.REGULAR))
     shown += [r for r in table.rows if r.kind != query.REGULAR]
     labels = [_label(r) for r in shown]
@@ -206,12 +215,12 @@ def _reconciliation(r: query.Reconciliation) -> List[str]:
     def rate(n: int) -> str:
         return "%d (%.1f%%)" % (n, 100.0 * n / r.intervals) if r.intervals else "0"
     return [
-        "reconciliation over %d windows: %s = %s; final occupancy %s: %s"
-        % (r.windows, terms, _num(r.booked), _num(r.final_occupancy),
+        "reconciliation over %s: %s = %s; final occupancy %s: %s"
+        % (_count(r.windows, "window"), terms, _num(r.booked), _num(r.final_occupancy),
            _status(r.mass_holds)),
-        "intervals %d (= %d calls - %d windows): exact %s + ambiguous %s [%s] + shrink %s: %s"
-        % (r.intervals, r.calls, r.windows, rate(r.exact), rate(r.ambiguous),
-           reasons or "none", rate(r.shrink), _status(r.count_holds)),
+        "intervals %d (= %s - %s): exact %s + ambiguous %s [%s] + shrink %s: %s"
+        % (r.intervals, _count(r.calls, "call"), _count(r.windows, "window"), rate(r.exact),
+           rate(r.ambiguous), reasons or "none", rate(r.shrink), _status(r.count_holds)),
         "exact: the interval's one token-relevant contributor (a tool_result or user"
         " text) after subtracting the previous call's output. Exact given the"
         " feed-forward model; bookkeeping attachments are folded into the single"
@@ -234,6 +243,6 @@ def footer(view: View, sel: Selection) -> List[str]:
     if not view.reconciles:
         return _call_totals(sel, view.metric)
     if sel.drill:
-        return ["reconciliation: applies to the %d whole windows above, not to this"
-                " drill: %s" % (sel.n_windows, _status(sel.reconciliation.holds))]
+        return ["reconciliation: applies to the %s above, not to this drill: %s"
+                % (_count(sel.n_windows, "whole window"), _status(sel.reconciliation.holds))]
     return _reconciliation(sel.reconciliation)

@@ -33,17 +33,18 @@ is `<tool>:<summary>`: a Bash command's first COMMAND word (after keywords,
 wrappers, builtins) as a basename (`Bash:pytest`), or a
 file tool's extension
 (`Read:py`); never a path (R5 and amendments). Unknown names, undeclared
-values and a `--where` value no fact carries exit 2 (`query.narrow`, the
-one check), naming what is present. A window IS a file (R2);
+values and a `--where` value no fact carries exit 2 (`query.narrow`),
+naming what is present. A window IS a file (R2);
 `window_head` (the first call's occupancy, inherited for a fork) and
 `ambiguous` are rows, never spread, never the headline's lever.
 
-CLI: `python3 -m sa context --help`. The headline names the top
-splittable row of the most specific
-unpinned table shown (`schema.DIMENSIONS` order; D-HEADLINE-SPECIFIC), its
-mass and its share of the total; a drill's headline counts the windows its
-facts come from; a table's mass column is named for its metric, its count
-column for its carrier (`increments`, `calls`).
+CLI: `python3 -m sa context --help`. The headline names the largest
+splittable row across the view's lever tables (`View.levers`: context
+`tool`+`head`, spend `agent`; ties to the more specific; `--by`
+overrides) and its share of the total; a drill's headline counts the
+windows its facts come from; columns are named for the metric and its
+carrier (`increments`, `calls`); a label longer than
+`render.LABEL_WIDTH` keeps its tail behind `…`.
 
 ## Non-negotiables
 
@@ -120,8 +121,7 @@ output change.
 
 ## Pointers, never copies
 
-- `references/DESIGN_BRIEF.md` §2 (the attribution walk) is the spec;
-  `DESIGN_COMPETITION.md` and `designs/` are the dated design phase.
-- Also in `references/`: `DECISION_LOG.md` (rulings),
-  `DECISION_LOG_HISTORY.md` (the rows as proposed), `PHASE0_MEASUREMENT.md`
-  (what the raw transcripts carry), `PUBLISHING_PLAN.md` (distribution).
+- `references/DESIGN_BRIEF.md` §2 (the attribution walk) is the spec.
+- Also in `references/`: `DECISION_LOG.md` (rulings; `_HISTORY.md` the rows
+  as proposed), `PHASE0_MEASUREMENT.md` (the raw transcripts),
+  `PUBLISHING_PLAN.md` (distribution), `DESIGN_COMPETITION.md` (dated).

@@ -41,11 +41,11 @@ answers "which subagent was expensive", its `∅` row being the main
 windows. A note says spend is paid per call: context shares are not cost
 shares.
 
-Either headline names the top row of the most specific table shown
-(head before tool before cause; agent before session before project), or
-of `--by`, with its mass and its share of the total: `top head=Bash:cat
-554,879 (13.2% of the 4,188,015 total)`. Never `window_head` or
-`ambiguous`; `--by fact` names none. A drill's headline counts the windows
+Either headline names the largest lever row (`context`: tool or head,
+ties to the more specific; `spend`: agent) or `--by`'s top row, with its
+mass and share of the total: `top tool=Bash 1,553,915 (31.5% of the
+4,936,844 total)`. Never `window_head` or `ambiguous`; `--by fact` names
+none. A drill's headline counts the windows
 its facts come from (`in 29 of 36 windows`). The `single-call peak
 context_tokens` line under it names the fullest call over the N whole
 windows, even under a drill.
@@ -64,11 +64,11 @@ python3 -m sa context --where cause=ambiguous --by fact --limit 2
 (no `agent=` on a main-window leaf), and under an ambiguous one
 `candidates:`, then a line per contributor with its cause/tool/head:
 `<file>:<line> <uuid>  cause=tool_result tool=Read head=Read:py`. The row
-carries a tool only when all candidates share one. Locators are relative
-to the root; open the line to see what landed.
+carries a tool only when all candidates share one. Locators are
+root-relative; open the line to see what landed.
 A `head` is a Bash call's first command word (keywords, wrappers and
-output-less builtins like `echo` skipped) as a basename (`Bash:pytest`),
-or a file tool's extension (`Read:py`); never a path.
+output-less builtins (`echo`, `source`) skipped) as a basename
+(`Bash:pytest`), or a file tool's extension (`Read:py`); never a path.
 Exit 2, naming what is declared or present: `spend --where cause=...`
 (spend facts carry only the window dims), `--where cause=bogus`
 (undeclared), `--where tool=bash` (no fact carries it).
@@ -81,8 +81,9 @@ filters. Quote it with any figure; a number without its population is not
 a finding. Table columns: the metric (`context_delta`, `spend`), its
 carrier's count (`increments`, `calls`) and `share of <base>`, the mass
 the shares are over. Tables end with the residual row `∅` (facts lacking
-the grouped dimension; a note under `by tool`, `by head` and `by agent`
-says what it holds) and any `(signed)` rows; neither has a share.
+the grouped dimension, a note saying what it holds) and any `(signed)`
+rows; neither has a share. A label over 40 chars keeps its tail behind
+`…`; `--by fact` and a `--where` refusal show it whole.
 
 Unnarrowed, the `context` headline reads `= the N windows' final
 occupancies summed` and ends with a three-line **reconciliation footer**

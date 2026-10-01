@@ -82,13 +82,13 @@ shrinks to one line. `cause=bogus` (undeclared) or `tool=bash` (absent)
 exits 2, naming what is declared or present. `--limit N` folds the rest
 into `+k more rows`. A head is a Bash call's first command word
 (`Bash:pytest`) or a file tool's extension (`Read:py`). The headline
-names the top row of the most specific table shown (head, then tool,
-then cause) or of `--by`, with its share of the total; never
+names the largest tool or head row (`spend`: agent; ties to the more
+specific) or `--by`'s top row, with its share of the total; never
 `window_head` or `ambiguous`. Columns: the metric, its
 `increments`/`calls`, `share of <base>`; the residual `∅` row ends a
-table. `--by fact` lists the
-heaviest leaves as `<metric>  file:line  uuid  dimensions`, an ambiguous
-leaf's `candidates:` under it.
+table. `--by fact` lists the heaviest leaves as
+`<metric>  file:line  uuid  dimensions`, an ambiguous leaf's
+`candidates:` under it.
 
 ## Layout
 

@@ -32,9 +32,11 @@ SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What 
 VIEWS = {"context": View(metric=schema.CONTEXT_DELTA,
                          tables=(schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM,
                                  schema.AGENT_DIM, schema.SESSION_DIM, schema.PROJECT_DIM),
+                         levers=(schema.TOOL_DIM, schema.HEAD_DIM),
                          reconciles=True, notes=()),
          "spend": View(metric=schema.SPEND,
                        tables=(schema.PROJECT_DIM, schema.SESSION_DIM, schema.AGENT_DIM),
+                       levers=(schema.AGENT_DIM,),
                        reconciles=False, notes=(SPEND_NOTE,))}
 
 

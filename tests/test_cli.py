@@ -7,7 +7,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, render, schema, walk
+from sa import cli, query, render, schema, walk
 from sa.schema import CALL, INCREMENT
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
@@ -80,25 +80,55 @@ def _top_of(out):
     return re.search(r"; top (\w+)=", out.splitlines()[0]).group(1)
 
 
-def test_headline_leads_with_the_most_specific_unpinned_table(tmp_path):
-    """The default tables print cause first, but the headline names the top
-    head (tool_result is the top cause, Bash:pytest the top head: a category
-    is not an answer); pinning a dimension hands the lead to the next most
-    specific; ``--by`` overrides."""
+def test_headline_leads_with_the_largest_lever_row_ties_to_the_more_specific(tmp_path):
+    """The default tables print cause first, but cause is no lever (a
+    category is not an answer): Bash:pytest carries all of Bash's 750, so
+    the head leads, being as large and more specific; pinning a lever hands
+    the lead to the other; both pinned, nothing leads; ``--by`` overrides."""
     root = fx.cli_corpus(tmp_path)
-    assert CONTEXT.tables[0] == CAUSE and HEAD != CAUSE
-    assert schema.DIMENSIONS.index(HEAD) > schema.DIMENSIONS.index(CAUSE)
+    assert CONTEXT.tables[0] == CAUSE and CAUSE not in CONTEXT.levers
+    assert set(CONTEXT.levers) == {TOOL, HEAD}
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
-    assert _top_of(out) == HEAD and out.index("by " + CAUSE) < out.index("by " + HEAD)
+    assert "; top %s=Bash:pytest 750 (16.4%% of the 4,560 total)" % HEAD in out.splitlines()[0]
+    assert re.search(r"^Bash\s+750\s", out, re.M)  # the tie: the tool row is as large
     assert re.search(r"^%s\s+750\s" % schema.TOOL_RESULT, out, re.M)  # the top cause, not led with
     where = ["--where", "%s=Bash:pytest" % HEAD]
     assert _top_of(fx.run_cli("context", "--root", str(root), *where)[1]) == TOOL
     where += ["--where", "%s=Bash" % TOOL]
-    assert _top_of(fx.run_cli("context", "--root", str(root), *where)[1]) == CAUSE
+    assert "; top " not in fx.run_cli("context", "--root", str(root), *where)[1].splitlines()[0]
     assert _top_of(fx.run_cli("context", "--root", str(root), "--by", CAUSE)[1]) == CAUSE
     assert _top_of(fx.run_cli("spend", "--root", str(root))[1]) == schema.AGENT_DIM
     assert SPEND.tables[0] != schema.AGENT_DIM  # vacuity guard: not the first table printed
+
+
+def test_headline_names_the_largest_lever_row_even_from_a_less_specific_table(tmp_path):
+    """One interval with two Bash results of different heads (ambiguous,
+    sharing tool=Bash and no head) and one exact Read: the top head,
+    Read:py 70, is not under the top tool, Bash 100, and is smaller, so the
+    tool leads. The window tables' one row is the whole total and never
+    leads: they are no lever."""
+    uses = [fx.tool_use("toolu_0001", "Bash", command="ls"),
+            fx.tool_use("toolu_0002", "Bash", command="make")]
+    records = [fx.assistant("uuid-0001", "msg-0001", fx.usage(1000, 0), uses),
+               fx.tool_result("uuid-0002", "toolu_0001"), fx.tool_result("uuid-0003", "toolu_0002"),
+               fx.assistant("uuid-0004", "msg-0002", fx.usage(1100, 0),
+                            [fx.tool_use("toolu_0003", "Read", file_path="/x/a.py")]),
+               fx.tool_result("uuid-0005", "toolu_0003"),
+               fx.assistant("uuid-0006", "msg-0003", fx.usage(1170, 0))]
+    root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": records})
+    facts = fx.load_facts(root)[1]
+
+    def top(dim):
+        return next((r.value, r.mass) for r in query.group(facts, dim, fx.DELTA).rows
+                    if r.kind == query.REGULAR and r.value not in render.UNSPLITTABLE)
+    assert (top(TOOL), top(HEAD)) == (("Bash", 100), ("Read:py", 70))  # guard: the masses
+    assert not top(HEAD)[0].startswith(top(TOOL)[0])  # the top head is not under the top tool
+    assert top(schema.PROJECT_DIM)[1] == 1170 > 100  # the window row is larger still
+    code, out, err = fx.run_cli("context", "--root", str(root))
+    assert code == 0, err
+    assert "; top %s=Bash 100 (8.5%% of the 1,170 total)" % TOOL in out.splitlines()[0]
+    assert re.search(r"^%s\s+100\s" % schema.AMBIGUOUS, out, re.M)  # Bash's mass, by its tool only
 
 
 def test_the_headline_never_names_ambiguous_as_the_lever(tmp_path):

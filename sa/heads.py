@@ -6,36 +6,54 @@ Ruled (DECISION_LOG R5, R5-BASENAME, R5-BUILTINS): a head is never a full
 command line and never a file path. For Bash the summary is the first
 COMMAND word that can produce the tokens, so what precedes one is skipped:
 leading ``VAR=value`` assignments and ``cd <dir>`` prefixes ended by a
-separator; a ``KEYWORDS`` word with everything through the ``BODY_OPENERS``
-word that opens its body (``for f in x; do cmd`` is ``cmd``, not ``for``); a
-bare ``WRAPPERS`` word; ``timeout`` with its options and duration; a
-``TESTS`` bracket through its closer; a bare separator; and an output-less
-``BUILTINS`` word with its arguments up to the next separator (``echo "==
-$f"; cat $f`` is ``cat``), so a command that is only builtins is ``other``.
-Separators are ``&&``, ``||``, ``;``, ``|``, a newline and either
-parenthesis, each padded into a word of its own.
+separator; a ``KEYWORDS`` word with everything through the word(s) that
+open its body (``for f in x; do cmd`` is ``cmd``, not ``for``; ``case $x in
+a) cmd`` is ``cmd``); a ``WRAPPERS`` word with its ``-``-prefixed options,
+each skipped alone unless ``VALUED`` declares it takes the next word, and
+its ``OPERANDS`` (``timeout``'s duration); a ``TESTS`` bracket through its
+closer; a bare separator; and an output-less ``BUILTINS`` word with its
+arguments up to the next separator (``echo "== $f"; cat $f`` is ``cat``,
+``source env.sh && pytest`` is ``pytest``), so a command that is only
+builtins is ``other``. Separators are ``&&``, ``||``, ``;``, ``|``, a
+newline and either parenthesis, each padded into a word of its own.
 A path-shaped command word is its basename (``./check.sh`` is ``check.sh``,
 ``/usr/bin/python3`` is ``python3``). For the tools whose input carries
 ``file_path`` the summary is the file extension. A summary is kept only if
-it matches ``HEAD_SHAPE``, which admits no slash, so a directory
-(``scripts/``) degrades to ``other``. Every other tool has no head: Glob and
-Grep take a pattern and a directory, and NotebookEdit's extension is always
-the same, so none of them would carry information.
+it matches ``HEAD_SHAPE``, which admits no slash and no leading ``-``, so a
+directory (``scripts/``) and a stray option (``-n1``) degrade to ``other``.
+Known gap: a wrapper option that takes a value but is not in ``VALUED`` is
+skipped alone and its value becomes the head (``sudo -C 3 make`` is ``3``);
+the fix is one more entry in ``VALUED``, never a looser shape. Every other
+tool has no head: Glob and Grep take a pattern and a directory, and
+NotebookEdit's extension is always the same, so none of them would carry
+information.
 """
 import re
 from pathlib import PurePosixPath
 from typing import List, Optional, Tuple
 
-HEAD_SHAPE = re.compile(r"^[A-Za-z0-9_.+-]{1,32}$")
+HEAD_SHAPE = re.compile(r"^[A-Za-z0-9_.+][A-Za-z0-9_.+-]{0,31}$")  # never an option
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 _SEPARATORS = ("&&", "||", ";", "|", "(", ")")  # ``||`` before ``|``: the regex tries them in order
 _SEPARATOR = re.compile("(%s)" % "|".join(map(re.escape, _SEPARATORS)))  # padded into its own word
-KEYWORDS = ("for", "while", "until", "if", "elif")  # the command is in the body they open
-BODY_OPENERS = ("do", "then")
-WRAPPERS = ("{", "!", "time", "sudo", "env", "nohup", "xargs")  # run the word after them
-TIMEOUT_VALUED = ("-s", "--signal", "-k", "--kill-after")  # timeout options taking a word
+# The command is in the body a keyword opens, past each opener in turn:
+# ``case``'s past ``in`` and then past the first pattern's ``)``.
+KEYWORDS = {"for": ("do",), "while": ("do",), "until": ("do",), "if": ("then",),
+            "elif": ("then",), "case": ("in", ")")}
+WRAPPERS = ("{", "!", "time", "sudo", "env", "nohup", "xargs", "timeout")  # run the word after them
+VALUED = {  # a wrapper's options that take the next word; any other option is skipped alone
+    "timeout": ("-s", "--signal", "-k", "--kill-after"),
+    "sudo": ("-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt", "-C",
+             "--close-from", "-D", "--chdir", "-r", "--role", "-t", "--type", "-U", "--other-user"),
+    "env": ("-u", "--unset", "-C", "--chdir", "-S", "--split-string"),
+    "time": ("-f", "--format", "-o", "--output"),
+    "xargs": ("-a", "--arg-file", "-d", "--delimiter", "-E", "--eof", "-I", "-L", "--max-lines",
+              "-n", "--max-args", "-P", "--max-procs", "-s", "--max-chars"),
+}
+OPERANDS = {"timeout": 1}  # positional words a wrapper takes before the command
 TESTS = {"[": "]", "[[": "]]"}  # a condition, closed by its bracket; no output
-BUILTINS = ("echo", "printf", "true", "false", "set", "export", "unset", "shift", "exit")  # no output
+BUILTINS = ("echo", "printf", "true", "false", "set", "export", "unset", "shift", "exit",
+            "source", ".")  # no output
 OTHER = "other"
 
 
@@ -52,17 +70,18 @@ def bash_head(tool_input: dict) -> str:
     command = str(tool_input.get("command", "")).replace("\n", ";")  # a newline ends a command
     words = _SEPARATOR.sub(r" \1 ", command).split()
     while words:
-        if _ASSIGNMENT.match(words[0]) or words[0] in WRAPPERS or words[0] in _SEPARATORS:
+        if _ASSIGNMENT.match(words[0]) or words[0] in _SEPARATORS:
             del words[0]
-        elif words[0] == "timeout":
-            del words[0]
+        elif words[0] in WRAPPERS:
+            wrapper = words.pop(0)
             while words and words[0].startswith("-"):
-                del words[:2 if words[0] in TIMEOUT_VALUED else 1]
-            del words[:1]  # the duration
+                del words[:2 if words[0] in VALUED.get(wrapper, ()) else 1]
+            del words[:OPERANDS.get(wrapper, 0)]
         elif words[0] == "cd" and len(words) > 2 and words[2] in _SEPARATORS:
             del words[:3]
         elif words[0] in KEYWORDS:
-            del words[:_past(words, BODY_OPENERS)]
+            for opener in KEYWORDS[words[0]]:
+                del words[:_past(words, (opener,))]
         elif words[0] in TESTS:
             del words[:_past(words, (TESTS[words[0]],))]
         elif words[0] in BUILTINS:

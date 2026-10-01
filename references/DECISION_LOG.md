@@ -246,9 +246,21 @@ facts themselves, by descending |mass|, and the closed-vocabulary guard is
 parametrized over EVERY declared value; `--by fact` sorted by signed mass,
 so a shrink leaf fell last under `--limit` — now by |mass|; and
 `heads.bash_head` treats a newline and either parenthesis as separators,
-drops a bare separator, skips `timeout`'s options (`TIMEOUT_VALUED` take a
+drops a bare separator, skips `timeout`'s options (`VALUED` take a
 word) before its duration, skips a `[`…`]` / `[[`…`]]` test, and skips
 `exit` as a builtin (`cd x || exit 1; make` is `Bash:make`, re-pinned).
+AMENDED 2026-10-01, seventh judge: picking the lead by position had led
+a subagent window (72% of its mass ambiguous, sharing a tool but no head)
+with `head=Edit:py 19,214` while `tool=Bash` carried 99,422 below it. Now
+the lead is the LARGEST splittable regular row across the shown, unpinned
+tables of the view's lever dimensions, ties to the more specific; `--by`
+makes its table the lever; `window_head` and `ambiguous` stay excluded.
+The levers are declared per view (`render.View.levers`): context `tool`
+and `head`, spend `agent`. `cause` is never one (its rows are categories),
+nor is a window dimension: on the local corpus (46 files, 2026-10-01) the
+top project row is 81.0% of the context total and on a window drill each
+window table's one row is 100%, so "largest across every table but
+cause" would lead with the population, not the lever.
 The `--where` split into window and drill halves is computed once
 (`query.split`) and both halves live on the `Selection`.
 

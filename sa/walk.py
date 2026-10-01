@@ -176,13 +176,17 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
     previous call's last constituent hides the earlier result and books a
     two-contributor interval as exact.
     """
-    window = {schema.PROJECT_DIM: source.project,
-              schema.SESSION_DIM: _first_value(source.records, "sessionId"),
-              schema.AGENT_DIM: _first_value(source.records, "agentId"),  # None: a main window
-              schema.WINDOW_DIM: source.name}
-    window = {k: v for k, v in window.items() if v is not None}
     uses = tool_uses(source.records)
     live = [record for record in source.records if not record.duplicate]
+    # The window dimensions come from the live records, the ones that mint
+    # the facts: a replayed prefix owned by another file names that file's
+    # window (local corpus, 46 files, 2026-10-01: 0 files whose first record
+    # and first live record disagree on either key).
+    window = {schema.PROJECT_DIM: source.project,
+              schema.SESSION_DIM: _first_value(live, "sessionId"),
+              schema.AGENT_DIM: _first_value(live, "agentId"),  # None: a main window
+              schema.WINDOW_DIM: source.name}
+    window = {k: v for k, v in window.items() if v is not None}
 
     def locator(record: Record) -> Locator:
         return Locator(source.name, record.line, record.data.get("uuid"))

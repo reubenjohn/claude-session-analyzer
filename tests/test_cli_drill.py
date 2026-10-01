@@ -60,7 +60,7 @@ def test_a_drill_headline_counts_the_windows_its_facts_come_from(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (CAUSE, schema.USER_TEXT))
     assert code == 0, err
-    assert out.splitlines()[0].endswith(" over 1 increment facts in 1 of 2 windows")  # no head: no lead
+    assert out.splitlines()[0].endswith(" over 1 increment fact in 1 of 2 windows")  # no lever: no lead
     assert "reconciliation: applies to the 2 whole windows above" in out
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (CAUSE, schema.TOOL_RESULT))
@@ -94,9 +94,10 @@ def test_a_main_window_is_selected_by_its_file_name_alone(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (schema.WINDOW_DIM, main))
     assert code == 0, err
-    assert "= the 1 windows' final occupancies summed" in out.splitlines()[0]
-    assert "; 4 files read, 1 windows, 7 call facts, 11 increment facts; " in out
-    assert "reconciliation over 1 windows" in out
+    assert "= the 1 window's final occupancy;" in out.splitlines()[0]
+    assert "; 4 files read, 1 window, 7 call facts, 11 increment facts; " in out
+    assert "reconciliation over 1 window:" in out
+    assert "intervals 6 (= 7 calls - 1 window):" in out
     assert "final occupancy %s: OK" % format(fx.FINAL_OCCUPANCY, ",d") in out
     assert "where %s=%s" % (schema.WINDOW_DIM, main) in out
     for view in cli.VIEWS:
@@ -104,7 +105,9 @@ def test_a_main_window_is_selected_by_its_file_name_alone(tmp_path):
         code, out, err = fx.run_cli(view, "--root", str(root), "--by", schema.WINDOW_DIM)
         assert code == 0, err
         rows = [l.split()[0] for l in out.splitlines() if l.endswith("%")]  # the regular rows
-        assert sorted(rows) == sorted({f.locator.file for f in facts})  # one row per window, main included
+        labels = {render._label(query.Row(f.locator.file, 0, 0, query.REGULAR)) for f in facts}
+        assert sorted(rows) == sorted(labels)  # one row per window, main included
+        assert any(r.startswith("…") for r in rows) and main in rows  # the long path capped, the short whole
 
 
 def test_by_fact_lists_leaves_with_their_dimensions_and_evidence(tmp_path):
