@@ -29,7 +29,7 @@ class Metric(NamedTuple):
 
 METRICS = {
     "context_delta": Metric(ADDITIVE, INCREMENT, "context tokens"),
-    "spend": Metric(ADDITIVE, CALL, "base-token-equivalents"),
+    "spend": Metric(ADDITIVE, CALL, "input-side base-token-equivalents"),
     "output_tokens": Metric(ADDITIVE, CALL, "tokens"),
     "cache_write_1h_tokens": Metric(ADDITIVE, CALL, "tokens"),
     "cache_write_5m_tokens": Metric(ADDITIVE, CALL, "tokens"),
@@ -63,6 +63,7 @@ REASONS = (MULTI_CONTRIBUTOR, NEGATIVE_REMAINDER, NO_CONTRIBUTOR)
 WINDOW_DIMENSIONS = ("project", "session", "agent")
 DIMENSIONS = WINDOW_DIMENSIONS + ("cause", "tool", "head", "reason",
                                   "candidate_count")
+KIND_DIMENSIONS = {CALL: WINDOW_DIMENSIONS, INCREMENT: DIMENSIONS}
 
 RESIDUAL = "∅"  # the row for facts that lack the grouped dimension
 
@@ -88,11 +89,17 @@ def check_cause(cause):
     return cause
 
 
-def check_dimension(dim):
-    # type: (str) -> str
+def check_dimension(dim, kind=None):
+    # type: (str, Optional[str]) -> str
+    """``dim`` is declared and, when ``kind`` is given, carried by that kind:
+    a filter or table over a dimension the carrier never has would print a
+    confident zero."""
     if dim not in DIMENSIONS:
         raise SchemaError("unknown dimension %r; declared: %s"
                           % (dim, ", ".join(DIMENSIONS)))
+    if kind is not None and dim not in KIND_DIMENSIONS[kind]:
+        raise SchemaError("dimension %r is never carried by %s facts, which carry: %s"
+                          % (dim, kind, ", ".join(KIND_DIMENSIONS[kind])))
     return dim
 
 
@@ -121,7 +128,7 @@ def fact(kind, dims, metrics, locator, evidence=None):
             raise SchemaError("%s is carried by %s facts, not %s"
                               % (name, metric(name).carrier, kind))
     for dim in dims:
-        check_dimension(dim)
+        check_dimension(dim, kind)
     if kind == INCREMENT:
         check_cause(dims.get("cause"))
     return Fact(kind, dims, metrics, locator, evidence or {})

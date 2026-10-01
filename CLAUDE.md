@@ -75,6 +75,11 @@ logged ruling, never a plausible rewrite.
   reminder text.
 - parentUuid links never cross files (0 of 1,523; 21-file probe,
   2026-09-30), so no parentUuid-chain window model.
+- A split call's constituents interleave with their results (parallel tool
+  use): 54 user records sit strictly inside 32 of 362 calls' spans (27-file
+  local corpus, 2026-09-30). An interval's contributors are therefore taken
+  from the previous call's FIRST constituent; slicing from its last booked
+  24 two-contributor intervals (180,817 tokens) as exact on the same corpus.
 
 ## Clean-room boundary — binding on every session and subagent
 

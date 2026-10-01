@@ -3,9 +3,11 @@
 Ruled (DECISION_LOG R5): a head is never a full command line and never a
 file path. For Bash it is the first command word after leading ``VAR=value``
 assignments and ``cd <dir>`` prefixes ended by ``&&``, ``;`` or ``||``; for
-the file tools it is the file extension. A head is kept only if it matches ``HEAD_SHAPE``, which admits no
-slash, so a path-shaped head degrades to ``other``. Every other tool has no
-head.
+the tools whose input carries ``file_path`` it is the file extension. A head
+is kept only if it matches ``HEAD_SHAPE``, which admits no slash, so a
+path-shaped head degrades to ``other``. Every other tool has no head: Glob
+and Grep take a pattern and a directory, and NotebookEdit's extension is
+always the same, so none of them would carry information.
 """
 import re
 from pathlib import PurePosixPath
@@ -45,11 +47,7 @@ EXTRACTORS = {
     "Bash": bash_head,
     "Read": extension_head,
     "Edit": extension_head,
-    "MultiEdit": extension_head,
     "Write": extension_head,
-    "NotebookEdit": extension_head,
-    "Glob": extension_head,
-    "Grep": extension_head,
 }
 
 

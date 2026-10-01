@@ -8,15 +8,18 @@ telescoping chain cannot check is whether one interval's mass went to the
 right contributor; that is why only an interval with exactly one
 token-relevant contributor is booked as exact and everything else is one
 ``ambiguous`` bucket with its reason, never a spread.
+
+Records marked duplicate (replays owned by another file) mint no call, no
+contributor and no fact; the tool_use join index spans every record so a
+tool_result whose tool_use was replayed still resolves to its tool. A file
+whose first calls are replays books ``window_head`` at its first live call,
+the ruled inherited-context row.
 """
 from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
 
 from . import heads, schema, usage
 from .corpus import Record, SourceFile
 from .schema import Fact, Locator
-
-_TOKEN_FIELDS = ("input_tokens", "output_tokens",
-                 "cache_read_input_tokens", "cache_creation_input_tokens")
 
 
 def _message(data):
@@ -34,8 +37,7 @@ def _blocks(data):
 
 
 class Call(NamedTuple):
-    first: int      # index of the first constituent in the file's records
-    last: int       # index of the last constituent
+    first: int      # index of the first constituent in the records walked
     record: Record  # the first constituent, which locates the call
     usage: dict     # max-merged over the constituents
 
@@ -48,8 +50,8 @@ def calls(records):
     measured ids are split over several records, and 73% of the split ones
     disagree on output_tokens, which is why the merge is a field-wise max).
     A record without ``message.id`` is a call by itself. A call carries usage
-    iff some merged token field is nonzero: a ``<synthetic>`` zero-usage
-    record is not a call and does not advance the chain.
+    iff it has occupancy or output: a ``<synthetic>`` zero-usage record is
+    not a call and does not advance the chain.
     """
     groups = {}  # type: Dict[object, List[int]]
     for index, record in enumerate(records):
@@ -62,8 +64,8 @@ def calls(records):
     for indices in groups.values():
         merged = usage.max_merge_usage(
             [_message(records[i].data).get("usage") for i in indices])
-        if any(merged.get(field) for field in _TOKEN_FIELDS):
-            found.append(Call(indices[0], indices[-1], records[indices[0]], merged))
+        if usage.usage_context(merged) or merged.get("output_tokens"):
+            found.append(Call(indices[0], records[indices[0]], merged))
     return found
 
 
@@ -134,79 +136,76 @@ def _first_value(records, key):
     return None
 
 
-class Walk(object):
-    """Facts of one window. ``facts`` is in file order, calls interleaved
-    with the increments they close."""
+def walk(source):
+    # type: (SourceFile) -> Iterator[Fact]
+    """Facts of one window in file order, each call followed by the
+    increments it closes.
 
-    def __init__(self, source):
-        # type: (SourceFile) -> None
-        self.file = str(source.path)
-        self.window = {
-            "project": source.project,
-            "session": _first_value(source.records, "sessionId"),
-            "agent": _first_value(source.records, "agentId") or "main",
-        }
-        self.facts = []  # type: List[Fact]
-        records = source.records
-        uses = tool_uses(records)
-        previous = None
-        for call in calls(records):
-            self.facts.append(self._call(call))
-            if previous is None:
-                self._increment(schema.WINDOW_HEAD, usage.usage_context(call.usage),
-                                call.record, evidence=fork_evidence(records))
-            else:
-                self._interval(previous, call, records[previous.last + 1:call.first], uses)
-            previous = call
+    An interval's contributors are the user records strictly between the
+    previous call's FIRST constituent and the current call's first. A split
+    call's constituents interleave with their results (parallel tool use:
+    constituent, result, constituent, result, next call; 54 user records sit
+    inside 32 of 362 calls' spans on the 27-file local corpus, 2026-09-30),
+    so slicing from the previous call's last constituent hides the earlier
+    result and books a two-contributor interval as exact.
+    """
+    path = str(source.path)
+    window = {
+        "project": source.project,
+        "session": _first_value(source.records, "sessionId"),
+        "agent": _first_value(source.records, "agentId") or "main",
+    }
+    uses = tool_uses(source.records)
+    live = [record for record in source.records if not record.duplicate]
 
-    def _interval(self, previous, current, between, uses):
-        # type: (Call, Call, List[Record], Dict[str, Tuple[str, dict]]) -> None
+    def locator(record):
+        # type: (Record) -> Locator
+        return Locator(path, record.line, record.data.get("uuid"))
+
+    def increment(cause, delta, record, evidence=None, **dims):
+        # type: (str, int, Record, Optional[dict], **object) -> Fact
+        all_dims = dict(window, cause=cause)
+        all_dims.update((k, v) for k, v in dims.items() if v is not None)
+        return schema.fact(schema.INCREMENT, all_dims, {"context_delta": delta},
+                           locator(record), evidence)
+
+    def interval(previous, current):
+        # type: (Call, Call) -> Iterator[Fact]
         delta = usage.context_delta(previous.usage, current.usage)
         if delta < 0:
-            self._increment(schema.SHRINK, delta, current.record)
+            yield increment(schema.SHRINK, delta, current.record)
             return
         fed_forward = previous.usage["output_tokens"]
         if delta < fed_forward:
-            self._increment(schema.AMBIGUOUS, delta, current.record,
+            yield increment(schema.AMBIGUOUS, delta, current.record,
                             reason=schema.NEGATIVE_REMAINDER)
             return
-        self._increment(schema.FEED_FORWARD, fed_forward, previous.record)
+        yield increment(schema.FEED_FORWARD, fed_forward, previous.record)
         remainder = delta - fed_forward
-        found = list(contributors(between, uses))
+        found = list(contributors(live[previous.first + 1:current.first], uses))
         if len(found) == 1:
             one = found[0]
-            self._increment(one.cause, remainder, one.record, tool=one.tool, head=one.head)
+            yield increment(one.cause, remainder, one.record, tool=one.tool, head=one.head)
             return
-        self._increment(
+        yield increment(
             schema.AMBIGUOUS, remainder, current.record,
             reason=schema.MULTI_CONTRIBUTOR if found else schema.NO_CONTRIBUTOR,
             candidate_count=len(found),
             evidence={"candidates": [c.record.data.get("uuid") for c in found]})
 
-    def _locator(self, record):
-        # type: (Record) -> Locator
-        return Locator(self.file, record.line, record.data.get("uuid"))
-
-    def _call(self, call):
-        # type: (Call) -> Fact
+    previous = None
+    for call in calls(live):
         tiers = call.usage.get("cache_creation") or {}
-        return schema.fact(schema.CALL, dict(self.window), {
+        yield schema.fact(schema.CALL, dict(window), {
             "spend": usage.usage_spend(call.usage),
             "output_tokens": call.usage["output_tokens"],
             "cache_write_1h_tokens": tiers.get("ephemeral_1h_input_tokens", 0),
             "cache_write_5m_tokens": tiers.get("ephemeral_5m_input_tokens", 0),
             "context_tokens": usage.usage_context(call.usage),
-        }, self._locator(call.record))
-
-    def _increment(self, cause, delta, record, evidence=None, **dims):
-        # type: (str, int, Record, Optional[dict], **object) -> None
-        all_dims = dict(self.window, cause=cause)
-        all_dims.update((k, v) for k, v in dims.items() if v is not None)
-        self.facts.append(schema.fact(schema.INCREMENT, all_dims,
-                                      {"context_delta": delta},
-                                      self._locator(record), evidence))
-
-
-def walk(source):
-    # type: (SourceFile) -> List[Fact]
-    return Walk(source).facts
+        }, locator(call.record))
+        if previous is None:
+            yield increment(schema.WINDOW_HEAD, usage.usage_context(call.usage),
+                            call.record, evidence=fork_evidence(source.records))
+        else:
+            yield from interval(previous, call)
+        previous = call

@@ -1,13 +1,29 @@
 """Synthetic transcript records and files. Every id is obviously fake.
 
-``window_records`` is the shared fixture: one window whose five intervals
-exercise every branch of the walk, and whose arithmetic is written out so a
-test can assert exact figures rather than re-derive them.
+``window_records`` is the shared fixture: one window whose six intervals
+exercise every cause and every ambiguity reason of the walk, and whose
+arithmetic is written out so a test can assert exact figures rather than
+re-derive them.
 """
 import json
 from pathlib import Path
 
+from sa import corpus as corpus_module, schema, walk
+
 SESSION = "sess-0001"
+
+
+def metric_named(**spec):
+    """The one declared metric whose spec has these fields, e.g. the only
+    metric carried by increments; fails if the schema no longer has exactly one."""
+    names = [name for name, s in schema.METRICS.items()
+             if all(getattr(s, field) == value for field, value in spec.items())]
+    assert len(names) == 1, (spec, names)
+    return names[0]
+
+
+DELTA = metric_named(carrier=schema.INCREMENT)
+PEAK = metric_named(aggregation=schema.PEAK)
 
 
 def usage(context, output, cache_write_1h=0, cache_write_5m=0):
@@ -46,6 +62,13 @@ def attachment(uuid):
             "attachment": {"type": "total_tokens_reminder"}}
 
 
+def stamped(records, start):
+    """Copies carrying consecutive ISO timestamps from minute ``start``: a
+    replayed prefix stamped from the same start repeats its original stamps."""
+    return [dict(record, timestamp="2026-01-01T%02d:%02d:00Z" % divmod(start + n, 60))
+            for n, record in enumerate(records)]
+
+
 # Occupancy, output and the increments each interval books:
 #   head        1000                         -> window_head 1000
 #   1 result    1000 -> 1300, out_prev 50    -> feed_forward 50, tool_result 250
@@ -53,9 +76,12 @@ def attachment(uuid):
 #   1 result    1500 -> 1400, out_prev 10    -> shrink -100
 #   1 result    1400 -> 1410, out_prev 30    -> ambiguous 10 (negative remainder)
 #   1 text      1410 -> 1500, out_prev 5     -> feed_forward 5, user_text 85
-# Sum 1000+50+250+20+180-100+10+5+85 = 1500 = final occupancy.
-FINAL_OCCUPANCY = 1500
+#   attachment  1500 -> 1520, out_prev 8     -> feed_forward 8, ambiguous 12 (no contributor)
+# Sum 1000+50+250+20+180-100+10+5+85+8+12 = 1520 = final occupancy.
+FINAL_OCCUPANCY = 1520
 EXACT_FIRST_DELTA = 250
+INTERVALS = 6
+EXACT, AMBIGUOUS, SHRINK = 2, 3, 1
 
 
 def window_records(prefix="", session=SESSION):
@@ -79,7 +105,9 @@ def window_records(prefix="", session=SESSION):
         tool_result(u(9), "toolu_0004", session),
         assistant(u(10), m(5), usage(1410, 5), [], session),
         user_text(u(11), "next", session),
-        assistant(u(12), m(6), usage(1500, 0), [], session),
+        assistant(u(12), m(6), usage(1500, 8), [], session),
+        attachment(u(13)),
+        assistant(u(14), m(7), usage(1520, 0), [], session),
     ]
 
 
@@ -101,6 +129,5 @@ def corpus(tmp_path, files):
 
 
 def load_facts(root, keep=None):
-    from sa import corpus as corpus_module, walk
     loaded = corpus_module.load(root, keep)
     return loaded, [f for source in loaded.files for f in walk.walk(source)]
