@@ -47,7 +47,7 @@ def group(facts: Iterable[Fact], dim: str, metric: str) -> List[Row]:
     for f in facts:
         if f.kind != spec.carrier:
             continue
-        if f.dims.get("cause") == schema.SHRINK:
+        if f.dims.get(schema.CAUSE_DIM) == schema.SHRINK:
             key = (schema.SHRINK, SIGNED)
         elif f.dims.get(dim) is None:
             key = (schema.RESIDUAL_LABEL, RESIDUAL)
@@ -119,13 +119,13 @@ def reconcile(facts: Iterable[Fact]) -> Reconciliation:
     for f in facts:
         if f.kind == schema.CALL:
             calls += 1
-            final[f.locator.file] = f.metrics["context_tokens"]
+            final[f.locator.file] = f.metrics[schema.CONTEXT_TOKENS]
         else:
-            cause = f.dims["cause"]
-            by_cause[cause] += f.metrics["context_delta"]
+            cause = f.dims[schema.CAUSE_DIM]
+            by_cause[cause] += f.metrics[schema.CONTEXT_DELTA]
             counts[cause] += 1
             if cause == schema.AMBIGUOUS:
-                by_reason[f.dims["reason"]] += 1
+                by_reason[f.dims[schema.REASON_DIM]] += 1
     return Reconciliation(
         by_cause, len(final), calls, sum(final.values()),
         sum(counts[c] for c in schema.EXACT_CAUSES),

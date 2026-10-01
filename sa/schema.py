@@ -27,13 +27,19 @@ class Metric(NamedTuple):
     unit: str
 
 
+# The two metrics the reconciliation joins: every booked increment against
+# the occupancy the window's last call reports.
+CONTEXT_DELTA = "context_delta"
+CONTEXT_TOKENS = "context_tokens"
+SPEND = "spend"
+
 METRICS: Dict[str, Metric] = {
-    "context_delta": Metric(ADDITIVE, INCREMENT, "context tokens"),
-    "spend": Metric(ADDITIVE, CALL, "input-side base-token-equivalents"),
+    CONTEXT_DELTA: Metric(ADDITIVE, INCREMENT, "context tokens"),
+    SPEND: Metric(ADDITIVE, CALL, "input-side base-token-equivalents"),
     "output_tokens": Metric(ADDITIVE, CALL, "tokens"),
     "cache_write_1h_tokens": Metric(ADDITIVE, CALL, "tokens"),
     "cache_write_5m_tokens": Metric(ADDITIVE, CALL, "tokens"),
-    "context_tokens": Metric(PEAK, CALL, "context tokens"),
+    CONTEXT_TOKENS: Metric(PEAK, CALL, "context tokens"),
 }
 
 # Causes of an increment. The first five book non-negative mass; ``shrink``
@@ -61,7 +67,11 @@ REASONS = (MULTI_CONTRIBUTOR, NEGATIVE_REMAINDER, NO_CONTRIBUTOR)
 # from two agentIds), so a filter on them selects whole windows and the
 # reconciliation footer still telescopes.
 WINDOW_DIMENSIONS = ("project", "session", "agent")
-DIMENSIONS = WINDOW_DIMENSIONS + ("cause", "tool", "head", "reason")
+CAUSE_DIM = "cause"
+TOOL_DIM = "tool"
+HEAD_DIM = "head"
+REASON_DIM = "reason"
+DIMENSIONS = WINDOW_DIMENSIONS + (CAUSE_DIM, TOOL_DIM, HEAD_DIM, REASON_DIM)
 KIND_DIMENSIONS = {CALL: WINDOW_DIMENSIONS, INCREMENT: DIMENSIONS}
 
 RESIDUAL_LABEL = "∅"  # the row for facts that lack the grouped dimension
@@ -126,5 +136,5 @@ def fact(kind: str, dims: dict, metrics: dict, locator: Locator,
     for dim in dims:
         check_dimension(dim, kind)
     if kind == INCREMENT:
-        check_cause(dims.get("cause"))
+        check_cause(dims.get(CAUSE_DIM))
     return Fact(kind, dims, metrics, locator, evidence or {})

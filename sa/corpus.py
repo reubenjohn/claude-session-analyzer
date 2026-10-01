@@ -91,8 +91,10 @@ def load(root: Path, keep: Optional[Keep] = None) -> Corpus:
 
     Owner order is (first record timestamp ascending, last record timestamp
     DESCENDING, path): the earliest-starting, longest-running copy of a
-    window comes first and so owns every record it shares. Two stable sorts
-    implement the descending middle key.
+    window comes first and so owns every record it shares. A file with no
+    timestamps at all has no claim to being earliest, so it sorts after
+    every stamped file and owns only what no stamped copy carries. Two
+    stable sorts implement the descending middle key.
     """
     read = []
     skipped = 0
@@ -105,7 +107,7 @@ def load(root: Path, keep: Optional[Keep] = None) -> Corpus:
                 lines.append((line_no, data))
         read.append((_span(lines), path, name, project, lines))
     read.sort(key=lambda entry: entry[0][1], reverse=True)
-    read.sort(key=lambda entry: entry[0][0])
+    read.sort(key=lambda entry: (entry[0][0] == "", entry[0][0]))
 
     seen = set()
     files = []

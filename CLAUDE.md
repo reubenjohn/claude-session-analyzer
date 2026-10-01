@@ -64,26 +64,27 @@ attribution walk, a measured correction) changes only via a logged ruling in
 second opinion). The recorded failure mode is the confident in-place
 "improvement" that deletes a measured correction.
 
-- Split `message.id`s are MAX-MERGED field-wise: 80.5% of ids are split, and
+- Split `message.id`s are MAX-MERGED field-wise: 80.5% of ids split,
   73% of those disagree on `output_tokens`.
-- `cache_creation` is NOT the increment; the occupancy identity (input +
-  cache_read + cache_creation) holds on only 92.21% of pairs for it.
+- `cache_creation` is NOT the increment: the identity (input + cache_read +
+  cache_creation) holds on only 92.21% of pairs.
 - Peak is never summed: 4,950,327 summed vs 131,612 true peak.
-- Cache tiers priced per call: 1h write x2.0, 5m write x1.25, read x0.1.
-  Exactly one tier per call (0 mixed of 47,419).
+- Cache tiers priced per call: 1h write x2.0, 5m x1.25, read x0.1; one
+  tier per call (0 mixed of 47,419).
 - Shrinks are real and unclamped: 830 of 45,555 pairs.
 - Feed-forward subtraction (`delta_occ >= out_prev`) holds on 97.79% of pairs.
 - Physical line numbers, not parsed index. A filename is not a session.
-- Contributors are token-relevant only (tool_result + user text); counting
-  2.1.28x bookkeeping attachments would collapse the "exactly one
-  non-assistant record" rate from 84% to under 1%. "Exact" is exact given
-  the feed-forward model: attachment text folds into the one contributor.
-- parentUuid links never cross files (0 of 1,523; 21-file probe,
-  2026-09-30), so no parentUuid-chain window model.
-- Split calls interleave with their results: 54 user records sit inside 32
-  of 362 calls' spans (27-file corpus, 2026-09-30), so contributors are
-  taken from the previous call's FIRST constituent; its last had booked 24
-  two-contributor intervals (180,817 tokens) as exact.
+- Contributors are token-relevant only (tool_result + user text), one per
+  tool_result block; counting 2.1.28x bookkeeping attachments collapses the
+  "exactly one non-assistant record" rate from 84% to under 1%, and their
+  text folds into the one contributor's remainder.
+- parentUuid links never cross files (0 of 1,523; 21 files, 2026-09-30):
+  no parentUuid-chain window model.
+- Local corpus (33 files, 2026-10-01): 67 user records sit inside 44 of 588
+  calls' spans, so contributors come from the previous call's FIRST
+  constituent; 0 of 808 tool_result records batch blocks; 79 of 127
+  multi_contributor intervals (404k of 634k ambiguous tokens) share one
+  tool, which `ambiguous` carries (D-AMBIGUOUS-TOOL).
 
 ## Clean-room boundary — binding on every session and subagent
 

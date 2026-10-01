@@ -8,15 +8,16 @@ occupancy. A mismatch there is an exit status of 1, not a footnote.
 Filters: ``--since`` selects FILES by modification time before reading, so
 dedup runs over the selected files only; ``--where`` selects facts after
 dedup. A ``--where`` on a window dimension (project, session, agent) keeps
-whole windows; any other dimension is a drill, and the reconciliation then
-applies to the whole-window population it is printed for.
+whole windows; any other dimension is a drill, and the reconciliation and
+the single-call peak then apply to the whole-window population they are
+printed for.
 """
 import argparse
 import time
 from pathlib import Path
 from typing import Iterator, List, NamedTuple, Optional, Tuple
 
-from . import corpus, query, schema, walk
+from . import corpus, heads, query, schema, walk
 from .schema import Fact
 
 
@@ -25,8 +26,9 @@ class View(NamedTuple):
     tables: Tuple[str, ...]  # printed by default; the first one not pinned by --where leads
 
 
-VIEWS = {"context": View("context_delta", ("cause", "tool", "head", "agent", "session", "project")),
-         "spend": View("spend", schema.WINDOW_DIMENSIONS)}
+VIEWS = {"context": View(schema.CONTEXT_DELTA, (schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM)
+                         + schema.WINDOW_DIMENSIONS[::-1]),
+         "spend": View(schema.SPEND, schema.WINDOW_DIMENSIONS)}
 
 SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What put"
               " the tokens there is answered by `sa context` (--by tool, --by head).")
@@ -35,6 +37,17 @@ SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What 
 NOTES = {schema.WINDOW_HEAD: "first call's context: boot prompt + first message, or"
                              " inherited parent context for a fork; not splittable by"
                              " content"}
+
+# Printed under a table that shows the residual row, saying what it holds.
+RESIDUAL_NOTES = {
+    schema.TOOL_DIM: "%s: no tool: %s, %s, %s, and %s whose candidates share no one tool"
+                     % (schema.RESIDUAL_LABEL, schema.WINDOW_HEAD, schema.FEED_FORWARD,
+                        schema.USER_TEXT, schema.AMBIGUOUS),
+    schema.HEAD_DIM: "%s: no head: everything %s holds under `by %s`, %s whose candidates share"
+                     " a tool but not its head, and every tool without a head (all but %s)"
+                     % (schema.RESIDUAL_LABEL, schema.RESIDUAL_LABEL, schema.TOOL_DIM,
+                        schema.AMBIGUOUS, ", ".join(sorted(heads.EXTRACTORS))),
+}
 
 
 def _days(text: str) -> float:
@@ -48,6 +61,12 @@ def _pair(text: str) -> Tuple[str, str]:
     if not sep:
         raise argparse.ArgumentTypeError("expected DIM=VALUE")
     return dim, value
+
+
+def _rows(text: str) -> int:
+    if not text.isdigit() or int(text) < 1:
+        raise argparse.ArgumentTypeError("expected a positive number of rows")
+    return int(text)
 
 
 def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
@@ -66,7 +85,7 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
                          % ", ".join(schema.DIMENSIONS))
         sub.add_argument("--by", metavar="DIM|fact",
                          help="one dimension's table, or 'fact' for leaf facts")
-        sub.add_argument("--limit", type=int, default=10, help="rows per table")
+        sub.add_argument("--limit", type=_rows, default=10, help="rows per table (at least 1)")
     args = parser.parse_args(argv)
     carrier = schema.metric(VIEWS[args.view].metric).carrier
     tables = [args.by] if args.by and args.by != "fact" else []
@@ -94,6 +113,10 @@ def _at(locator: schema.Locator) -> str:
     return "%s:%d" % (locator.file, locator.line)
 
 
+def _tags(dims: dict) -> str:
+    return " ".join("%s=%s" % (d, dims[d]) for d in schema.DIMENSIONS if d in dims)
+
+
 def _modified_within(days: Optional[float]) -> Optional[corpus.Keep]:
     """A file filter on modification time, or ``None`` for no filter."""
     if days is None:
@@ -104,22 +127,26 @@ def _modified_within(days: Optional[float]) -> Optional[corpus.Keep]:
 
 class Selection(NamedTuple):
     loaded: corpus.Corpus
-    windows: List[Fact]             # whole windows kept by the window-dimension filters
+    window_facts: List[Fact]        # whole windows kept by the window-dimension filters
     facts: List[Fact]               # the windows' facts kept by the drill filters too
     drill: List[Tuple[str, str]]    # the --where pairs that are not window dimensions
+    total: float                    # the view's metric over ``facts``, summed once
 
     @property
     def n_windows(self) -> int:
-        return len({f.locator.file for f in self.windows})
+        return len({f.locator.file for f in self.window_facts})
 
 
-def _select(args: argparse.Namespace) -> Selection:
+def _select(args: argparse.Namespace, view: View) -> Selection:
     loaded = corpus.load(args.root, _modified_within(args.since))
     facts = [f for source in loaded.files for f in walk.walk(source)]
     whole = [p for p in args.where if p[0] in schema.WINDOW_DIMENSIONS]
     drill = [p for p in args.where if p[0] not in schema.WINDOW_DIMENSIONS]
-    windows = query.select(facts, whole)
-    return Selection(loaded, windows, query.select(windows, drill), drill)
+    window_facts = query.select(facts, whole)
+    kept = query.select(window_facts, drill)
+    carrier = schema.metric(view.metric).carrier
+    total = sum(f.metrics[view.metric] for f in kept if f.kind == carrier)
+    return Selection(loaded, window_facts, kept, drill, total)
 
 
 def _headline_dimension(args: argparse.Namespace, view: View) -> Optional[str]:
@@ -134,13 +161,12 @@ def _headline_dimension(args: argparse.Namespace, view: View) -> Optional[str]:
 
 def _headline(args: argparse.Namespace, view: View, sel: Selection) -> List[str]:
     spec = schema.metric(view.metric)
-    carried = [f for f in sel.facts if f.kind == spec.carrier]
-    total = "%s: %s %s" % (view.metric, _num(sum(f.metrics[view.metric] for f in carried)),
-                           spec.unit)
+    total = "%s: %s %s" % (view.metric, _num(sel.total), spec.unit)
     if args.view == "context" and not sel.drill:
         total += " = the %d windows' final occupancies summed" % sel.n_windows
     else:
-        total += " over %d %s facts in %d windows" % (len(carried), spec.carrier, sel.n_windows)
+        total += " over %d %s facts in %d windows" % (
+            sum(f.kind == spec.carrier for f in sel.facts), spec.carrier, sel.n_windows)
     dim = _headline_dimension(args, view)
     if dim:
         top = next((r for r in query.group(sel.facts, dim, view.metric)
@@ -149,22 +175,24 @@ def _headline(args: argparse.Namespace, view: View, sel: Selection) -> List[str]
             total += "; top %s=%s %s" % (dim, top.value, _pct(top.share))
     lines = [total]
     if args.view == "context":
-        lines += _peaks(sel.windows)
+        lines += _peaks(sel)
     else:
         lines.append(SPEND_NOTE)
     return lines
 
 
-def _peaks(facts: List[Fact]) -> List[str]:
-    """Every peak metric as the single call where it happened: a peak reports
+def _peaks(sel: Selection) -> List[str]:
+    """Every peak metric as the single call where it happened, over the
+    whole windows selected: a drill keeps no call facts, and a peak reports
     no value at a node and is never summed."""
     lines = []
     for name, spec in schema.METRICS.items():
         if spec.aggregation == schema.PEAK:
-            top = query.largest(facts, name)
+            top = query.largest(sel.window_facts, name)
             if top is not None:
-                lines.append("single-call peak %s: %s %s at %s"
-                             % (name, _num(top.metrics[name]), spec.unit, _at(top.locator)))
+                lines.append("single-call peak %s over the %d whole windows: %s %s at %s"
+                             % (name, sel.n_windows, _num(top.metrics[name]), spec.unit,
+                                _at(top.locator)))
     return lines
 
 
@@ -173,19 +201,21 @@ def _population(args: argparse.Namespace, sel: Selection) -> str:
             " facts; %d lines skipped, %d duplicate records excluded%s"
             % (args.root, len(sel.loaded.files),
                "" if args.since is None else " (modified within %gd)" % args.since,
-               sel.n_windows, sum(f.kind == schema.CALL for f in sel.windows),
-               sum(f.kind == schema.INCREMENT for f in sel.windows),
+               sel.n_windows, sum(f.kind == schema.CALL for f in sel.window_facts),
+               sum(f.kind == schema.INCREMENT for f in sel.window_facts),
                sel.loaded.skipped_lines, sel.loaded.duplicate_records,
                "".join("; where %s=%s" % p for p in args.where)))
 
 
-def _table(title: str, rows: List[query.Row], unit: str, limit: int) -> List[str]:
+def _table(dim: str, rows: List[query.Row], unit: str, limit: int, total: float) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
     still adds up, then the residual and signed rows, which are never hidden.
-    Shares are of the regular rows' mass, printed once in the header; a
-    table with no regular rows has no base and its header says just "share"."""
+    Shares are of the regular rows' mass: the headline ``total`` less the
+    residual and signed rows, one sum, so the two never disagree by a
+    rounding. A table with no regular rows has no base."""
+    title = "by " + dim
     regular = [r for r in rows if r.kind == query.REGULAR]
-    base = sum(r.mass for r in regular)
+    base = total - sum(r.mass for r in rows if r.kind != query.REGULAR)
     shown = regular[:limit]
     hidden = regular[limit:]
     if hidden:
@@ -195,12 +225,14 @@ def _table(title: str, rows: List[query.Row], unit: str, limit: int) -> List[str
     shown += [r for r in rows if r.kind != query.REGULAR]
     labels = [r.value + (" (signed)" if r.kind == query.SIGNED else "") for r in shown]
     width = max(len(label) for label in labels + [title])
-    share = "share of %s" % _num(base) if base else "share"
+    share = "share of %s" % _num(base) if regular else "share"
     lines = ["%-*s  %16s  %7s  %s" % (width, title, unit, "count", share)]
     for label, r in zip(labels, shown):
         lines.append("%-*s  %16s  %7d  %*s"
                      % (width, label, _num(r.mass), r.count, len(share), _pct(r.share)))
     lines += ["%s: %s" % (r.value, NOTES[r.value]) for r in shown if r.value in NOTES]
+    if dim in RESIDUAL_NOTES and any(r.kind == query.RESIDUAL for r in shown):
+        lines.append(RESIDUAL_NOTES[dim])
     return lines
 
 
@@ -212,7 +244,7 @@ def _tables(args: argparse.Namespace, view: View, sel: Selection) -> List[str]:
     for dim in [args.by] if args.by else view.tables:
         rows = query.group(sel.facts, dim, view.metric)
         if rows:
-            lines += _table("by " + dim, rows, unit, args.limit) + [""]
+            lines += _table(dim, rows, unit, args.limit, sel.total) + [""]
     return lines
 
 
@@ -225,18 +257,23 @@ def _leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:
                     key=lambda f: -f.metrics[metric])[:limit]
     lines = ["%16s  file:line  uuid  dimensions" % spec.unit]
     for f in leaves:
-        tags = " ".join("%s=%s" % (d, f.dims[d]) for d in schema.DIMENSIONS if d in f.dims)
         lines.append("%16s  %s  %s  %s" % (_num(f.metrics[metric]), _at(f.locator),
-                                           f.locator.uuid, tags))
+                                           f.locator.uuid, _tags(f.dims)))
         lines += list(_evidence(f.evidence))
     return lines
 
 
 def _evidence(evidence: dict) -> Iterator[str]:
+    """Each key once; candidates one per line under theirs, each with its
+    line, uuid and the dimensions it would have booked."""
     for key, value in evidence.items():
-        for item in value if isinstance(value, list) else [value]:
-            shown = "%s %s" % (_at(item), item.uuid) if isinstance(item, schema.Locator) else item
-            yield "%18s%s: %s" % ("", key, shown)
+        if isinstance(value, list):
+            yield "%18s%s:%s" % ("", key, "" if value else " none")
+            for item in value:
+                yield "%20s%s %s  %s" % ("", _at(item.locator), item.locator.uuid,
+                                         _tags(item.dims))
+        else:
+            yield "%18s%s: %s" % ("", key, value)
 
 
 def _reconciliation(r: query.Reconciliation) -> List[str]:
@@ -259,23 +296,23 @@ def _reconciliation(r: query.Reconciliation) -> List[str]:
     ]
 
 
-def _call_totals(facts: List[Fact], headline_metric: str) -> List[str]:
+def _call_totals(sel: Selection, headline_metric: str) -> List[str]:
     """Every other call-carried metric: additive ones as totals, peaks as
     the single largest call."""
     lines = []
     for name, spec in schema.METRICS.items():
         if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE \
                 and name != headline_metric:
-            total = sum(f.metrics[name] for f in facts if f.kind == schema.CALL)
+            total = sum(f.metrics[name] for f in sel.facts if f.kind == schema.CALL)
             lines.append("%s: %s %s" % (name, _num(total), spec.unit))
-    return lines + _peaks(facts)
+    return lines + _peaks(sel)
 
 
 def _footer(args: argparse.Namespace, view: View, sel: Selection) -> Tuple[List[str], bool]:
     """The closing lines and whether the reconciliation held."""
     if args.view != "context":
-        return _call_totals(sel.facts, view.metric), True
-    reconciliation = query.reconcile(sel.windows)
+        return _call_totals(sel, view.metric), True
+    reconciliation = query.reconcile(sel.window_facts)
     if sel.drill:
         return ["reconciliation: applies to the %d whole windows above, not to this"
                 " drill: %s" % (sel.n_windows, _status(reconciliation.holds))], \
@@ -286,7 +323,7 @@ def _footer(args: argparse.Namespace, view: View, sel: Selection) -> Tuple[List[
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     view = VIEWS[args.view]
-    sel = _select(args)
+    sel = _select(args, view)
     footer, holds = _footer(args, view, sel)
     print("\n".join(_headline(args, view, sel) + [_population(args, sel), ""]
                     + _tables(args, view, sel) + footer))

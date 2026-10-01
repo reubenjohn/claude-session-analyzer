@@ -13,7 +13,7 @@ from sa.schema import CALL, INCREMENT
 
 REPO = Path(__file__).resolve().parents[1]
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
-CAUSE, TOOL = CONTEXT.tables[:2]
+CAUSE, TOOL, HEAD = CONTEXT.tables[:3]
 FORK_PARENT = "sess-0000"
 
 
@@ -49,7 +49,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     assert first == "%s: %s %s = the 3 windows' final occupancies summed; top %s=%s 61.7%%" % (
         CONTEXT.metric, format(3 * fx.FINAL_OCCUPANCY, ",d"), _unit(CONTEXT.metric),
         CAUSE, schema.WINDOW_HEAD)
-    assert peak == "single-call peak %s: %s %s at proj-a/sess-0001.jsonl:14" % (
+    assert peak == "single-call peak %s over the 3 whole windows: %s %s at proj-a/sess-0001.jsonl:14" % (
         fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), _unit(fx.PEAK))
     assert population == (
         "population: root %s; %d files read, 3 windows, %d call facts, %d increment facts; "
@@ -83,7 +83,7 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     assert "over 14 call facts in 2 windows; top %s=%s 100.0%%" % (SPEND.tables[1], fx.SESSION) in first
     assert note == cli.SPEND_NOTE
     assert "duplicate records excluded; where project=proj-a" in out
-    assert re.search(r"^single-call peak %s: %s %s at proj-a/sess-0001\.jsonl:14$"
+    assert re.search(r"^single-call peak %s over the 2 whole windows: %s %s at proj-a/sess-0001\.jsonl:14$"
                      % (fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), _unit(fx.PEAK)), out, re.M)
     for dim in SPEND.tables:
         assert "by " + dim in out
@@ -173,11 +173,17 @@ def test_by_fact_lists_leaves_with_their_dimensions_and_evidence(tmp_path):
     assert re.search(r"\sproj-a/sess-0001\.jsonl:2\s+uuid-0002\s", out)
 
     code, out, err = _run("context", "--root", str(root), "--by", "fact", "--where",
-                          "reason=%s" % schema.MULTI_CONTRIBUTOR, "--where", "project=proj-a",
-                          "--where", "agent=main", "--limit", "1")
+                          "%s=%s" % (schema.REASON_DIM, schema.MULTI_CONTRIBUTOR),
+                          "--where", "project=proj-a", "--where", "agent=main", "--limit", "1")
     assert code == 0, err
-    assert re.search(r"^\s+candidates: proj-a/sess-0001\.jsonl:4 uuid-0004\n"
-                     r"\s+candidates: proj-a/sess-0001\.jsonl:5 uuid-0005$", out, re.M)
+    assert re.search(r"^\s+candidates:\n"
+                     r"\s+proj-a/sess-0001\.jsonl:4 uuid-0004  %s=%s\n"
+                     r"\s+proj-a/sess-0001\.jsonl:5 uuid-0005  %s=%s %s=Read %s=Read:py$"
+                     % (CAUSE, schema.USER_TEXT, CAUSE, schema.TOOL_RESULT, TOOL, HEAD),
+                     out, re.M)
+    assert out.count("candidates:") == 1
+    (leaf,) = [l for l in out.splitlines() if re.match(r"\s+[\d,]+\s+\S+:\d+\s", l)]
+    assert "%s=" % TOOL not in leaf  # the candidates share no tool
 
     code, out, err = _run("context", "--root", str(root), "--by", "fact", "--where",
                           "%s=%s" % (CAUSE, schema.WINDOW_HEAD), "--where", "agent=agent-fake1")
@@ -201,9 +207,52 @@ def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
             query.Row("c", 10, 1, 0.1, query.REGULAR),
             query.Row(schema.RESIDUAL_LABEL, 5, 1, None, query.RESIDUAL),
             query.Row(schema.SHRINK, -7, 1, None, query.SIGNED)]
-    lines = cli._table("by x", rows, "u", limit=1)
-    assert lines[0].endswith("share of 100")
+    lines = cli._table("x", rows, "u", limit=1, total=98)  # 98 = 100 regular + 5 residual - 7 shrink
+    assert lines[0].startswith("by x") and lines[0].endswith("share of 100")
     assert [l.split()[0] for l in lines[1:]] == ["a", "+2", schema.RESIDUAL_LABEL, schema.SHRINK]
     assert re.match(r"\+2 more rows\s+40\s+2\s+40\.0%", lines[2])
-    assert [l.split()[0] for l in cli._table("by x", rows, "u", limit=3)[1:]] == [
+    assert [l.split()[0] for l in cli._table("x", rows, "u", limit=3, total=98)[1:]] == [
         "a", "b", "c", schema.RESIDUAL_LABEL, schema.SHRINK]
+    for dim in cli.RESIDUAL_NOTES:
+        assert cli._table(dim, rows, "u", limit=3, total=98)[-1] == cli.RESIDUAL_NOTES[dim]
+        assert cli.RESIDUAL_NOTES[dim] not in cli._table(dim, rows[:3], "u", 3, 100)  # no ∅ row
+
+
+def test_a_drill_reports_the_peak_over_the_whole_windows_it_names(tmp_path):
+    root = _corpus(tmp_path)
+    facts = fx.load_facts(root)[1]
+    drill = [(CAUSE, schema.TOOL_RESULT)]
+    assert not [f for f in query.select(facts, drill) if fx.PEAK in f.metrics]  # a drill keeps no call
+    code, out, err = _run("context", "--root", str(root), "--where", "%s=%s" % drill[0])
+    assert code == 0, err
+    headline, peak = out.splitlines()[:2]
+    assert " over 3 increment facts in 3 windows" in headline
+    assert peak == "single-call peak %s over the 3 whole windows: %s %s at proj-a/sess-0001.jsonl:14" % (
+        fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), _unit(fx.PEAK))
+
+
+def test_headline_total_and_table_base_are_one_sum(tmp_path):
+    """Three calls whose spends sum to a .5 in file order and to just under
+    it grouped by session (an agent file shares its parent's session, with
+    another session's file between them in owner order)."""
+    files = {"proj-a/sess-0001.jsonl": (0, 1, fx.SESSION),
+             "proj-b/sess-0002.jsonl": (1, 1, "sess-0002"),
+             "proj-a/sess-0001/subagents/agent-fake1.jsonl": (2, 13, fx.SESSION)}
+    root = fx.corpus(tmp_path, {
+        name: fx.stamped([fx.assistant("uuid-%d" % start, "msg-%d" % start,
+                                       fx.usage(4 + cache_read, 0), session=session)], start)
+        for name, (start, cache_read, session) in files.items()})
+    a, b, c = [f.metrics[SPEND.metric] for f in fx.load_facts(root)[1] if f.kind == CALL]
+    assert cli._num((a + b) + c) != cli._num((a + c) + b)  # the two orders really straddle a .5
+    code, out, err = _run("spend", "--root", str(root), "--by", SPEND.tables[1])
+    assert code == 0, err
+    headline = re.match(r"%s: ([\d,]+) " % SPEND.metric, out).group(1)
+    assert headline == re.search(r"share of ([\d,]+)$", out, re.M).group(1)
+
+
+@pytest.mark.parametrize("limit", ["0", "-1"])
+def test_limit_must_be_positive(tmp_path, limit):
+    root = _corpus(tmp_path)
+    code, out, err = _run("context", "--root", str(root), "--limit", limit)
+    assert code == 2 and not out and "positive number of rows" in err
+    assert _run("context", "--root", str(root), "--limit", "1")[0] == 0  # vacuity guard

@@ -46,10 +46,11 @@ def tool_use(tool_use_id, name, **tool_input):
     return {"type": "tool_use", "id": tool_use_id, "name": name, "input": tool_input}
 
 
-def tool_result(uuid, tool_use_id, session=SESSION):
+def tool_result(uuid, *tool_use_ids, session=SESSION):
+    """One user record; several ids make a record that batches its results."""
     return {"type": "user", "uuid": uuid, "sessionId": session,
             "message": {"role": "user", "content": [
-                {"type": "tool_result", "tool_use_id": tool_use_id, "content": "ok"}]}}
+                {"type": "tool_result", "tool_use_id": i, "content": "ok"} for i in tool_use_ids]}}
 
 
 def user_text(uuid, text="hello", session=SESSION):
@@ -92,17 +93,17 @@ def window_records(prefix="", session=SESSION):
     return [
         assistant(u(1), m(1), usage(1000, 50),
                   [tool_use("toolu_0001", "Bash", command="pytest -q")], session),
-        tool_result(u(2), "toolu_0001", session),
+        tool_result(u(2), "toolu_0001", session=session),
         assistant(u(3), m(2), usage(1300, 20),
                   [tool_use("toolu_0002", "Read", file_path="/x/a.py")], session),
         user_text(u(4), "and also", session),
-        tool_result(u(5), "toolu_0002", session),
+        tool_result(u(5), "toolu_0002", session=session),
         assistant(u(6), m(3), usage(1500, 10),
                   [tool_use("toolu_0003", "Read", file_path="/x/b.md")], session),
-        tool_result(u(7), "toolu_0003", session),
+        tool_result(u(7), "toolu_0003", session=session),
         assistant(u(8), m(4), usage(1400, 30),
                   [tool_use("toolu_0004", "Read", file_path="/x/c.md")], session),
-        tool_result(u(9), "toolu_0004", session),
+        tool_result(u(9), "toolu_0004", session=session),
         assistant(u(10), m(5), usage(1410, 5), [], session),
         user_text(u(11), "next", session),
         assistant(u(12), m(6), usage(1500, 8), [], session),

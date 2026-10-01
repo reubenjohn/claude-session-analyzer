@@ -29,11 +29,11 @@ def test_every_fact_carries_only_its_kinds_dimensions(facts):
         assert carried == set(schema.KIND_DIMENSIONS[kind]), kind
     loc = Locator("f", 1, None)
     with pytest.raises(schema.SchemaError):
-        schema.fact(schema.CALL, {"tool": "Bash"}, {}, loc)
+        schema.fact(schema.CALL, {schema.TOOL_DIM: "Bash"}, {}, loc)
     for dim in schema.DIMENSIONS:
         schema.check_dimension(dim, schema.INCREMENT)
     with pytest.raises(schema.SchemaError):
-        schema.check_dimension("tool", schema.CALL)
+        schema.check_dimension(schema.TOOL_DIM, schema.CALL)
 
 
 def test_group_refuses_every_peak_and_sums_every_additive(facts):
@@ -41,7 +41,7 @@ def test_group_refuses_every_peak_and_sums_every_additive(facts):
     assert peaks
     for name in peaks:
         with pytest.raises(ValueError):
-            query.group(facts, "cause", name)
+            query.group(facts, schema.CAUSE_DIM, name)
         assert query.largest(facts, name).metrics[name] == fx.FINAL_OCCUPANCY
     for name, spec in schema.METRICS.items():
         if spec.aggregation == schema.ADDITIVE:
@@ -52,20 +52,20 @@ def test_group_refuses_every_peak_and_sums_every_additive(facts):
 
 def test_unknown_names_fail_closed(facts):
     with pytest.raises(schema.SchemaError):
-        query.group(facts, "cause", "not_a_metric")
+        query.group(facts, schema.CAUSE_DIM, "not_a_metric")
     with pytest.raises(schema.SchemaError):
         query.group(facts, "not_a_dim", fx.DELTA)
     with pytest.raises(schema.SchemaError):
         query.select(facts, [("not_a_dim", "x")])
     loc = Locator("f", 1, None)
     with pytest.raises(schema.SchemaError):
-        schema.fact(schema.INCREMENT, {"cause": "not_a_cause"}, {fx.DELTA: 1}, loc)
+        schema.fact(schema.INCREMENT, {schema.CAUSE_DIM: "not_a_cause"}, {fx.DELTA: 1}, loc)
     with pytest.raises(schema.SchemaError):
         schema.fact(schema.CALL, {}, {fx.DELTA: 1}, loc)
 
 
 def test_group_keeps_residual_and_signed_rows_out_of_shares(facts):
-    rows = query.group(facts, "tool", fx.DELTA)
+    rows = query.group(facts, schema.TOOL_DIM, fx.DELTA)
     assert [r.kind for r in rows[-2:]] == [query.RESIDUAL, query.SIGNED]
     residual, shrink = rows[-2], rows[-1]
     assert (residual.value, shrink.value) == (schema.RESIDUAL_LABEL, schema.SHRINK)
@@ -77,20 +77,20 @@ def test_group_keeps_residual_and_signed_rows_out_of_shares(facts):
     assert abs(sum(r.share for r in regular) - 1.0) < 1e-9
     # The shrink increment has no tool, yet it never lands in the residual.
     assert residual.count == sum(1 for f in facts if f.kind == schema.INCREMENT
-                                 and "tool" not in f.dims
-                                 and f.dims["cause"] != schema.SHRINK)
+                                 and schema.TOOL_DIM not in f.dims
+                                 and f.dims[schema.CAUSE_DIM] != schema.SHRINK)
 
 
 def test_a_zero_base_leaves_rows_regular(facts):
-    head = next(f for f in facts if f.dims.get("cause") == schema.WINDOW_HEAD)
-    (row,) = query.group([head._replace(metrics={fx.DELTA: 0})], "cause", fx.DELTA)
+    head = next(f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.WINDOW_HEAD)
+    (row,) = query.group([head._replace(metrics={fx.DELTA: 0})], schema.CAUSE_DIM, fx.DELTA)
     assert (row.kind, row.share, row.mass) == (query.REGULAR, None, 0)
 
 
 def test_select_matches_every_pair_regardless_of_order(facts):
-    where = [("head", "Bash:pytest"), ("cause", schema.TOOL_RESULT)]
+    where = [(schema.HEAD_DIM, "Bash:pytest"), (schema.CAUSE_DIM, schema.TOOL_RESULT)]
     hits = query.select(facts, where)
     assert hits and hits == query.select(facts, where[::-1])
-    assert all(f.dims["head"] == "Bash:pytest" for f in hits)
-    assert query.select(facts, [("reason", schema.MULTI_CONTRIBUTOR)])
-    assert not query.select(facts, [("head", "pytest")])  # a head carries its tool
+    assert all(f.dims[schema.HEAD_DIM] == "Bash:pytest" for f in hits)
+    assert query.select(facts, [(schema.REASON_DIM, schema.MULTI_CONTRIBUTOR)])
+    assert not query.select(facts, [(schema.HEAD_DIM, "pytest")])  # a head carries its tool

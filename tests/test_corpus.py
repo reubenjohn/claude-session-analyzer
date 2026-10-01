@@ -39,3 +39,19 @@ def test_uuid_less_records_are_kept_and_never_deduped(tmp_path):
     loaded = corpus.load(root)
     assert len(loaded.files[0].records) == 2
     assert loaded.duplicate_records == 0
+
+
+def test_a_file_without_timestamps_owns_nothing_a_stamped_copy_carries(tmp_path):
+    """Whatever its filename, the unstamped copy of a window sorts after the
+    stamped one and every shared record is marked duplicate in it."""
+    for names in (("sess-0001", "sess-0002"), ("sess-0002", "sess-0001")):
+        root = fx.corpus(tmp_path / names[0], {
+            "proj-a/%s.jsonl" % names[0]: fx.window_records(),
+            "proj-a/%s.jsonl" % names[1]: fx.stamped(fx.window_records(), 0)})
+        loaded = corpus.load(root)
+        assert [s.path.stem for s in loaded.files] == [names[1], names[0]]
+        assert [all(r.duplicate for r in s.records) for s in loaded.files] == [False, True]
+    # Vacuity guard: two unstamped copies fall back to path order.
+    root = fx.corpus(tmp_path / "unstamped", {"proj-a/sess-0002.jsonl": fx.window_records(),
+                                              "proj-a/sess-0001.jsonl": fx.window_records()})
+    assert [s.path.stem for s in corpus.load(root).files] == ["sess-0001", "sess-0002"]

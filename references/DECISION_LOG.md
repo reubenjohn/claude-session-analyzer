@@ -119,6 +119,24 @@ measured fact (exactly one tier per call; tier totals equal
 Same pass, R5 amended: a head value carries its tool (`Bash:pytest`,
 `Read:py`), and `&&`/`||` are padded like `;`.
 
+**D-AMBIGUOUS-TOOL — an ambiguous increment carries the tool its candidates
+share.** RULED 2026-10-01, second-opinion conditions applied. A
+`multi_contributor` increment keeps `cause=ambiguous`, its reason, its mass
+and its candidate evidence, so the footer's ambiguous total and `--where
+cause=ambiguous` are unchanged; it additionally sets `tool` when EVERY
+candidate is a tool_result of one tool (a user_text candidate or an
+unresolved tool_use leaves it unset) and `head` when, given that, every
+candidate's head is the same and not None (`other` is a value). Measured
+basis at proposal: 78 of 122 multi_contributor intervals, ~382k of 606k
+ambiguous tokens, shared one tool (the judge's run, live corpus, earlier on
+2026-10-01); at landing: 79 of 127 (404k of 634k), 36 of them (206k)
+sharing the head as well (live local corpus, 33 files, 2026-10-01). What changes: `by tool` and
+`by head` answer "which tool" for mass that was pure residual, with the
+ambiguity still named on the row. Same pass: a user record batching several
+tool_result blocks yields one contributor per block (0 of 808 observed
+locally; the one-per-record reading was a silent exact booking to the first
+block's tool), and `walk.py`'s local measurements name one population.
+
 ---
 
 ## Phase 3 synthesis — the rows as proposed (history)
