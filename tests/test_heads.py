@@ -1,4 +1,4 @@
-"""The ruled head-extraction table (DECISION_LOG R5, R5-BASENAME):
+"""The ruled head-extraction table (DECISION_LOG R5, R5-BASENAME, R5-BUILTINS):
 ``<tool>:<summary>``, the summary of a Bash command its first command word."""
 import pytest
 
@@ -18,7 +18,7 @@ CASES = [
     ("Bash", {"command": "cd /x && A=1 B=2 git status"}, "Bash:git"),
     ("Bash", {"command": "cd /x; ls"}, "Bash:ls"),
     ("Bash", {"command": "cd /x&&ls"}, "Bash:ls"),
-    ("Bash", {"command": "cd /x||true"}, "Bash:true"),
+    ("Bash", {"command": "cd /x||ls"}, "Bash:ls"),
     ("Bash", {"command": "cd /x || exit 1; make"}, "Bash:exit"),
     ("Bash", {"command": "cd /x"}, "Bash:cd"),
     # Keywords: the command is in the body they open.
@@ -30,6 +30,18 @@ CASES = [
     ("Bash", {"command": "for f in x; do if [ -f $f ]; then cmd; fi; done"}, "Bash:cmd"),
     ("Bash", {"command": "cd /x && for f in *; do cmd; done"}, "Bash:cmd"),
     ("Bash", {"command": "for f in a b"}, "Bash:other"),  # no body, no command
+    # R5-BUILTINS: an output-less builtin and its arguments, to the next separator.
+    ("Bash", {"command": 'for f in a b; do echo "== $f"; cat "$f"; done'}, "Bash:cat"),
+    ("Bash", {"command": "echo hi && pytest"}, "Bash:pytest"),
+    ("Bash", {"command": "echo done"}, "Bash:other"),
+    ("Bash", {"command": "printf '%s' x | sort"}, "Bash:sort"),
+    ("Bash", {"command": "true || make"}, "Bash:make"),
+    ("Bash", {"command": "false || false"}, "Bash:other"),
+    ("Bash", {"command": "set -euo pipefail; pytest -q"}, "Bash:pytest"),
+    ("Bash", {"command": "export FOO=1; cmd"}, "Bash:cmd"),
+    ("Bash", {"command": "unset FOO && cmd"}, "Bash:cmd"),
+    ("Bash", {"command": "shift 2 && cmd"}, "Bash:cmd"),
+    ("Bash", {"command": "cd /x && echo start; ./check.sh"}, "Bash:check.sh"),
     # Wrappers: bare prefixes that run the word after them.
     ("Bash", {"command": "{ cmd; }"}, "Bash:cmd"),
     ("Bash", {"command": "( cmd )"}, "Bash:cmd"),
@@ -68,10 +80,10 @@ def test_head_of(tool, tool_input, expected):
     assert heads.head_of(tool, tool_input) == expected
 
 
-def test_every_declared_keyword_and_wrapper_opens_a_case():
+def test_every_declared_keyword_wrapper_and_builtin_opens_a_case():
     firsts = {tool_input["command"].split()[0] for tool, tool_input, _ in CASES
               if tool == "Bash" and isinstance(tool_input, dict) and tool_input.get("command")}
-    assert set(heads.KEYWORDS + heads.WRAPPERS + ("timeout",)) <= firsts
+    assert set(heads.KEYWORDS + heads.WRAPPERS + heads.BUILTINS + ("timeout",)) <= firsts
 
 
 def test_every_declared_extractor_reads_its_real_input_shape():

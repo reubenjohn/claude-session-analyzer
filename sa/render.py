@@ -70,7 +70,8 @@ def report(view: View, sel: Selection, by: Optional[str], limit: int) -> List[st
         shown = [query.group(sel.facts, dim, view.metric) for dim in ([by] if by else view.tables)]
         pinned = {dim for dim, _ in sel.where}
         lead = next((t for t in shown if t.dim not in pinned), None)
-        body = [line for t in shown if t.rows for line in _table(t, spec, limit) + [""]]
+        body = [line for t in shown if t.rows
+                for line in _table(t, view.metric, spec.carrier, limit) + [""]]
     return headline(view, sel, lead) + [population(sel), ""] + body + footer(view, sel)
 
 
@@ -136,11 +137,12 @@ def _label(row: query.Row) -> str:
     return row.value + (" (signed)" if row.kind == query.SIGNED else "")
 
 
-def _table(table: query.Table, spec: schema.Metric, limit: int) -> List[str]:
+def _table(table: query.Table, metric: str, carrier: str, limit: int) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
     still adds up, then the residual and signed rows, which are never hidden.
-    The count column is named for what it counts, the metric's carrier kind.
-    A table with no base (no regular mass) prints ``share`` alone."""
+    The mass column is named for the metric (its unit is stated once, on the
+    headline), the count column for what it counts, the metric's carrier
+    kind. A table with no base (no regular mass) prints ``share`` alone."""
     title = "by " + table.dim
     regular = [r for r in table.rows if r.kind == query.REGULAR]
     shown = regular[:limit]
@@ -151,9 +153,9 @@ def _table(table: query.Table, spec: schema.Metric, limit: int) -> List[str]:
     shown += [r for r in table.rows if r.kind != query.REGULAR]
     labels = [_label(r) for r in shown]
     width = max(len(label) for label in labels + [title])
-    count = spec.carrier + "s"
+    count = carrier + "s"
     share = "share of %s" % _num(table.base) if table.base else "share"
-    lines = ["%-*s  %16s  %s  %s" % (width, title, spec.unit, count, share)]
+    lines = ["%-*s  %16s  %s  %s" % (width, title, metric, count, share)]
     for label, r in zip(labels, shown):
         lines.append("%-*s  %16s  %*d  %*s" % (
             width, label, _num(r.mass), len(count), r.count, len(share),
@@ -171,7 +173,7 @@ def _leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:
     spec = schema.metric(metric)
     leaves = sorted((f for f in facts if f.kind == spec.carrier),
                     key=lambda f: -f.metrics[metric])[:limit]
-    lines = ["%16s  file:line  uuid  dimensions" % spec.unit]
+    lines = ["%16s  file:line  uuid  dimensions" % metric]  # the metric, as in the tables
     for f in leaves:
         lines.append("%16s  %s  %s  %s" % (_num(f.metrics[metric]), _at(f.locator),
                                            f.locator.uuid, _tags(f.dims)))

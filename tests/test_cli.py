@@ -56,7 +56,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     assert re.search(r"^%s\s" % schema.AMBIGUOUS, out, re.M)
     assert re.search(r"^%s \(signed\)\s+-300\s" % schema.SHRINK, out, re.M)
     assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+$"
-                     % (CAUSE, _unit(CONTEXT.metric), _count(CONTEXT.metric)), out, re.M)
+                     % (CAUSE, CONTEXT.metric, _count(CONTEXT.metric)), out, re.M)
 
 
 def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
@@ -70,7 +70,7 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     assert peak.startswith("single-call peak ") and note == cli.SPEND_NOTE
     assert "duplicate records excluded; where project=proj-a" in out
     assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+$"
-                     % (SPEND.tables[0], _unit(SPEND.metric), _count(SPEND.metric)), out, re.M)
+                     % (SPEND.tables[0], SPEND.metric, _count(SPEND.metric)), out, re.M)
     assert _count(SPEND.metric) != _count(CONTEXT.metric)  # the two views name their own carrier
     assert re.search(r"^single-call peak %s over the 2 whole windows: %s %s at proj-a/sess-0001\.jsonl:14$"
                      % (fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), _unit(fx.PEAK)), out, re.M)
@@ -161,6 +161,8 @@ def test_by_fact_lists_leaves_with_their_dimensions_and_evidence(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", "fact",
                           "--where", "%s=%s" % (CAUSE, schema.TOOL_RESULT), "--limit", "2")
     assert code == 0, err
+    assert re.search(r"^\s+%s  file:line  uuid  dimensions$" % CONTEXT.metric, out, re.M)
+    assert _unit(CONTEXT.metric) != CONTEXT.metric  # vacuity guard: the header names the metric
     leaves = [l for l in out.splitlines() if re.match(r"\s+[\d,]+\s+\S+:\d+\s", l)]
     assert len(leaves) == 2 and all("%s=%s" % (CAUSE, schema.TOOL_RESULT) in l for l in leaves)
     assert re.search(r"\sproj-a/sess-0001\.jsonl:2\s+uuid-0002\s", out)

@@ -2,14 +2,14 @@
 
 Answers TWO questions about Claude Code sessions: where is my context going
 (`context_delta`) and what did it cost (`spend`), from the JSONL transcripts
-under `Path.home()/".claude"/"projects"` (computed at runtime, never a
-literal path). Standard library only, Python 3.8. TIME/scheduling questions
+under `Path.home()/".claude"/"projects"` (computed at runtime, never
+literal). Standard library only, Python 3.8. TIME/scheduling questions
 are deferred: design so they can be added, do not add them.
 Standing premise: NO USERS, NO DEPLOYMENTS — breaking changes are free,
 legacy is deleted not accommodated, published numbers move when the old
 number was wrong. Branch: `v2-build`.
 
-## Build charter (rulings of 2026-09-30, `references/DECISION_LOG.md`)
+## Build charter (rulings: `references/DECISION_LOG.md`)
 
 Owner directive: an elegant, simple implementation from which powerful
 capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
@@ -28,18 +28,20 @@ names its one carrier kind (`spend` -> call,
 double-counting is impossible. Window dimensions `project`,
 `session`, `agent` are on both kinds (a main window has no `agent`,
 D-AGENT-DIM); `cause`, `tool`, `head`, `reason` on increments only. A head
-is `<tool>:<summary>`: a Bash command's first COMMAND word, a path's
-basename (`Bash:pytest`, `Bash:check.sh`), or a file tool's extension
-(`Read:py`); never a path (R5, R5-BASENAME). Unknown names, undeclared `cause`/`reason` values and a
-`--where` value no fact carries fail closed (exit 2, naming what is
-present). A window IS a file (R2): `window_head` is the first usage-carrying call's
-occupancy — inherited for a fork, boot context for a fresh session — its
+is `<tool>:<summary>`: a Bash command's first COMMAND word (after keywords,
+wrappers, builtins) as a basename (`Bash:pytest`, `Bash:check.sh`), or a
+file tool's extension
+(`Read:py`); never a path (R5, R5-BASENAME, R5-BUILTINS). Unknown names,
+undeclared `cause`/`reason` values and a `--where` value no fact carries
+exit 2, naming what is present. A window IS a file (R2): `window_head` is the first usage-carrying call's
+occupancy — inherited for a fork, boot for a fresh session — its
 own row, never spread, never the headline.
 
 CLI surface: `python3 -m sa context --help`; README.md and SKILL.md mirror
 live output. The headline names the top splittable row of the first table
-shown, its mass, and its share's base when that is not the total; a count
-column is named for its carrier (`increments`, `calls`).
+shown, its mass, and its share's base when that is not the total; a table's
+mass column is named for its metric, its count column for its carrier
+(`increments`, `calls`).
 
 ## Non-negotiables
 
@@ -64,7 +66,7 @@ column is named for its carrier (`increments`, `calls`).
 `sa/usage.py` docstrings carry these (D-USAGE-DOCSTRINGS);
 `tests/test_usage.py` pins the bodies. Any engine-level choice (fact shape, carriers, causes, the walk, a
 correction) changes only via a logged ruling in
-`references/DECISION_LOG.md` (argument or new measurement, plus an opus
+`references/DECISION_LOG.md` (argument or measurement, plus an opus
 second opinion). The recorded failure mode is the confident in-place
 "improvement" that deletes a measured correction.
 
@@ -89,9 +91,9 @@ second opinion). The recorded failure mode is the confident in-place
   multi_contributor intervals (404k of 634k ambiguous tokens) share one
   tool, which `ambiguous` carries (D-AMBIGUOUS-TOOL).
 
-## Clean-room boundary — binding on every session and subagent
+## Clean-room boundary — binds every session and subagent
 
-v1 is frozen: `git show v1-legacy:<path>` (until that branch is pushed, the
+v1 is frozen: `git show v1-legacy:<path>` (until pushed, the
 installed `~/.claude/skills/session-analyzer/`). The ONLY files you may open
 there:
 `references/PURPOSE.md`, `references/ENGINE_CONTRACT.md`,
@@ -110,15 +112,15 @@ FAILS CLOSED (`tests/test_privacy.py`): no literal `/home/...` or
 `/Users/...` paths, no real-looking UUIDs, no transcript text in any tracked
 file. `.githooks/pre-push` does not fire under the global `core.hooksPath`:
 run the suite before every push. Doc caps: README ≤ 5,000, SKILL.md ≤
-6,000, this file ≤ 7,000; example lines match live CLI output, so resync
-after any output change.
+6,000, this file ≤ 7,000; example lines match live CLI output: resync after
+any output change.
 
 ## Pointers, never copies
 
 - `references/DESIGN_BRIEF.md` — §2 (the attribution walk) is the spec;
-  the rest is dated. `DESIGN_COMPETITION.md`
-  and `designs/` beside it — the design phase.
+  the rest is dated. `DESIGN_COMPETITION.md` and `designs/` — the design
+  phase.
 - `references/DECISION_LOG.md` — rulings and status table;
-  `DECISION_LOG_HISTORY.md` beside it — the rows as proposed.
+  `DECISION_LOG_HISTORY.md` — the rows as proposed.
 - `references/PHASE0_MEASUREMENT.md` — what the raw transcripts carry.
 - `references/PUBLISHING_PLAN.md` — extraction and distribution.

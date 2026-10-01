@@ -182,6 +182,27 @@ only formats; `schema` reads the cache tiers through
 `usage.cache_creation_tiers`, the ported helper made public with its body
 unchanged; `walk.Contributor.dims` names its dimensions explicitly.
 
+**R5-BUILTINS — output-less shell builtins are skipped like keywords.**
+RULED 2026-10-01, closing R5-BASENAME's logged gap: a loop body that opens
+with a label (`for f in …; do echo "== $f"; cat "$f"; done`) had yielded
+`Bash:echo`, although `echo` never produces the tokens the increment books.
+Measured basis, live corpus (40 files, 32 windows, 2026-10-01, `--where
+tool=Bash --by head`): before, `Bash:echo` carried 167,401 tokens over 23
+increments (the #2 Bash head) and `Bash:cat` 238,494 over 37; after,
+`Bash:echo` and `Bash:printf` (2,440) carry nothing and `Bash:cat` is
+448,448 over 57 (48.0% of 935,044 with a head). One declared tuple in
+`heads.py`, `BUILTINS = ("echo", "printf", "true", "false", "set",
+"export", "unset", "shift")`: a builtin is skipped with its own arguments up
+to the next separator (`;`, `&&`, `||`, `|`, each padded into its own
+word), so the head is the next command word (`echo hi && pytest` ->
+`Bash:pytest`, `printf '%s' x | sort` -> `Bash:sort`) and a command that is
+only builtins yields `Bash:other`. The interpreter-plus-script gap
+(`python3 scripts/x.py` -> `Bash:python3`) stays logged, not widened. Same
+pass: a table's mass column is headed by the metric name
+(`context_delta`, `spend`) rather than its unit, which the headline already
+states once; spend's 33-character unit had overflowed the column and
+misaligned `by agent`.
+
 ---
 
 ## Phase 3 synthesis — the rows as proposed (history)
