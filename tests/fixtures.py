@@ -30,6 +30,15 @@ DELTA = metric_named(carrier=schema.INCREMENT)
 PEAK = metric_named(aggregation=schema.PEAK)
 
 
+def unit(metric):
+    return schema.metric(metric).unit
+
+
+def count_column(metric):
+    """The count column's name: what the metric's carrier kind is called."""
+    return schema.metric(metric).carrier + "s"
+
+
 def usage(context, output, cache_write_1h=0, cache_write_5m=0):
     """A usage dict whose occupancy (input + cache_read + cache_creation)
     is exactly ``context``."""
@@ -135,7 +144,7 @@ def corpus(tmp_path, files):
 
 def load_facts(root, keep=None):
     loaded = corpus_module.load(root, keep)
-    return loaded, [f for source in loaded.files for f in walk.walk(source)]
+    return loaded, [f for source in loaded.files for f in walk.walk(source, loaded.usages)]
 
 
 def cli_corpus(tmp_path):

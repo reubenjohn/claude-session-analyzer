@@ -28,8 +28,8 @@ from typing import List, Optional, Tuple
 
 HEAD_SHAPE = re.compile(r"^[A-Za-z0-9_.+-]{1,32}$")
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-_SEPARATORS = ("&&", "||", ";", "|", "(", ")")
-_SEPARATOR = re.compile(r"(&&|\|\||;|\||[()])")  # padded so each is its own word
+_SEPARATORS = ("&&", "||", ";", "|", "(", ")")  # ``||`` before ``|``: the regex tries them in order
+_SEPARATOR = re.compile("(%s)" % "|".join(map(re.escape, _SEPARATORS)))  # padded into its own word
 KEYWORDS = ("for", "while", "until", "if", "elif")  # the command is in the body they open
 BODY_OPENERS = ("do", "then")
 WRAPPERS = ("{", "!", "time", "sudo", "env", "nohup", "xargs")  # run the word after them

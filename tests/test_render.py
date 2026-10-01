@@ -56,9 +56,12 @@ def test_headline_top_row_shares_the_total_it_is_given_never_the_table_base():
     assert render._top(table, total=98) == "; top x=a 60 (61.2% of the 98 total)"
     assert render._top(table, total=100) == "; top x=a 60 (60.0% of the 100 total)"
     assert render._top(query.Table("x", ROWS[3:], 0), total=98) == ""  # no regular row
-    unsplittable = query.Row(next(iter(render.UNSPLITTABLE)), 900, 1, query.REGULAR)
-    assert render._top(query.Table("x", [unsplittable] + ROWS[:3], 1000), total=1000) == (
+    unsplittable = [query.Row(value, 900 - n, 1, query.REGULAR)
+                    for n, value in enumerate(render.UNSPLITTABLE)]
+    assert schema.AMBIGUOUS in render.UNSPLITTABLE  # the residual bucket is never the lever
+    assert render._top(query.Table("x", unsplittable + ROWS[:3], 1000), total=1000) == (
         "; top x=a 60 (6.0% of the 1,000 total)")
+    assert render._top(query.Table("x", unsplittable, 1000), total=1000) == ""
 
 
 def test_leaves_are_ordered_by_magnitude_so_a_large_shrink_is_not_hidden_by_limit():

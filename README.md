@@ -1,11 +1,11 @@
 # claude-session-analyzer
 
-Two questions about your Claude Code sessions, answered from the JSONL
+Two questions about your Claude Code sessions, from the JSONL
 transcripts under `~/.claude/projects`: **where is my context going?**
 (`sa context`) and **what did it cost?** (`sa spend`). Every figure names
-its population; `context` ends with a reconciliation proving the
-increments sum to the windows' final occupancy. A Claude Code plugin or
-plain `python3 -m sa`; stdlib only, Python 3.8+.
+its population; `context` ends with a reconciliation: the increments sum
+to the windows' final occupancy. A Claude Code plugin or plain
+`python3 -m sa`; stdlib only, Python 3.8+.
 
 ## Install
 
@@ -32,6 +32,7 @@ ambiguous              998,551         200               25.8%
 feed_forward           205,510         830                5.3%
 user_text               58,365          40                1.5%
 window_head: first call's context: boot prompt + first message, or inherited parent context for a fork; not splittable by content
+ambiguous: intervals with several candidates: the one residual bucket, never spread over them (--by fact lists them)
 
 reconciliation over 32 windows: window_head 1,323,189 + feed_forward 205,510 + tool_result 1,287,069 + user_text 58,365 + ambiguous 998,551 + shrink 0 = 3,872,684; final occupancy 3,872,684: OK
 intervals 831 (= 863 calls - 32 windows): exact 631 (75.9%) + ambiguous 200 (24.1%) [multi_contributor 199, negative_remainder 1] + shrink 0 (0.0%): OK
@@ -63,7 +64,7 @@ cache_write_5m_tokens: 2,728,855 tokens
 
 Spend weights cache reads 0.1x, 5m writes 1.25x, 1h writes 2.0x; never
 dollars. No estimated attribution (one `ambiguous` row, never a spread),
-no summed peaks; a `MISMATCH` exits 1.
+no summed peaks; `MISMATCH` exits 1.
 
 ## The drill
 
@@ -73,28 +74,27 @@ python3 -m sa context --where tool=Bash --by head
 python3 -m sa context --where cause=ambiguous --by fact --limit 2
 ```
 
-`--where DIM=VALUE` (dims: project, session, agent, cause, tool, head,
-reason) is repeatable and exact: on `project`/`session`/`agent` it keeps
-whole windows; otherwise it drills and the footer shrinks to one line.
-An undeclared value (`cause=bogus`) or one no fact carries (`tool=bash`)
+`--where DIM=VALUE` (dims: project, session, agent, window, cause, tool,
+head, reason) is repeatable and exact: on the first four it keeps whole
+windows (`window`, a root-relative file name, isolates one main window);
+otherwise it drills: the headline counts the windows hit, the footer
+shrinks to one line. `cause=bogus` (undeclared) or `tool=bash` (absent)
 exits 2, naming what is declared or present. `--limit N` folds the rest
-into `+k more rows`. A head is a Bash call's first command word (keywords,
-wrappers, builtins skipped) as a basename (`Bash:pytest`, `Bash:check.sh`)
-or a file tool's extension (`Read:py`). The headline names the top row of
-the most specific table shown (head before tool before cause) or of
-`--by`, its mass and share of the total; never `window_head`.
-Table columns: the metric, its `increments`/`calls`, `share of <base>`; the
-residual `∅` row ends it, noted under `by tool`, `by head`, `by agent`.
-`--by fact` lists the heaviest leaves as `<metric>  file:line  uuid
-dimensions`; an ambiguous leaf lists its `candidates:` with cause, tool
-and head.
+into `+k more rows`. A head is a Bash call's first command word
+(`Bash:pytest`) or a file tool's extension (`Read:py`). The headline
+names the top row of the most specific table shown (head, then tool,
+then cause) or of `--by`, with its share of the total; never
+`window_head` or `ambiguous`. Columns: the metric, its
+`increments`/`calls`, `share of <base>`; the residual `∅` row ends a
+table. `--by fact` lists the
+heaviest leaves as `<metric>  file:line  uuid  dimensions`, an ambiguous
+leaf's `candidates:` under it.
 
 ## Layout
 
-`python3 -m pytest tests/` runs the fixtures and the privacy gate (no
-real paths, ids or transcript text in tracked files). `sa/` is the
-package, `skills/` and `.claude-plugin/` the plugin, `references/` the
-design docs.
+`sa/` is the package, `skills/` and `.claude-plugin/` the plugin,
+`references/` the design docs; `python3 -m pytest tests/` runs the tests
+and the privacy gate.
 
 ## License
 

@@ -10,12 +10,28 @@ Where = Iterable[Tuple[str, str]]
 
 
 def select(facts: Iterable[Fact], where: Where) -> List[Fact]:
-    """Facts whose dimensions equal every ``(dim, value)`` pair; a pair the
-    schema does not declare is refused rather than matching nothing."""
-    pairs = [(schema.check_dimension(dim), schema.check_value(dim, value))
-             for dim, value in where]
+    """Facts whose dimensions equal every ``(dim, value)`` pair. The plain
+    filter; ``narrow`` is the checked one."""
+    pairs = list(where)
     return [f for f in facts
             if all(dim in f.dims and str(f.dims[dim]) == value for dim, value in pairs)]
+
+
+def narrow(facts: List[Fact], where: Where, metric: str) -> List[Fact]:
+    """Select pair by pair, refusing any pair that would print a confident
+    zero: an undeclared dimension or value, a dimension the metric's carrier
+    never has, or a value no fact still carries, named with the values
+    present by descending |mass| (the data's own vocabulary, given the pairs
+    before it)."""
+    carrier = schema.metric(metric).carrier
+    for dim, value in where:
+        schema.check_value(schema.check_dimension(dim, carrier), value)
+        present = values(facts, dim, metric)
+        if value not in present:
+            raise schema.SchemaError("no facts carry %s=%s; present: %s"
+                                     % (dim, value, ", ".join(present[:20]) or "none"))
+        facts = select(facts, [(dim, value)])
+    return facts
 
 
 def split(where: Where) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
@@ -47,6 +63,11 @@ def total(facts: List[Fact], metric: str) -> float:
     return sum(f.metrics[metric] for f in facts if f.kind == carrier)
 
 
+def window_count(facts: Iterable[Fact]) -> int:
+    """How many windows the facts come from: a window is a file."""
+    return len({f.locator.file for f in facts})
+
+
 # The three kinds of row a table has. Only regular rows take part in shares.
 REGULAR = "regular"
 RESIDUAL = "residual"  # facts that lack the grouped dimension
@@ -74,8 +95,9 @@ def group(facts: List[Fact], dim: str, metric: str) -> Table:
     """One row per value of ``dim``, then the residual row for facts that
     lack ``dim``, then the signed shrink row.
 
-    The metric is read only from facts of its carrier kind. A peak metric
-    refuses to be grouped (``usage.usage_context`` has the measurement).
+    The metric is read only from facts of its carrier kind, so a dimension
+    that kind never carries is refused. A peak metric refuses to be grouped
+    (``usage.usage_context`` has the measurement).
     Shrink increments always land in their own signed row whatever ``dim``
     is, so no other row mixes signed mass and every share is a share of mass
     that was added. The base is the total less the residual and signed rows,
@@ -84,7 +106,7 @@ def group(facts: List[Fact], dim: str, metric: str) -> Table:
     spec = schema.metric(metric)
     if spec.aggregation == schema.PEAK:
         raise ValueError("%s is a peak; it has no sum. Use largest()." % metric)
-    schema.check_dimension(dim)
+    schema.check_dimension(dim, spec.carrier)
     mass: Dict[Tuple[Optional[str], str], float] = {}
     count: Dict[Tuple[Optional[str], str], int] = {}
     for f in facts:
@@ -192,4 +214,4 @@ class Selection(NamedTuple):
 
     @property
     def n_windows(self) -> int:
-        return len({f.locator.file for f in self.window_facts})
+        return window_count(self.window_facts)

@@ -21,10 +21,12 @@ class View(NamedTuple):
 RESIDUAL_LABEL = "∅"  # the row for facts that lack the grouped dimension
 
 # Rows whose mass is not splittable by content: each prints its note under
-# its table, and the headline never names it.
+# its table, and the headline never names one as the lever.
 UNSPLITTABLE = {schema.WINDOW_HEAD: "first call's context: boot prompt + first message, or"
                                     " inherited parent context for a fork; not splittable by"
-                                    " content"}
+                                    " content",
+                schema.AMBIGUOUS: "intervals with several candidates: the one residual"
+                                  " bucket, never spread over them (--by fact lists them)"}
 
 # Printed under a table that shows the residual row, saying what it holds.
 RESIDUAL_NOTES = {
@@ -56,7 +58,9 @@ def _at(locator: schema.Locator) -> str:
 
 
 def _tags(dims: dict) -> str:
-    return " ".join("%s=%s" % (d, dims[d]) for d in schema.DIMENSIONS if d in dims)
+    """Every dimension but ``window``, which the locator beside it names."""
+    return " ".join("%s=%s" % (d, dims[d]) for d in schema.DIMENSIONS
+                    if d in dims and d != schema.WINDOW_DIM)
 
 
 def report(view: View, sel: Selection, by: Optional[str], limit: int) -> List[str]:
@@ -85,8 +89,10 @@ def headline(view: View, sel: Selection, lead: Optional[query.Table]) -> List[st
     if view.reconciles and not sel.drill:
         line += " = the %d windows' final occupancies summed" % sel.n_windows
     else:
-        line += " over %d %s facts in %d windows" % (
-            sum(f.kind == spec.carrier for f in sel.facts), spec.carrier, sel.n_windows)
+        drilled = query.window_count(sel.facts)  # the windows the facts shown come from
+        line += " over %d %s facts in %s windows" % (
+            sum(f.kind == spec.carrier for f in sel.facts), spec.carrier,
+            "%d of %d" % (drilled, sel.n_windows) if drilled != sel.n_windows else drilled)
     if lead:
         line += _top(lead, sel.total)
     return [line] + _peaks(sel) + list(view.notes)

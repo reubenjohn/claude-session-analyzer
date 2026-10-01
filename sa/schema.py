@@ -67,17 +67,21 @@ NEGATIVE_REMAINDER = "negative_remainder"
 NO_CONTRIBUTOR = "no_contributor"
 REASONS = (MULTI_CONTRIBUTOR, NEGATIVE_REMAINDER, NO_CONTRIBUTOR)
 
-# A window is a file. The first three dimensions are constant over a window
+# A window is a file. The window dimensions are constant over a window
 # (no file in the Phase 0 sweep named in ``corpus`` mixes assistant records
 # from two agentIds), so a filter on them selects whole windows and the
 # reconciliation footer still telescopes. A main window has no ``agent``
-# (D-AGENT-DIM): only a subagent's window carries one. ``DIMENSIONS`` is
-# ordered general to specific; a headline leads with the most specific one
-# shown (``render.report``).
+# (D-AGENT-DIM): only a subagent's window carries one. ``window`` is the
+# root-relative file name (D-WINDOW-DIM): the one dimension that selects a
+# main window alone, since ``session`` keeps its subagents too; a drill
+# target, never a default table. ``DIMENSIONS`` is ordered general to
+# specific; a headline leads with the most specific one shown
+# (``render.report``).
 PROJECT_DIM = "project"
 SESSION_DIM = "session"
 AGENT_DIM = "agent"
-WINDOW_DIMENSIONS = (PROJECT_DIM, SESSION_DIM, AGENT_DIM)
+WINDOW_DIM = "window"
+WINDOW_DIMENSIONS = (PROJECT_DIM, SESSION_DIM, AGENT_DIM, WINDOW_DIM)
 CAUSE_DIM = "cause"
 TOOL_DIM = "tool"
 HEAD_DIM = "head"
@@ -86,8 +90,11 @@ DIMENSIONS = WINDOW_DIMENSIONS + (CAUSE_DIM, TOOL_DIM, HEAD_DIM, REASON_DIM)
 KIND_DIMENSIONS = {CALL: WINDOW_DIMENSIONS, INCREMENT: DIMENSIONS}
 VOCABULARY = {CAUSE_DIM: CAUSES, REASON_DIM: REASONS}  # dimensions whose values are declared
 
-# The evidence key under which an ambiguous increment lists its contributors.
+# Evidence keys: an ambiguous increment lists its contributors; a fork's
+# window head names the parent whose context it inherited.
 CANDIDATES = "candidates"
+PARENT_SESSION = "parent_session"
+PARENT_LAST_UUID = "parent_last_uuid"
 
 
 class SchemaError(KeyError):

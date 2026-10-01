@@ -8,12 +8,12 @@ occupancy. A mismatch there is an exit status of 1, not a footnote.
 
 Filters: ``--since`` selects FILES by modification time before reading, so
 dedup runs over the selected files only; ``--where`` selects facts after
-dedup. A ``--where`` on a window dimension (project, session, agent) keeps
-whole windows; any other dimension is a drill, and the reconciliation and
-the single-call peak then apply to the whole-window population they are
-printed for. A pair that no fact carries is refused (exit 2) naming the
-values that are present, as a misspelt cause is: it would print a
-confident zero.
+dedup. A ``--where`` on a window dimension (project, session, agent,
+window) keeps whole windows; any other dimension is a drill, and the
+reconciliation and the single-call peak then apply to the whole-window
+population they are printed for. What ``query`` refuses (an unknown name,
+an undeclared value, a pair no fact carries) is exit status 2 with its
+message; nothing is checked twice.
 """
 import argparse
 import sys
@@ -28,11 +28,13 @@ from .render import View
 SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What put"
               " the tokens there is answered by `sa context` (--by tool, --by head).")
 
+# ``window`` is one row per file: a drill target (--by, --where), never a default table.
 VIEWS = {"context": View(metric=schema.CONTEXT_DELTA,
-                         tables=(schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM)
-                         + schema.WINDOW_DIMENSIONS[::-1],
+                         tables=(schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM,
+                                 schema.AGENT_DIM, schema.SESSION_DIM, schema.PROJECT_DIM),
                          reconciles=True, notes=()),
-         "spend": View(metric=schema.SPEND, tables=schema.WINDOW_DIMENSIONS,
+         "spend": View(metric=schema.SPEND,
+                       tables=(schema.PROJECT_DIM, schema.SESSION_DIM, schema.AGENT_DIM),
                        reconciles=False, notes=(SPEND_NOTE,))}
 
 
@@ -72,16 +74,7 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
         sub.add_argument("--by", metavar="DIM|fact",
                          help="one dimension's table, or 'fact' for leaf facts")
         sub.add_argument("--limit", type=_rows, default=10, help="rows per table (at least 1)")
-    args = parser.parse_args(argv)
-    carrier = schema.metric(VIEWS[args.view].metric).carrier
-    try:
-        for dim, value in args.where:
-            schema.check_value(schema.check_dimension(dim, carrier), value)
-        if args.by and args.by != "fact":
-            schema.check_dimension(args.by, carrier)
-    except schema.SchemaError as error:
-        parser.error(error.args[0])
-    return args
+    return parser.parse_args(argv)
 
 
 def _modified_within(days: Optional[float]) -> Optional[corpus.Keep]:
@@ -92,26 +85,13 @@ def _modified_within(days: Optional[float]) -> Optional[corpus.Keep]:
     return lambda path: path.stat().st_mtime >= cutoff
 
 
-def _narrow(facts: List[schema.Fact], where: List[Tuple[str, str]], metric: str) -> List[schema.Fact]:
-    """Select pair by pair. A pair that no fact still carries is refused like
-    an undeclared value, naming the values present by descending |mass|: the
-    data's own vocabulary, given the pairs before it."""
-    for dim, value in where:
-        present = query.values(facts, dim, metric)
-        if value not in present:
-            raise schema.SchemaError("no facts carry %s=%s; present: %s"
-                                     % (dim, value, ", ".join(present[:20]) or "none"))
-        facts = query.select(facts, [(dim, value)])
-    return facts
-
-
 def _select(root: Path, since: Optional[float], where: List[Tuple[str, str]],
             metric: str) -> Selection:
     loaded = corpus.load(root, _modified_within(since))
-    facts = [f for source in loaded.files for f in walk.walk(source)]
+    facts = [f for source in loaded.files for f in walk.walk(source, loaded.usages)]
     window_where, drill = query.split(where)
-    window_facts = _narrow(facts, window_where, metric)
-    kept = _narrow(window_facts, drill, metric)
+    window_facts = query.narrow(facts, window_where, metric)
+    kept = query.narrow(window_facts, drill, metric)
     return Selection(root, since, window_where, drill, loaded, window_facts, kept,
                      query.total(kept, metric), query.reconcile(window_facts))
 
@@ -121,8 +101,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     view = VIEWS[args.view]
     try:
         sel = _select(args.root, args.since, args.where, view.metric)
+        lines = render.report(view, sel, args.by, args.limit)
     except schema.SchemaError as error:
         print("sa %s: error: %s" % (args.view, error.args[0]), file=sys.stderr)
         return 2
-    print("\n".join(render.report(view, sel, args.by, args.limit)))
+    print("\n".join(lines))
     return 0 if not view.reconciles or sel.reconciliation.holds else 1

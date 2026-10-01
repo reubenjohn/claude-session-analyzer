@@ -60,7 +60,10 @@ def test_unknown_names_fail_closed(facts):
     with pytest.raises(schema.SchemaError):
         query.group(facts, "not_a_dim", fx.DELTA)
     with pytest.raises(schema.SchemaError):
-        query.select(facts, [("not_a_dim", "x")])
+        query.narrow(facts, [("not_a_dim", "x")], fx.DELTA)
+    with pytest.raises(schema.SchemaError):
+        query.narrow(facts, [(schema.TOOL_DIM, "Bash")], schema.SPEND)  # never on a call fact
+    assert query.narrow(facts, [(schema.TOOL_DIM, "Bash")], fx.DELTA)  # vacuity guard
     loc = Locator("f", 1, None)
     with pytest.raises(schema.SchemaError):
         schema.fact(schema.INCREMENT, {schema.CAUSE_DIM: "not_a_cause"}, {fx.DELTA: 1}, loc)
@@ -94,12 +97,15 @@ def test_a_zero_base_leaves_rows_regular_with_no_share(facts):
     assert (row.kind, row.mass, table.base, table.share(row.mass)) == (query.REGULAR, 0, 0, None)
 
 
-def test_select_refuses_an_undeclared_value_of_a_closed_vocabulary(facts):
+def test_narrow_refuses_an_undeclared_value_and_one_no_fact_carries(facts):
     for dim, vocabulary in schema.VOCABULARY.items():
-        with pytest.raises(schema.SchemaError):
-            query.select(facts, [(dim, "bogus")])
-        assert query.select(facts, [(dim, vocabulary[0])])  # vacuity guard
-    assert not query.select(facts, [(schema.TOOL_DIM, "bogus")])  # an open dimension matches nothing
+        with pytest.raises(schema.SchemaError, match="unknown %s" % dim):
+            query.narrow(facts, [(dim, "bogus")], fx.DELTA)
+        assert query.narrow(facts, [(dim, vocabulary[0])], fx.DELTA)  # vacuity guard
+    with pytest.raises(schema.SchemaError) as refused:
+        query.narrow(facts, [(schema.TOOL_DIM, "bogus")], fx.DELTA)
+    assert refused.value.args[0].endswith("present: Bash")  # the one tool an exact increment carries
+    assert not query.select(facts, [(schema.TOOL_DIM, "bogus")])  # the plain filter just matches nothing
 
 
 def test_select_matches_every_pair_regardless_of_order(facts):

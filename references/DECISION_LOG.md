@@ -252,6 +252,30 @@ word) before its duration, skips a `[`…`]` / `[[`…`]]` test, and skips
 The `--where` split into window and drill halves is computed once
 (`query.split`) and both halves live on the `Selection`.
 
+**D-WINDOW-DIM — a window is selectable by its file name.** RULED
+2026-10-01, on a sixth judge's rejection of 8746202. A main window could
+not be isolated: it carries no `agent` (D-AGENT-DIM) and `--where
+session=` keeps every subagent window of that session, so the window the
+user sat in was only ever answered mixed with its forks. Now every fact of
+both kinds carries `window`, the root-relative file name (a window IS a
+file, R2), constant per window, so filtering on it keeps a whole window
+and the reconciliation still telescopes (local corpus, 36 windows,
+2026-10-01: one main window answered alone reconciles at 280,967 tokens
+over 97 intervals, 84.5% exact). It is drillable via `--where` and `--by`
+and sits in no default table: one row per file is a listing, not a
+breakdown; `--by fact` leaves omit the `window=` tag because the locator
+beside it already names the file. Same pass: a drill's headline counts
+the windows its facts actually come from ("in 29 of 36 windows"; plain
+"in 36 windows" when every window qualifies) instead of the whole-window
+count; `ambiguous` joins `window_head` as a row the headline never names
+as the lever, with its own note under `by cause`; the forest-wide usage
+index moved from every `SourceFile` to `Corpus.usages` and is passed to
+`walk`; `query.narrow` is the one `--where` check (undeclared dimension
+or value, a dimension the carrier never has, a value no fact carries) and
+`query.group` checks `--by` against the carrier, the CLI only surfacing
+the library's error as exit 2; the fork evidence keys and `candidates`
+are declared once in `schema`.
+
 ---
 
 ## Phase 3 synthesis — the rows as proposed (history)

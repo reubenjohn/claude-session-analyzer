@@ -21,7 +21,7 @@ longest-running copy of a window owns the records it shares with any other
 copy, and a replayed record in any later copy is MARKED duplicate rather
 than dropped: the walk still needs it to resolve a tool_result whose
 tool_use was replayed, and a split call's usage is max-merged over every
-copy wherever it landed (``SourceFile.usages``). Dedup is never by content,
+copy wherever it landed (``Corpus.usages``). Dedup is never by content,
 because a sibling fork re-bills identical text under new uuids and that
 re-billing is real. Records without a uuid are kept; they are bookkeeping
 and carry no tokens.
@@ -48,11 +48,11 @@ class SourceFile(NamedTuple):
     name: str        # path relative to the root; what locators and output carry
     project: str
     records: List[Record]
-    usages: Dict[str, List[dict]]  # message.id -> every usage dict the forest carries under it
 
 
 class Corpus(NamedTuple):
     files: List[SourceFile]
+    usages: Dict[str, List[dict]]  # message.id -> every usage dict the forest carries under it
     skipped_lines: int        # blank, unparseable, or not a JSON object
     duplicate_records: int    # marked because their uuid or message.id was already seen
 
@@ -142,11 +142,12 @@ def load(root: Path, keep: Optional[Keep] = None) -> Corpus:
         for line_no, data in lines:
             uuid = data.get("uuid")
             call = message_id(data)
-            duplicate = (bool(uuid) and uuid in seen
-                         or call is not None and owner.setdefault(call, name) != name)
+            if call is not None:
+                owner.setdefault(call, name)
+            duplicate = (bool(uuid) and uuid in seen) or (call is not None and owner[call] != name)
             duplicates += duplicate
             if uuid:
                 seen.add(uuid)
             records.append(Record(line_no, data, duplicate))
-        files.append(SourceFile(path, name, project, records, usages))
-    return Corpus(files, skipped, duplicates)
+        files.append(SourceFile(path, name, project, records))
+    return Corpus(files, usages, skipped, duplicates)

@@ -26,6 +26,7 @@ from .corpus import Record, SourceFile, message_id
 from .schema import Candidate, Fact, Locator
 
 ToolUses = Dict[str, Tuple[str, dict]]
+Usages = Dict[str, List[dict]]  # ``Corpus.usages``: message.id -> every usage dict under it
 
 
 def _message(data: dict) -> dict:
@@ -46,7 +47,7 @@ class Call(NamedTuple):
     usage: dict     # max-merged over the constituents
 
 
-def calls(records: List[Record], usages: Dict[str, List[dict]]) -> List[Call]:
+def calls(records: List[Record], usages: Usages) -> List[Call]:
     """Usage-carrying calls in first-constituent order.
 
     Assistant records sharing a ``message.id`` are one call, merged by
@@ -149,8 +150,8 @@ def fork_evidence(records: List[Record]) -> dict:
     ids are kept so a later build can stitch windows without a new schema."""
     for record in records:
         if record.data.get("type") == "fork-context-ref":
-            return {"parent_session": record.data.get("parentSessionId"),
-                    "parent_last_uuid": record.data.get("parentLastUuid")}
+            return {schema.PARENT_SESSION: record.data.get("parentSessionId"),
+                    schema.PARENT_LAST_UUID: record.data.get("parentLastUuid")}
     return {}
 
 
@@ -162,9 +163,10 @@ def _first_value(records: List[Record], key: str) -> Optional[str]:
     return None
 
 
-def walk(source: SourceFile) -> Iterator[Fact]:
+def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
     """Facts of one window in file order, each call followed by the
-    increments it closes.
+    increments it closes; ``usages`` is the forest's, so a split call
+    merges whole wherever its constituents landed.
 
     An interval's contributors are the user records strictly between the
     previous call's FIRST constituent and the current call's first. A split
@@ -176,7 +178,8 @@ def walk(source: SourceFile) -> Iterator[Fact]:
     """
     window = {schema.PROJECT_DIM: source.project,
               schema.SESSION_DIM: _first_value(source.records, "sessionId"),
-              schema.AGENT_DIM: _first_value(source.records, "agentId")}  # None: a main window
+              schema.AGENT_DIM: _first_value(source.records, "agentId"),  # None: a main window
+              schema.WINDOW_DIM: source.name}
     window = {k: v for k, v in window.items() if v is not None}
     uses = tool_uses(source.records)
     live = [record for record in source.records if not record.duplicate]
@@ -214,7 +217,7 @@ def walk(source: SourceFile) -> Iterator[Fact]:
             **shared_dims(found))
 
     previous = None
-    for call in calls(live, source.usages):
+    for call in calls(live, usages):
         yield schema.fact(schema.CALL, dict(window), {
             name: spec.read(call.usage) for name, spec in schema.METRICS.items()
             if spec.carrier == schema.CALL}, locator(call.record))

@@ -18,8 +18,8 @@ Narrow, then drill:
 | Flag | Meaning |
 |---|---|
 | `--since 7d` | files modified within the last N days |
-| `--where project=` / `session=` / `agent=` | a project directory name (`-home-me-workspace-myproject`), sessionId or agentId; keeps whole windows |
-| `--where DIM=VALUE` | repeatable, exact; dims: project, session, agent, cause, tool, head, reason |
+| `--where project=` / `session=` / `agent=` / `window=` | project directory name (`-home-me-workspace-myproject`), sessionId, agentId or root-relative file name (isolates one main window); keeps whole windows |
+| `--where DIM=VALUE` | repeatable, exact; dims: project, session, agent, window, cause, tool, head, reason |
 | `--by DIM` | one dimension's table |
 | `--by fact` | leaf facts: `<metric>  file:line  uuid  dimensions`, evidence indented |
 | `--limit N` | rows per table, at least 1; the rest fold into `+k more rows` |
@@ -32,7 +32,7 @@ boot, or inherited for a fork), `feed_forward` (the previous turn's own
 output),
 `tool_result`, `user_text`, `ambiguous` (more than one candidate) and
 `shrink` (a window that got smaller, signed). Default tables: cause, tool,
-head, agent, session, project (`reason` via `--by`).
+head, agent, session, project (`reason` and `window` via `--by`).
 
 **`spend`** sums each call's cost in input-side base-token-equivalents:
 output tokens, uncached input, cache writes (1h at 2.0x, 5m at 1.25x) and
@@ -44,9 +44,11 @@ shares.
 Either headline names the top row of the most specific table shown
 (head before tool before cause; agent before session before project), or
 of `--by`, with its mass and its share of the total: `top head=Bash:cat
-554,879 (13.2% of the 4,188,015 total)`. Never `window_head`; `--by fact`
-names none. The `single-call peak context_tokens` line under it names the
-fullest call over the N whole windows, even under a drill.
+554,879 (13.2% of the 4,188,015 total)`. Never `window_head` or
+`ambiguous`; `--by fact` names none. A drill's headline counts the windows
+its facts come from (`in 29 of 36 windows`). The `single-call peak
+context_tokens` line under it names the fullest call over the N whole
+windows, even under a drill.
 
 ## The drill: headline -> `--by` -> `--where` -> `--by fact`
 
@@ -58,17 +60,17 @@ python3 -m sa context --where cause=ambiguous --by fact --limit 2
 ```
 
 `--by fact` prints the heaviest leaves with their locator, e.g.
-`81,989  -home-me-workspace-myproject/<session-id>.jsonl:76  <uuid>  project=-home-me-workspace-myproject session=<session-id> cause=ambiguous reason=multi_contributor`
+`81,989  <project>/<session-id>.jsonl:76  <uuid>  project=<project> session=<session-id> cause=ambiguous reason=multi_contributor`
 (no `agent=` on a main-window leaf), and under an ambiguous one
 `candidates:`, then a line per contributor with its cause/tool/head:
 `<file>:<line> <uuid>  cause=tool_result tool=Read head=Read:py`. The row
 carries a tool only when all candidates share one. Locators are relative
 to the root; open the line to see what landed.
 A `head` is a Bash call's first command word (keywords, wrappers and
-output-less builtins like `echo` skipped) as a basename (`Bash:pytest`,
-`Bash:check.sh`), or a file tool's extension (`Read:py`); never a path.
+output-less builtins like `echo` skipped) as a basename (`Bash:pytest`),
+or a file tool's extension (`Read:py`); never a path.
 Exit 2, naming what is declared or present: `spend --where cause=...`
-(spend facts carry only project, session, agent), `--where cause=bogus`
+(spend facts carry only the window dims), `--where cause=bogus`
 (undeclared), `--where tool=bash` (no fact carries it).
 
 ## Reading the output
@@ -83,18 +85,19 @@ the grouped dimension; a note under `by tool`, `by head` and `by agent`
 says what it holds) and any `(signed)` rows; neither has a share.
 
 Unnarrowed, the `context` headline reads `= the N windows' final
-occupancies summed` and ends with a three-line **reconciliation footer**:
+occupancies summed` and ends with a three-line **reconciliation footer**
+whose first two lines read:
 
 ```
 reconciliation over 32 windows: window_head 1,323,189 + feed_forward 205,510 + tool_result 1,287,069 + user_text 58,365 + ambiguous 998,551 + shrink 0 = 3,872,684; final occupancy 3,872,684: OK
 intervals 831 (= 863 calls - 32 windows): exact 631 (75.9%) + ambiguous 200 (24.1%) [multi_contributor 199, negative_remainder 1] + shrink 0 (0.0%): OK
-exact: the interval's one token-relevant contributor (a tool_result or user text) after subtracting the previous call's output. Exact given the feed-forward model; bookkeeping attachments are folded into the single contributor's remainder.
 ```
 
 Line 1 proves the increments telescope to the final occupancy; a
 `MISMATCH` exits 1. Line 2 is this run's attribution quality over the
-intervals (calls minus windows); line 3 defines *exact*. Report the rates
-with the headline. A drill replaces the footer with one line,
+intervals (calls minus windows); line 3 defines *exact* (one token-relevant
+contributor after subtracting the previous call's output). Report the
+rates with the headline. A drill replaces the footer with one line,
 `reconciliation: applies to the N whole windows above, not to this
 drill: OK`. `spend` ends with the output and cache-write token totals.
 

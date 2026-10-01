@@ -2,12 +2,11 @@
 
 Answers TWO questions about Claude Code sessions: where is my context going
 (`context_delta`) and what did it cost (`spend`), from the JSONL transcripts
-under `Path.home()/".claude"/"projects"` (computed at runtime, never
-literal). Standard library only, Python 3.8. TIME/scheduling questions
-are deferred: design so they can be added, do not add them.
+under `Path.home()/".claude"/"projects"`. Stdlib only, Python 3.8.
+TIME/scheduling questions are deferred: design for them, do not add them.
 Standing premise: NO USERS, NO DEPLOYMENTS — breaking changes are free,
 legacy is deleted not accommodated, published numbers move when the old
-number was wrong. Branch: `v2-build`.
+one was wrong. Branch: `v2-build`.
 
 ## Build charter (rulings: `references/DECISION_LOG.md`)
 
@@ -15,7 +14,7 @@ Owner directive: an elegant, simple implementation from which powerful
 capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
 
 Package `sa/`, one module per stage (`corpus` read+dedup, `walk`
-attribution, `heads`, `schema` the one METRICS table and vocabularies,
+attribution, `heads`, `schema` the METRICS table and vocabularies,
 `query`, `render`, `cli`, `usage` the ported helpers); each docstring is
 its spec. The parser IS the product: probes import it, never copy it.
 
@@ -25,23 +24,26 @@ relative to the corpus root; `evidence` (not a dimension: an ambiguous
 increment's `candidates` locators, a fork's parent ids). Every metric
 names its one carrier kind (`spend` -> call,
 `context_delta` -> increment) and is read only from that kind, so
-double-counting is impossible. Window dimensions `project`,
-`session`, `agent` are on both kinds (a main window has no `agent`,
-D-AGENT-DIM); `cause`, `tool`, `head`, `reason` on increments only. A head
+double-counting is impossible. Window dimensions `project`, `session`,
+`agent`, `window` are on both kinds (a main window has no `agent`,
+D-AGENT-DIM; `window`, the root-relative file name, alone isolates one,
+never a default table, D-WINDOW-DIM); `cause`, `tool`, `head`, `reason`
+on increments only. A head
 is `<tool>:<summary>`: a Bash command's first COMMAND word (after keywords,
-wrappers, builtins) as a basename (`Bash:pytest`, `Bash:check.sh`), or a
+wrappers, builtins) as a basename (`Bash:pytest`), or a
 file tool's extension
 (`Read:py`); never a path (R5 and amendments). Unknown names, undeclared
-values and a `--where` value no fact carries exit 2, naming what is
-present. A window IS a file (R2); `window_head`, the first call's occupancy
-(inherited for a fork, boot otherwise), is its own row, never spread, never
-the headline.
+values and a `--where` value no fact carries exit 2 (`query.narrow`, the
+one check), naming what is present. A window IS a file (R2);
+`window_head` (the first call's occupancy, inherited for a fork) and
+`ambiguous` are rows, never spread, never the headline's lever.
 
-CLI surface: `python3 -m sa context --help`; README.md and SKILL.md mirror
-live output. The headline names the top splittable row of the most specific
+CLI: `python3 -m sa context --help`. The headline names the top
+splittable row of the most specific
 unpinned table shown (`schema.DIMENSIONS` order; D-HEADLINE-SPECIFIC), its
-mass and its share of the total; a table's mass column is named for its
-metric, its count column for its carrier (`increments`, `calls`).
+mass and its share of the total; a drill's headline counts the windows its
+facts come from; a table's mass column is named for its metric, its count
+column for its carrier (`increments`, `calls`).
 
 ## Non-negotiables
 
@@ -53,10 +55,10 @@ metric, its count column for its carrier (`increments`, `calls`).
   observed chars) carries ZERO mass. Design output for that first.
 - No estimated attribution: exact by subtracting the feed-forward term,
   everything else to ONE residual bucket, `ambiguous`, never a silent spread.
-- Every figure names its population; exact/ambiguous/shrink/window-head
-  rates are measured per run, never hard-coded.
+- Every figure names its population; the exact/ambiguous/shrink rates are
+  measured per run, never hard-coded.
 - Tests derive assertions from the schema (never enumerate metric names as
-  literals); every negative assertion has a vacuity guard beside it.
+  literals); every negative assertion has a vacuity guard.
 - Never sum a peak; a peak reports no value at a node. Never quote dollars.
 - Shrink is a signed row: excluded from shares, always in the reconciliation
   footer. The residual row `∅` and signed rows never hide behind `--limit`;
@@ -65,10 +67,10 @@ metric, its count column for its carrier (`increments`, `calls`).
 ## Measured corrections — stay pinned by tests
 
 `sa/usage.py` docstrings carry these (D-USAGE-DOCSTRINGS);
-`tests/test_usage.py` pins the bodies. Any engine-level choice (fact shape, carriers, causes, the walk, a
-correction) changes only via a logged ruling in
-`references/DECISION_LOG.md` (argument or measurement, plus an opus
-second opinion). The recorded failure mode is the confident in-place
+`tests/test_usage.py` pins the bodies. Any engine-level choice (fact
+shape, carriers, causes, the walk, a correction) changes only via a logged
+ruling in `references/DECISION_LOG.md` (argument or measurement, plus an
+opus second opinion). The recorded failure mode is the confident in-place
 "improvement" that deletes a measured correction.
 
 - Split `message.id`s are MAX-MERGED field-wise: 80.5% of ids split,
@@ -112,15 +114,14 @@ Pre-commit warns on `.py` > 15,000 bytes and `.md` > 20,000. Privacy gate
 FAILS CLOSED (`tests/test_privacy.py`): no literal `/home/...` or
 `/Users/...` paths, no real-looking UUIDs, no transcript text in any tracked
 file. `.githooks/pre-push` does not fire under the global `core.hooksPath`:
-run the suite before every push. Doc caps: README ≤ 5,000, SKILL.md ≤
-6,000, this file ≤ 7,000; example lines match live CLI output: resync after
-any output change.
+run the suite before pushing. Doc caps: README ≤ 5,000, SKILL.md ≤ 6,000,
+this file ≤ 7,000; example lines mirror live CLI output: resync after any
+output change.
 
 ## Pointers, never copies
 
-- `references/DESIGN_BRIEF.md` §2 (the attribution walk) is the spec; the
-  rest, `DESIGN_COMPETITION.md` and `designs/`, is the dated design phase.
-- `references/DECISION_LOG.md` — rulings; `DECISION_LOG_HISTORY.md` — the
-  rows as proposed.
-- `references/PHASE0_MEASUREMENT.md` — what the raw transcripts carry.
-- `references/PUBLISHING_PLAN.md` — extraction and distribution.
+- `references/DESIGN_BRIEF.md` §2 (the attribution walk) is the spec;
+  `DESIGN_COMPETITION.md` and `designs/` are the dated design phase.
+- Also in `references/`: `DECISION_LOG.md` (rulings),
+  `DECISION_LOG_HISTORY.md` (the rows as proposed), `PHASE0_MEASUREMENT.md`
+  (what the raw transcripts carry), `PUBLISHING_PLAN.md` (distribution).

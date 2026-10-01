@@ -124,14 +124,14 @@ def test_ambiguous_carries_candidate_locators_as_evidence(tmp_path):
     facts = _one_window(tmp_path)
     by_reason = {f.dims[schema.REASON_DIM]: f for f in facts if f.dims.get(schema.REASON_DIM)}
     multi = by_reason[schema.MULTI_CONTRIBUTOR]
-    assert [(c.locator.line, c.locator.uuid, c.dims) for c in multi.evidence["candidates"]] == [
+    assert [(c.locator.line, c.locator.uuid, c.dims) for c in multi.evidence[schema.CANDIDATES]] == [
         (4, "uuid-0004", {schema.CAUSE_DIM: schema.USER_TEXT}),
         (5, "uuid-0005", {schema.CAUSE_DIM: schema.TOOL_RESULT, schema.TOOL_DIM: "Read",
                           schema.HEAD_DIM: "Read:py"})]
-    assert "candidates" not in multi.dims
+    assert schema.CANDIDATES not in multi.dims
     assert schema.TOOL_DIM not in multi.dims  # a user_text candidate shares no tool
     empty = by_reason[schema.NO_CONTRIBUTOR]
-    assert empty.evidence["candidates"] == []
+    assert empty.evidence[schema.CANDIDATES] == []
     assert empty.metrics[fx.DELTA] == 12
 
 
@@ -154,7 +154,7 @@ def test_a_result_interleaved_with_a_split_call_is_a_second_contributor(tmp_path
     facts = _one_window(tmp_path / "interleaved", records)
     (closing,) = [f for f in facts if f.dims.get(schema.REASON_DIM)]
     assert closing.dims[schema.REASON_DIM] == schema.MULTI_CONTRIBUTOR
-    assert [c.locator.uuid for c in closing.evidence["candidates"]] == ["uuid-0002", "uuid-0004"]
+    assert [c.locator.uuid for c in closing.evidence[schema.CANDIDATES]] == ["uuid-0002", "uuid-0004"]
     assert closing.metrics[fx.DELTA] == fx.EXACT_FIRST_DELTA
     assert not _exact(facts)
     # Vacuity guard: the same call with one constituent and one result is exact.
@@ -182,8 +182,8 @@ def test_fork_context_ref_is_evidence_on_the_window_head(tmp_path):
     facts = _one_window(tmp_path, records)
     head = [f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.WINDOW_HEAD]
     assert len(head) == 1
-    assert head[0].evidence == {"parent_session": "sess-0000",
-                                "parent_last_uuid": "uuid-0000"}
+    assert head[0].evidence == {schema.PARENT_SESSION: "sess-0000",
+                                schema.PARENT_LAST_UUID: "uuid-0000"}
     assert head[0].dims[schema.AGENT_DIM] == "agent-fake1"
     (main_head,) = [f for f in _one_window(tmp_path / "main")
                     if f.dims.get(schema.CAUSE_DIM) == schema.WINDOW_HEAD]
@@ -224,7 +224,7 @@ def _ambiguous(facts):
 def test_a_batched_result_record_is_one_contributor_per_block(tmp_path):
     batched = fx.tool_result("uuid-0002", "toolu_0001", "toolu_0004")
     closing = _ambiguous(_after_one_call(tmp_path / "batched", [READ_A, BASH], [batched]))
-    assert [(c.locator.uuid, c.dims[schema.TOOL_DIM]) for c in closing.evidence["candidates"]] == [
+    assert [(c.locator.uuid, c.dims[schema.TOOL_DIM]) for c in closing.evidence[schema.CANDIDATES]] == [
         ("uuid-0002", "Read"), ("uuid-0002", "Bash")]
     # Vacuity guard: the same record with one block is the exact contributor.
     (exact,) = _exact(_after_one_call(tmp_path / "single", [READ_A], _results("toolu_0001")))
@@ -250,7 +250,7 @@ def test_ambiguous_carries_the_tool_and_head_every_candidate_shares(tmp_path):
     with_text, _ = closing("text", [READ_A], _results("toolu_0001") + [fx.user_text("uuid-0009")])
     for f in (mixed, with_text):
         assert schema.TOOL_DIM not in f.dims and schema.HEAD_DIM not in f.dims
-        assert len(f.evidence["candidates"]) == 2
+        assert len(f.evidence[schema.CANDIDATES]) == 2
     (residual,) = [r for r in rows if r.kind == query.RESIDUAL]
     assert residual.mass == 1000 + 50 + 250  # window_head + feed_forward + the mixed interval
     assert not [r for r in rows if r.kind == query.REGULAR]
