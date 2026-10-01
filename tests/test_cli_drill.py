@@ -117,7 +117,7 @@ def test_a_main_window_is_selected_by_its_file_name_alone(tmp_path):
                                 "--where", "%s=%s" % (schema.WINDOW_DIM, main))
     assert code == 0, err
     assert "= the 1 window's final occupancy;" in out.splitlines()[0]
-    assert "\nkept where %s=%s: 1 window, 11 increment facts\n" % (schema.WINDOW_DIM, main) in out
+    assert "\nkept where %s=%s: 1 window (a file with a call), 11 increment facts\n" % (schema.WINDOW_DIM, main) in out
     assert "reconciliation over 1 window:" in out
     assert "intervals 6 (= 7 calls - 1 window):" in out
     assert "final occupancy %s: OK" % format(fx.FINAL_OCCUPANCY, ",d") in out
@@ -146,7 +146,7 @@ def test_an_asked_for_table_prints_its_labels_whole_so_they_copy_into_where(tmp_
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (schema.PROJECT_DIM, project))
     assert code == 0, err
-    assert "\nkept where %s=%s: 1 window, " % (schema.PROJECT_DIM, project) in out
+    assert "\nkept where %s=%s: 1 window (a file with a call), " % (schema.PROJECT_DIM, project) in out
 
 
 def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
@@ -162,7 +162,7 @@ def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
     population = [l for l in out.splitlines() if l.startswith(("read: ", "kept"))]
     assert population == [l for l in unpinned.splitlines() if l.startswith(("read: ", "kept"))] == [
         "read: root %s, 4 files, 0 lines skipped, 0 duplicate records excluded" % root,
-        "kept where %s: 2 windows, 22 increment facts" % window]
+        "kept where %s: 2 windows (files with a call), 22 increment facts" % window]
     assert drill not in "".join(population)
     assert out.startswith("%s: %s %s over 2 increment facts where %s in 2 windows" % (
         CONTEXT.metric, format(2 * fx.EXACT_FIRST_DELTA, ",d"), fx.unit(CONTEXT.metric), drill))

@@ -123,6 +123,19 @@ def test_a_top_row_under_another_lead_follows_the_refinement_naming_what_it_lies
     assert "under" not in render._top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
 
 
+def test_an_equal_head_under_another_tool_is_not_named_as_the_top():
+    """Read:py 60 ties Bash:ls 60 within Bash and, booked first, wins the
+    head table's stable sort: ``under`` names only a strictly larger head."""
+    tie = [_inc(60, 1, "Read", "Read:py"), _inc(60, 2, "Bash", "Bash:ls"), _inc(40, 3, "Bash", "Bash:make")]
+    assert render._largest(query.group(tie, HEAD, fx.DELTA)).value == "Read:py"
+    assert render._top(tie, [TOOL, HEAD], fx.DELTA, total=160) == (
+        "; top %s=Bash 100 (62.5%% of the 160 total); within it %s=Bash:ls 60"
+        " (60.0%% of Bash, 37.5%% of the total)" % (TOOL, HEAD))
+    larger = [tie[0]._replace(metrics={fx.DELTA: 61})] + tie[1:]  # vacuity guard
+    assert render._top(larger, [TOOL, HEAD], fx.DELTA, total=161).endswith(
+        "; top %s=Read:py 61 (37.9%% of the total) under %s=Read" % (HEAD, TOOL))
+
+
 def test_the_ambiguous_note_names_every_declared_reason():
     note = tables.UNSPLITTABLE[schema.AMBIGUOUS]
     assert len(schema.REASONS) > 1 and all(reason in note for reason in schema.REASONS)

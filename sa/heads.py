@@ -4,12 +4,13 @@ second column. Ruled (DECISION_LOG R5, R5-BASENAME, R5-BUILTINS): a head is
 never a full command line and never a file path. For Bash the summary is
 the basename of the first COMMAND word, the first ``shlex`` token (quotes
 resolved; a run of ``();|&`` is a separator of its own; a newline is ``;``;
-a ``$(...)`` substitution, however nested, is one argument) once what can
-produce no tokens is skipped: a leading assignment, a separator, a bare
-``RESERVED`` word, a ``KEYWORDS`` word through the opener(s) of its body, a
-``WRAPPERS`` word with its options (a ``VALUED`` one with its word) and
-``OPERANDS``, a ``TESTS`` bracket through its closer, and a ``BUILTINS`` or
-``SILENT`` word with its arguments up to the next separator. For the tools
+a ``$(...)`` substitution, however nested, or a ``$((...))`` arithmetic
+expansion is one argument) once what can produce no tokens is skipped: a
+leading assignment, a separator, a bare ``RESERVED`` word, a ``KEYWORDS``
+word through the opener(s) of its body, a ``WRAPPERS`` word with its
+options (a ``VALUED`` one with its word) and ``OPERANDS``, a ``TESTS``
+bracket through its closer, and a ``BUILTINS`` or ``SILENT`` word with its
+arguments up to the next separator. For the tools
 whose input carries ``file_path`` the summary is the file extension. A
 summary is kept only if it matches ``HEAD_SHAPE`` (no slash, no leading
 ``-``), else ``other``, as is a command shlex cannot tokenize (an unclosed
@@ -26,7 +27,7 @@ from typing import Callable, List, Optional
 
 HEAD_SHAPE = re.compile(r"^[A-Za-z0-9_.+][A-Za-z0-9_.+-]{0,31}$")  # never an option
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-_SUBSTITUTION = re.compile(r"\$\([^()]*\)")  # an innermost ``$(cmd)``
+_SUBSTITUTION = re.compile(r"\$\(\(.*?\)\)|\$\([^()]*\)")  # ``$((expr))`` to its ``))``, innermost ``$(cmd)``
 _PUNCTUATION = set("();|&")  # a word of these alone (``&&``, ``;;``, ``)``…) ends a command
 RESERVED = ("if", "elif", "while", "until",  # open a condition: a command list
             "do", "then", "else", "done", "fi", "esac", "}")  # bare, ends a command like ``;``
@@ -90,9 +91,10 @@ def bash_head(tool_input: dict) -> str:
             del words[:OPERANDS.get(wrapper, 0)]
         elif words[0] in KEYWORDS:
             for opener in KEYWORDS[words[0]]:
-                del words[:_past(words, opener.__eq__)]
+                del words[:_past(words, lambda w: w == opener)]
         elif words[0] in TESTS:
-            del words[:_past(words, TESTS[words[0]].__eq__)]
+            closer = TESTS[words[0]]
+            del words[:_past(words, lambda w: w == closer)]
         elif words[0] in BUILTINS + SILENT:
             del words[:_past(words, _separator)]
         else:

@@ -84,10 +84,10 @@ def test_since_selects_files_by_mtime_and_zero_days_selects_none(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "0d")
     assert code == 0, err
-    assert ", 0 files (modified within 0d), " in out and "\nkept: 0 windows, 0 increment facts" in out
+    assert ", 0 files (modified within 0d), " in out and "\nkept: 0 windows (files with a call), 0 increment facts" in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "1d")
     assert code == 0, err
-    assert ", 4 files (modified within 1d), " in out and "\nkept: 3 windows, " in out
+    assert ", 4 files (modified within 1d), " in out and "\nkept: 3 windows (files with a call), " in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since=-1d")
     assert code == 2 and not out and "number of days" in err
 

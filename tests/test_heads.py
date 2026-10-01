@@ -66,6 +66,10 @@ CASES = [
     ("Bash", {"command": "$(which make)"}, "Bash:other"),
     ("Bash", {"command": 'cd "$(a $(b))" && pytest'}, "Bash:pytest"),  # nested: innermost first
     ("Bash", {"command": "cd $(a $(b)) && pytest"}, "Bash:pytest"),
+    # An arithmetic expansion is one argument too, whatever parentheses it holds.
+    ("Bash", {"command": "echo $((1+2)); make"}, "Bash:make"),
+    ("Bash", {"command": "sleep $(( (n+1)*2 )) && make"}, "Bash:make"),
+    ("Bash", {"command": "echo $(( $(nproc) - 1 )); make"}, "Bash:make"),
     # Quoting is shlex's: a quoted word is one word whatever it holds, and a
     # builtin's arguments run to the next separator, never to a reserved word.
     ("Bash", {"command": "echo if x; make"}, "Bash:make"),

@@ -100,6 +100,16 @@ def read_lines(path: Path) -> Iterator[Tuple[int, Optional[dict]]]:
             yield line_no, data if isinstance(data, dict) else None
 
 
+class _File(NamedTuple):
+    """One file's parsed lines and its span, before dedup."""
+    first: str       # first and last record timestamps; "" when the file has none
+    last: str
+    path: Path
+    name: str
+    project: str
+    lines: List[Tuple[int, dict]]
+
+
 def _span(lines: List[Tuple[int, dict]]) -> Tuple[str, str]:
     """First and last record timestamps of a file (ISO strings order as text)."""
     stamps = [data.get("timestamp") for _, data in lines if data.get("timestamp")]
@@ -126,13 +136,13 @@ def load(root: Path, keep: Optional[Keep] = None) -> Corpus:
                 skipped += 1
             else:
                 lines.append((line_no, data))
-        read.append((_span(lines), path, name, project, lines))
-    read.sort(key=lambda entry: entry[0][1], reverse=True)
-    read.sort(key=lambda entry: (entry[0][0] == "", entry[0][0]))
+        read.append(_File(*_span(lines), path, name, project, lines))
+    read.sort(key=lambda f: f.last, reverse=True)
+    read.sort(key=lambda f: (f.first == "", f.first))
 
     usages: Dict[str, List[dict]] = {}
-    for *_, lines in read:
-        for _, data in lines:
+    for f in read:
+        for _, data in f.lines:
             call = message_id(data)
             if call is not None:
                 usages.setdefault(call, []).append(data["message"].get("usage"))
@@ -141,17 +151,17 @@ def load(root: Path, keep: Optional[Keep] = None) -> Corpus:
     owner: Dict[str, str] = {}  # message.id -> the file that first carried it
     files = []
     duplicates = 0
-    for _, path, name, project, lines in read:
+    for f in read:
         records = []
-        for line_no, data in lines:
+        for line_no, data in f.lines:
             uuid = data.get("uuid")
             call = message_id(data)
             if call is not None:
-                owner.setdefault(call, name)
-            duplicate = (bool(uuid) and uuid in seen) or (call is not None and owner[call] != name)
+                owner.setdefault(call, f.name)
+            duplicate = (bool(uuid) and uuid in seen) or (call is not None and owner[call] != f.name)
             duplicates += duplicate
             if uuid:
                 seen.add(uuid)
             records.append(Record(line_no, data, duplicate))
-        files.append(SourceFile(path, name, project, records))
+        files.append(SourceFile(f.path, f.name, f.project, records))
     return Corpus(files, usages, skipped, duplicates)

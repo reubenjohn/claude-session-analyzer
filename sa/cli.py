@@ -102,8 +102,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     loaded = corpus.load(args.root, _modified_within(args.since))
     try:
         sel = query.selection(walk.forest(loaded), args.where, view.metric)
-        lines = render.report(view, sel, render.population(view, sel, loaded, args.root, args.since),
-                              args.by, args.limit)
+        lines = render.report(view, sel, loaded, args.root, args.since, args.by, args.limit)
     except schema.SchemaError as error:
         print("sa %s: error: %s" % (args.view, error.args[0]), file=sys.stderr)
         return 2

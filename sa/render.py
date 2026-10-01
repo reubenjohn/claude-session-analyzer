@@ -26,7 +26,8 @@ def _status(holds: bool) -> str:
     return "OK" if holds else "MISMATCH"
 
 
-def report(view: View, sel: Selection, population: List[str], by: Optional[str], limit: int) -> List[str]:
+def report(view: View, sel: Selection, loaded: Corpus, root: Path, since: Optional[float],
+           by: Optional[str], limit: int) -> List[str]:
     """Every line of the view: the headline, the population lines, the
     default tables a pin left open (``--by`` one dimension's table with its
     labels whole, or the leaves for ``fact``) and the footer."""
@@ -38,7 +39,8 @@ def report(view: View, sel: Selection, population: List[str], by: Optional[str],
         tables = [query.group(sel.facts, dim, view.metric) for dim in dims]
         body = [line for t in tables if t.rows
                 for line in table(t, view.metric, limit, whole=bool(by)) + [""]]
-    return headline(view, sel) + population + [""] + body + footer(view, sel)
+    return (headline(view, sel) + population(view, sel, loaded, root, since) + [""]
+            + body + footer(view, sel))
 
 
 def _open(sel: Selection, dims: Tuple[str, ...], carrier: str) -> List[str]:
@@ -94,10 +96,10 @@ def _top(facts: List[Fact], levers: List[str], metric: str, total: float) -> str
     residual and signed rows make smaller). Each next lever refines the
     row before: the largest row over that row's facts alone, with its share
     of that row and of the total (``within it head=Bash:cat 60 (66.7% of
-    Bash, 61.2% of the total)``); when the lever's largest row overall is
-    another, it follows with what it lies under (``top head=Read:py 70
-    (41.2% of the total) under tool=Read``), never silent. A lever with no
-    regular row ends the walk."""
+    Bash, 61.2% of the total)``); when a row of the lever elsewhere is
+    strictly larger, it follows with what it lies under (``top head=Read:py
+    70 (41.2% of the total) under tool=Read``), never silent. A lever with
+    no regular row ends the walk."""
     if not total or not levers:
         return ""
     top = _largest(query.group(facts, levers[0], metric))
@@ -114,7 +116,7 @@ def _top(facts: List[Fact], levers: List[str], metric: str, total: float) -> str
             dim, within.value, num(within.mass), pct(within.mass / top.mass if top.mass else None),
             top.value, pct(within.mass / total))
         overall = _largest(query.group(facts, dim, metric))
-        if overall.value != within.value:
+        if overall.mass > within.mass:
             # Exact: a head implies its tool (walk books it only beside one); a lever
             # spanning several upper values would silently get the largest here.
             under = query.values(query.select(facts, [(dim, overall.value)]), above, metric)[0]
@@ -143,9 +145,10 @@ def population(view: View, sel: Selection, loaded: Corpus, root: Path,
                since: Optional[float]) -> List[str]:
     """Each count beside the population it was taken over: the read (the
     root, the files ``--since`` kept, what the read skipped or excluded,
-    corpus-wide) and what the window pins kept: the windows and the facts
-    the view's metric is read from, its carrier's. A drill pin is named on
-    the headline, the one line that counts what it narrows."""
+    corpus-wide) and what the window pins kept: the windows (the files
+    with a call, which is why they are fewer than the files read) and the
+    facts the view's metric is read from, its carrier's. A drill pin is
+    named on the headline, the one line that counts what it narrows."""
     carrier = schema.metric(view.metric).carrier
     return ["read: root %s, %s%s, %s skipped, %s excluded"
             % (root, count(len(loaded.files), "file"),
@@ -153,7 +156,8 @@ def population(view: View, sel: Selection, loaded: Corpus, root: Path,
                count(loaded.skipped_lines, "line"),
                count(loaded.duplicate_records, "duplicate record")),
             "kept%s: %s, %s"
-            % (_pins(sel.window_where), count(sel.n_windows, "window"),
+            % (_pins(sel.window_where),
+               count(sel.n_windows, "window (a file with a call)", "windows (files with a call)"),
                count(sum(f.kind == carrier for f in sel.window_facts), carrier + " fact"))]
 
 

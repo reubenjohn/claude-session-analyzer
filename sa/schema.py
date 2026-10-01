@@ -76,9 +76,8 @@ REASONS = (MULTI_CONTRIBUTOR, NEGATIVE_REMAINDER, NO_CONTRIBUTOR)
 # (D-AGENT-DIM): only a subagent's window carries one. ``window`` is the
 # root-relative file name (D-WINDOW-DIM): the one dimension that selects a
 # main window alone, since ``session`` keeps its subagents too; a drill
-# target, never a default table. ``DIMENSIONS`` is ordered general to
-# specific; a headline leads with the most specific one shown
-# (``render.report``).
+# target, never a default table. ``DIMENSIONS`` is the presentation order
+# of the tables; the headline walks each view's levers (``cli.VIEWS``).
 PROJECT_DIM = "project"
 SESSION_DIM = "session"
 AGENT_DIM = "agent"

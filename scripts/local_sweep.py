@@ -15,8 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sa import corpus, sweep  # noqa: E402
 
 
-def main(root: Path = corpus.default_root()) -> None:
-    lines = sweep.report(corpus.load(root))
+def main() -> None:
+    lines = sweep.report(corpus.load(corpus.default_root()))
     print("LOCAL SWEEP %s: %s" % (datetime.date.today(), lines[0]))
     print("\n".join(lines[1:]))
 
