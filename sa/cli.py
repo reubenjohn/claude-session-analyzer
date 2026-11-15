@@ -20,16 +20,16 @@ an open-vocabulary value no fact carries) is exit status 2 with its
 message; nothing is checked twice.
 
 ``sa explain [TERM]`` prints the glossary (``glossary.GLOSSARY``); an unknown
-term is exit status 2. Colour only when stdout is a TTY and ``NO_COLOR`` is
-unset or empty; a progress line goes to stderr only when it is a TTY.
+term is exit status 2. ``--color`` (``style.enabled``): auto, the default,
+colours only when stdout is a TTY or ``FORCE_COLOR`` is set, never while
+``NO_COLOR`` is; a progress line goes to stderr only when it is a TTY.
 """
 import argparse
-import os
 import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from . import corpus, glossary, query, render, schema, tables, walk
+from . import corpus, glossary, query, render, schema, style, tables, walk
 from .render import View
 
 DEFAULT_DAYS = 7.0
@@ -145,6 +145,8 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
         sub.add_argument("--limit", type=_rows, default=DEFAULT_LIMIT,
                          help="rows per table (default %d); the cause table, ∅ and"
                               " rows that can be negative (shrink) always show" % DEFAULT_LIMIT)
+        sub.add_argument("--color", choices=(style.AUTO, style.ALWAYS, style.NEVER), default=style.AUTO,
+                         help="auto (default): on a terminal, unless NO_COLOR is set")
     explain = views.add_parser("explain", help="what a term in the output means",
                                description="What a term in the output means, and why its"
                                            " number might surprise you.")
@@ -163,8 +165,8 @@ def explain(term: Optional[str]) -> List[str]:
     return lines
 
 
-def _colour() -> bool:
-    return sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+def _colour(choice: str = style.AUTO) -> bool:
+    return style.enabled(choice, sys.stdout.isatty())
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -194,6 +196,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     except schema.SchemaError as error:
         print("sa %s: error: %s" % (args.view, tables.home_text(str(error))), file=sys.stderr)
         return 2
-    paint = tables.paint if _colour() else str
+    paint = style.Painter(render.tools(view, sel)).paint if _colour(args.color) else str
     print("\n".join(paint(line) for line in lines))
     return 0 if not view.reconciles or sel.reconciliation.holds else 1

@@ -1,14 +1,14 @@
 """Table and leaf rendering of a selection, the key under the tables, and
 the formats every line shares: numbers, ``~`` for home, and line styles.
 
-A line is a ``str``; a styled one is a ``Styled`` str that also names its
-style, which ``paint`` turns into colour only when the CLI asks for it (a
-TTY, ``NO_COLOR`` unset), so every test compares plain text."""
+A line is a ``str``; one that styles is a ``style.Line`` naming its role,
+which ``style`` paints only when the CLI asks for it, so every test
+compares plain text."""
 import re
 from pathlib import Path
 from typing import Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
-from . import glossary, heads, query, schema
+from . import glossary, heads, query, schema, style
 from .schema import Fact
 
 RESIDUAL_LABEL = glossary.RESIDUAL_LABEL  # the row for facts that lack the grouped dimension
@@ -25,24 +25,7 @@ TITLES = {schema.COMMAND_DIM: "command / file type"}
 def title(dim: str) -> str:
     return "by " + TITLES.get(dim, dim)
 
-BOLD, DIM, GOOD, BAD = "1", "2", "32", "31"  # ANSI SGR codes
 OK_MARK, BAD_MARK = "✓", "✗"
-
-
-class Styled(str):
-    """A line that prints in ``style`` when colour is on."""
-    style = ""
-
-
-def styled(text: str, style: str) -> str:
-    line = Styled(text)
-    line.style = style
-    return line
-
-
-def paint(line: str) -> str:
-    style = getattr(line, "style", "")
-    return "\033[%sm%s\033[0m" % (style, line) if style else line
 
 
 def tilde(path: Path) -> str:
@@ -87,7 +70,7 @@ def key(entries: List[Tuple[str, str]]) -> List[str]:
         return []
     seen = list(dict.fromkeys(entries))
     width = max(len(label) for label, _ in seen)
-    return [styled(line, DIM) for line in
+    return [style.tag(line, style.KEY) for line in
             ["key (%s: sa explain TERM)" % glossary.MARKER] + ["  %-*s %s" % (width, *e) for e in seen]]
 
 Case = Tuple[str, Callable[[dict], bool]]  # a reading of a residual fact, and the dims it holds for
@@ -213,6 +196,7 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
     if hidden:
         shown.append(query.Row("+" + count(len(hidden), "more row"), sum(r.mass for r in hidden),
                                sum(r.count for r in hidden), query.REGULAR))
+    values = len(shown) - bool(hidden)  # rows of one value each; the rest print italic
     shown += [r for r in grouped.rows if r.kind != query.REGULAR]
     labels = [_label(r, whole) for r in shown]
     width = max(len(label) for label in labels + [heading])
@@ -220,15 +204,16 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
     name, counts = glossary.printed(metric), schema.PLURAL[schema.metric(metric).carrier]
     mw = max([len(name), len(sums[0])] + [len(num(r.mass)) for r in shown])
     cw = max([len(counts), len(sums[1])] + [len(num(r.count)) for r in shown])
-    lines = [styled("%-*s  %*s  %*s  %s" % (width, heading, mw, name, cw, counts,
-                                            share_header(grouped).rjust(6)), BOLD)]
-    for label, r in zip(labels, shown):
-        lines.append("%-*s  %*s  %*s  %6s" % (
-            width, label, mw, num(r.mass), cw, num(r.count),
-            pct(grouped.share(r.mass) if r.kind == query.REGULAR else None)))
+    lines = [style.tag("%-*s  %*s  %*s  %s" % (width, heading, mw, name, cw, counts,
+                                               share_header(grouped).rjust(6)), style.HEADER)]
+    for i, (label, r) in enumerate(zip(labels, shown)):
+        share = grouped.share(r.mass) if r.kind == query.REGULAR else None
+        lines.append(style.tag("%-*s  %*s  %*s  %6s" % (
+            width, label, mw, num(r.mass), cw, num(r.count), pct(share)),
+            style.ROW if i < values else style.OTHER, share))
     if total is not None:
-        lines.append(styled("%-*s  %*s  %*s  %s" % (width, TOTAL_LABEL, mw, sums[0], cw, sums[1], total),
-                            BOLD))
+        lines.append(style.tag("%-*s  %*s  %*s  %s" % (width, TOTAL_LABEL, mw, sums[0], cw, sums[1],
+                                                       total), style.TOTAL))
     return lines
 
 

@@ -1,7 +1,7 @@
 """What a first-time reader meets: the scope line first and the default
 window, the help that teaches the workflow, the glossary behind ``sa
-explain`` and the key, the reading order of the sections, colour only on a
-TTY, and home printed as ``~``. Terms come from ``glossary.GLOSSARY``."""
+explain`` and the key, the reading order of the sections (colour: ``test_style``),
+and home printed as ``~``. Terms come from ``glossary.GLOSSARY``."""
 import os
 import re
 import time
@@ -90,26 +90,6 @@ def test_the_share_column_names_its_base(tmp_path):
     out = fx.run_cli("spend", "--root", str(root), "--by", schema.SUBAGENT_DIM)[1]
     assert re.search(r"^by %s\s.*share of [\d,]+ \(all but ∅\)$" % schema.SUBAGENT_DIM,
                      out, re.M)
-
-
-def test_colour_only_on_a_tty_with_no_color_unset(tmp_path, monkeypatch, capsys):
-    root = fx.cli_corpus(tmp_path)
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
-    assert cli._colour()
-    cli.main(["context", "--root", str(root)])
-    coloured = capsys.readouterr().out
-    assert "\033[%sm" % tables.BOLD in coloured and "\033[%sm" % tables.DIM in coloured
-    assert "\033[%sm" % tables.GOOD in coloured
-    monkeypatch.setenv("NO_COLOR", "1")
-    assert not cli._colour()
-    cli.main(["context", "--root", str(root)])
-    assert "\033[" not in capsys.readouterr().out
-    monkeypatch.delenv("NO_COLOR")
-    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
-    assert not cli._colour()
-    assert "\033[" not in fx.run_cli("context", "--root", str(root))[1]  # a pipe is no TTY
-    assert tables.paint("plain") == "plain" and tables.paint(tables.styled("x", tables.DIM)) != "x"
 
 
 def test_every_declared_term_has_a_glossary_entry_with_a_surprise():

@@ -4,7 +4,7 @@ checks. The tables are grouped here from the selection's facts; its total
 and reconciliation come with it, so nothing here decides the exit status."""
 from typing import List, NamedTuple, Optional, Tuple
 
-from . import glossary, headline, query, schema, tables, windows
+from . import glossary, headline, query, schema, style, tables, windows
 from .corpus import Corpus
 from .query import Selection
 from .headline import INHERITED_LABEL
@@ -55,8 +55,19 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
                 body += table(grouped, view.metric, limit, whole=bool(by), total=total) + [""]
                 notes += tables.notes(grouped)
     keyed = tables.key(notes)
-    return (population(view, sel, loaded, since_default) + [""] + headline.headline(view, sel, forest) + [""]
+    scope = [style.tag(line, style.SCOPE) for line in population(view, sel, loaded, since_default)]
+    return (scope + [""] + headline.headline(view, sel, forest) + [""]
             + body + keyed + ([""] if keyed else []) + footer(view, sel, totalled))
+
+
+def tools(view: View, sel: Selection) -> List[str]:
+    """The selection's tools by mass, largest first: the order their hues
+    are dealt in (``style.Painter``); none for a view whose carrier has no
+    tool."""
+    if schema.TOOL_DIM not in schema.KIND_DIMENSIONS[schema.metric(view.metric).carrier]:
+        return []
+    return [r.value for r in query.group(sel.facts, schema.TOOL_DIM, view.metric).rows
+            if r.kind == query.REGULAR]
 
 
 def _total(view: View, sel: Selection) -> Optional[str]:
@@ -103,7 +114,7 @@ def _reconciliation(r: query.Reconciliation) -> List[str]:
     """The reconciliation in full, printed only when it fails."""
     terms = " + ".join("%s %s" % (c, num(r.by_cause[c])) for c in schema.CAUSES)
     reasons = ", ".join("%s %s" % (k, num(v)) for k, v in r.by_reason.items() if v)
-    return [tables.styled(line, tables.BAD) for line in [
+    return [style.tag(line, style.BAD) for line in [
         "%s reconciliation over %s: %s = %s; final occupancy %s: %s"
         % (tables.BAD_MARK, count(r.windows, "window"), terms, num(r.booked),
            num(r.final_occupancy), _status(r.mass_holds)),
@@ -134,9 +145,9 @@ def _checks(r: query.Reconciliation, totalled: bool, scope: str = "") -> str:
     mass = "" if totalled else "%s booked = the final window sizes; " % num(r.booked)
     split = ", ".join(_part(r, n, name) for n, name in ((r.exact, glossary.EXACT), (
         r.ambiguous, schema.AMBIGUOUS), (r.shrink, schema.SHRINK)))
-    return tables.styled("%s checks%s: %s%s (%s - %s): %s"
+    return style.tag("%s checks%s: %s%s (%s - %s): %s"
                          % (tables.OK_MARK, scope, mass, gaps(r.intervals), count(r.calls, "call"),
-                            count(r.windows, "window"), split), tables.GOOD)
+                            count(r.windows, "window"), split), style.GOOD)
 
 
 def _part(r: query.Reconciliation, n: int, name: str) -> str:

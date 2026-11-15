@@ -4,7 +4,7 @@ the view's levers (D-HEADLINE-TWO-LINES), then the single-call peak. A
 ``--where`` pin omits every lever whose facts all share one value."""
 from typing import List, Optional, Tuple
 
-from . import glossary, query, schema, tables
+from . import glossary, query, schema, style, tables
 from .query import Selection
 from .schema import Fact
 from .tables import at, count, num, pct
@@ -61,7 +61,7 @@ def headline(view, sel: Selection, forest: List[Fact] = ()) -> List[str]:
         out.append("largest " + walk)
     if out:
         line += " (%% of %s)" % ("this total" if added == sel.total else "the %s added" % num(added))
-    return [tables.styled(line, tables.BOLD)] + ["  " + t for t in out] + _peaks(sel)
+    return [style.tag(line, style.HEADLINE)] + ["  " + t for t in out] + _peaks(sel)
 
 
 def copied(sel: Selection, forest: List[Fact]) -> List[str]:
