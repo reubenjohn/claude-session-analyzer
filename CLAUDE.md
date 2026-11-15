@@ -39,7 +39,7 @@ value no fact carries exit 2 (`query.narrow`), naming what is present.
 never spread, never a lever. A fork's copy is one `inherited`
 increment, counted once (D-INHERITED-ONCE).
 
-CLI: `python3 -m sa -h`. Order: scope (`read:`, `kept:`; `--since` 7d
+CLI: `python3 -m sa -h`. Order: scope (`read:`, `in view:`; `--since` 7d
 unless `all`), answer, tables, one dimmed key, `✓ checks`. Under one
 total (D-HEADLINE-TWO-LINES): starting context by `started_by`, then
 growth down `View.levers` (context `tool`, `command`; spend `subagent`)

@@ -245,7 +245,7 @@ def peaks(out):
     return [line for line in sections(out)[1] if line.startswith(PEAK_LINE)]
 
 
-PEAK_LINE = "largest call "
+PEAK_LINE = "largest single-call context "
 
 
 def key(out):

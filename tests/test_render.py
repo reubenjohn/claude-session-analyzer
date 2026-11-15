@@ -25,7 +25,7 @@ def _top(*args, **kwargs):
 def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
     table = query.Table(DIM, ROWS, 100)
     lines = tables.table(table, M, limit=1, whole=False)
-    assert lines[0].startswith("by " + DIM) and lines[0].endswith("share of 100 with a " + DIM)
+    assert lines[0].startswith("by " + DIM) and lines[0].endswith("share of 100 (all but ∅)")
     assert [l.split()[0] for l in lines[1:]] == ["a", "+2", tables.RESIDUAL_LABEL, schema.SHRINK]
     assert re.match(r"\+2 more rows\s+40\s+2\s+40\.0%", lines[2])
     assert [l.split()[0] for l in tables.table(table, M, limit=3, whole=False)[1:]] == [
@@ -62,8 +62,8 @@ def test_the_mass_column_is_the_metric_and_the_count_column_its_carrier_kind():
     table = query.Table(DIM, ROWS, 100)
     for name, spec in schema.METRICS.items():  # the metric as printed heads the mass column
         header = tables.table(table, name, limit=3, whole=False)[0]
-        assert re.match(r"by %s +%s +%s +share of 100 with a %s$" % (
-            DIM, re.escape(glossary.printed(name)), schema.PLURAL[spec.carrier], DIM), header), header
+        assert re.match(r"by %s +%s +%s +share of 100 \(all but ∅\)$" % (
+            DIM, re.escape(glossary.printed(name)), schema.PLURAL[spec.carrier]), header), header
         assert "count" not in header
     assert {spec.carrier for spec in schema.METRICS.values()} == set(schema.KINDS)  # both kinds seen
 

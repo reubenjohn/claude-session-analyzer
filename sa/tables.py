@@ -110,7 +110,7 @@ RESIDUAL_NOTES: Dict[str, Tuple[str, List[Case]]] = {
         schema.AMBIGUOUS)] + [("an unresolved %s" % schema.TOOL_RESULT, _cause(schema.TOOL_RESULT))]),
     schema.COMMAND_DIM: ("no command", [
         ("no tool", lambda dims: schema.TOOL_DIM not in dims),
-        ("a tool other than %s" % "/".join(sorted(heads.EXTRACTORS)),
+        ("not %s" % "/".join(sorted(heads.EXTRACTORS)),
          lambda dims: schema.TOOL_DIM in dims and _cause(schema.TOOL_RESULT)(dims)),
         (schema.AMBIGUOUS, lambda dims: schema.TOOL_DIM in dims and _cause(schema.AMBIGUOUS)(dims))]),
     schema.REASON_DIM: ("not %s" % schema.AMBIGUOUS, [  # shrink is the signed row, never residual
@@ -151,8 +151,7 @@ def share_header(grouped: query.Table) -> str:
         return "share of total"
     if query.RESIDUAL not in kinds:  # the signed row alone: the tokens added
         return "share of %s added" % num(grouped.base)
-    return "share of %s with %s %s" % (num(grouped.base), "an" if grouped.dim[0] in "aeiou" else "a",
-                                       grouped.dim)
+    return "share of %s (all but %s)" % (num(grouped.base), RESIDUAL_LABEL)
 
 
 def count(n: int, singular: str, plural: Optional[str] = None) -> str:

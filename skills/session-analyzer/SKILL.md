@@ -17,12 +17,12 @@ Pin, then drill:
 
 | Flag | Meaning |
 |---|---|
-| `--since 30d` | files modified within the last N days (default 7d; `all` reads every file) |
+| `--since 30d` | files modified in the last N days (default 7d; `all`: every file) |
 | `--where project=` / `session=` / `subagent=` / `window=` / `started_by=` | project as printed (`~-work-app`), sessionId, agentId, a window's hex (`--by window`) or what began it; keeps whole windows |
 | `--where DIM=VALUE` | a pin, repeatable, exact; dims: project, session, subagent, window, started_by, cause, tool, command, reason |
 | `--by DIM` | one dimension's table |
-| `--by fact` | leaf facts: `<metric>  file:line  uuid  dimensions`, evidence indented |
-| `--limit N` | rows per table (5); the rest fold into `+k more rows`, never the cause table, `∅` or signed rows |
+| `--by fact` | one change (spend: call) per row: `<metric>  file:line  uuid  dims`, evidence under |
+| `--limit N` | rows per table (5); the rest fold to `+k more rows`, never causes, `∅` or negative (shrink) rows |
 
 ## What each command answers
 
@@ -44,14 +44,14 @@ cost shares.
 
 Whatever `--by` shows, the `context` headline states one total (`% of
 this total`, or of the N added: shrink out), then two lines:
-`starting_context` by `started_by` (what entered as windows started,
+`starting_context` by `started_by` (what was there at window start,
 never a window size), then `growth`: the top tool, its largest command
 (`100.0% of Bash, 15.4%`), then a larger command under another tool.
 `spend` names the largest subagent. Never a cause or a window row. A
 `--where` pin omits the default tables and levers it implies (a command
 its tool, a window its subagent, session, project). A drill's headline
-names its pins and the windows hit (`… in 1 of 2 windows`). `largest call N tokens (of W windows), window=<hex>` under
-it is the fullest call, even under a drill.
+names its pins and the windows hit (`… in 1 of 2 windows`); `largest single-call context N tokens (of W windows), window=<hex>`
+under it: the fullest call, even under a drill.
 
 ## The drill: headline -> `--by` -> `--where` -> `--by fact`
 
@@ -78,26 +78,26 @@ Exit 2, naming what is declared or present: `spend --where cause=...`
 
 The scope is
 `read:` (files, the `--since` window, the root, lines skipped and
-duplicates excluded: corpus-wide) and `kept where <window pins>:`
+duplicates excluded: corpus-wide) and `in view where <window pins>:`
 (windows and the view's `changes` or `calls`); a window is one context window:
 a compaction a call follows starts one (`N compactions unpriced`). Quote both with a figure: a
 number without its population is no finding. Table columns: the metric
 (`context tokens`, `spend`), its count (`changes`, `calls`) and `share
-of <base>`, naming its base (`total`, `N added`, `N with a tool`). Tables end with the
+of <base>`, naming its base (`total`, `N added`, `N (all but ∅)`). Tables end with the
 residual row `∅` (facts lacking the grouped dimension) and any `(signed)`
 rows; neither has a share. A default table cuts a label over 40 chars
 to `…tail`; `--by` prints it whole. One dimmed
 `key` says in one clause what each `∅` and unsplittable row holds; a `°`
 term is in full in `python3 -m sa explain TERM`.
 
-Unnarrowed, the `context` cause table ends with `= total N  ✓ matches
-the final window sizes`, and the last line is this run's attribution
+Unnarrowed, the `context` cause table ends with `= total N  ✓ = final
+window sizes`, and the last line is this run's attribution
 quality over the gaps between calls (calls minus windows), each split
 into one or more changes:
 
 <!-- example: context | ✓ checks -->
 ```
-✓ checks: 18 gaps between calls (21 calls - 3 windows) = exact 6 (33.3%) + ambiguous 9 (50.0%) + shrink 3 (16.7%)
+✓ checks: 18 gaps between calls (21 calls - 3 windows): 6 exact (33.3%), 9 ambiguous (50.0%), 3 shrink (16.7%)
 ```
 
 It holds by construction: a failure prints the reconciliation in full

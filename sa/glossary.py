@@ -39,7 +39,15 @@ GLOSSARY: Dict[str, Term] = {
         " is read but is no window", True),
     schema.STARTED_BY_DIM: Term("what began the window: " + ", ".join(schema.STARTS),
                                 "a compaction starts a new window in the same file; its starting"
-                                " context re-counts the system prompt"),
+                                " context re-counts the system prompt; sa explain fork, replayed"),
+    schema.FORK: Term("a window that began as a copy of another window's context: a forked"
+                      " session or subagent, its file opening with the parent's records",
+                      "the copy is one inherited change, counted in the parent when the parent"
+                      " is in view"),
+    schema.REPLAYED: Term("a main window whose file opens by repeating another file's records"
+                          " (a branched or continued session), then goes on",
+                          "the repeated records count once, in the file that holds them first;"
+                          " the copy is one inherited change"),
     schema.CALL: Term("one assistant message, its split records merged: what spend is read from",
                       "a message written as several records counts once"),
     schema.INCREMENT: Term("one booked change of a window's context between two calls:"
@@ -81,7 +89,7 @@ GLOSSARY: Dict[str, Term] = {
         "the context a window's first call already had, less what it inherited: system prompt,"
         " tools, CLAUDE.md and first message, or a compaction's summary",
         "often the largest cause; the transcript does not record its contents, so it is"
-        " not split further", True, "what the first call already had, never split"),
+        " not split further", True, "already in the first call, not assigned to any tool"),
     schema.INHERITED: Term("what a fork or replayed window copied: its parent window's size at"
                            " the branch call",
                            "counted once: left out of the total when the parent window is kept;"
@@ -99,7 +107,7 @@ GLOSSARY: Dict[str, Term] = {
                                     (schema.UNEXPLAINED, "none did")))
         + "; never spread over them",
         "it still names a tool when every candidate came from one; --by fact lists the"
-        " candidates", True, "growth with no one contributor, never spread"),
+        " candidates", True, "growth with no one contributor, left undivided"),
     schema.SHRINK: Term("a window that got smaller between two calls (often, not always, a"
                         " compaction): a negative row",
                         "excluded from every share, always in the checks"),

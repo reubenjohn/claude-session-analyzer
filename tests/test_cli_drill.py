@@ -134,10 +134,10 @@ def test_a_main_window_is_selected_by_its_window_value_alone(tmp_path):
                                 "--where", "%s=%s" % (schema.WINDOW_DIM, main))
     assert code == 0, err
     assert "= the 1 window's final size (" in fx.headline(out)
-    assert "\nkept where %s=%s: 1 window°, 11 changes\n" % (schema.WINDOW_DIM, main) in out
-    assert re.search(r"^%s\s+%s\s.*%s matches the final window sizes$" % (
+    assert "\nin view where %s=%s: 1 window°, 11 changes\n" % (schema.WINDOW_DIM, main) in out
+    assert re.search(r"^%s\s+%s\s.*%s = final window sizes$" % (
         tables.TOTAL_LABEL, format(fx.FINAL_OCCUPANCY, ",d"), tables.OK_MARK), out, re.M)
-    assert out.splitlines()[-1].startswith("%s checks: 6 gaps between calls (7 calls - 1 window) = " % tables.OK_MARK)
+    assert out.splitlines()[-1].startswith("%s checks: 6 gaps between calls (7 calls - 1 window): " % tables.OK_MARK)
     for view in cli.VIEWS:
         assert schema.WINDOW_DIM not in cli.VIEWS[view].tables
         code, out, err = fx.run_cli(view, "--root", str(root), "--by", schema.WINDOW_DIM)
@@ -165,7 +165,7 @@ def test_an_asked_for_table_prints_its_labels_whole_so_they_copy_into_where(tmp_
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (schema.PROJECT_DIM, project))
     assert code == 0, err
-    assert "\nkept where %s=%s: 2 windows°, " % (schema.PROJECT_DIM, project) in out
+    assert "\nin view where %s=%s: 2 windows°, " % (schema.PROJECT_DIM, project) in out
 
 
 def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
@@ -178,11 +178,11 @@ def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
     assert code == 0, err
     code, unpinned, err = fx.run_cli("context", "--root", str(root), "--where", window)
     assert code == 0, err
-    population = [l for l in out.splitlines() if l.startswith(("read: ", "kept"))]
-    assert population == [l for l in unpinned.splitlines() if l.startswith(("read: ", "kept"))] == [
+    population = [l for l in out.splitlines() if l.startswith(("read: ", "in view"))]
+    assert population == [l for l in unpinned.splitlines() if l.startswith(("read: ", "in view"))] == [
         "read: 4 files modified in the last 7d (default) under %s, 0 lines skipped,"
-        " 0 duplicate records excluded" % root,
-        "kept where %s: 2 windows°, 22 changes" % window]
+        " 0 duplicates excluded" % root,
+        "in view where %s: 2 windows°, 22 changes" % window]
     assert drill not in "".join(population)
     assert fx.headline(out).startswith("%s%s over 2 changes where %s in 2 windows" % (
         fx.total_line(CONTEXT.metric), format(2 * fx.EXACT_FIRST_DELTA, ",d"), drill))

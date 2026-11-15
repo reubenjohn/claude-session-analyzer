@@ -46,7 +46,7 @@ def headline(view, sel: Selection, forest: List[Fact] = ()) -> List[str]:
     starting = [f for f in carried if f.dims.get(schema.CAUSE_DIM) in STARTING] if view.starts else []
     mass = query.total(starting, view.metric)
     if starting and added:
-        text = "%s %s (%s) entered as windows started" % (
+        text = "%s %s (%s) at window start" % (
             glossary.marked(schema.STARTING_CONTEXT), num(mass), pct(mass / added))
         if open_dims(sel, (view.starts,), spec.carrier):
             text += ": " + ", ".join("%s %s" % (r.value, num(r.mass)) for r in
@@ -137,8 +137,12 @@ def _top(facts: List[Fact], levers: List[str], metric: str, total: float) -> Lis
     top = _largest(query.group(facts, levers[0], metric))
     if top is None:
         return []
-    text = ["%s=%s %s (%s)" % (levers[0], top.value, num(top.mass), pct(top.mass / total))]
     lead = query.select(facts, [(levers[0], top.value)])
+    # A tool's figure is its results plus the ambiguous changes all of whose
+    # candidates are its results (D-AMBIGUOUS-TOOL): more than its exact rows.
+    mixed = any(f.dims.get(schema.CAUSE_DIM) == schema.AMBIGUOUS and f.metrics.get(metric) for f in lead)
+    text = ["%s=%s %s (%s%s)" % (levers[0], top.value, num(top.mass), pct(top.mass / total),
+                                 ", incl. %s" % schema.AMBIGUOUS if mixed else "")]
     for above, dim in zip(levers, levers[1:]):
         within = _largest(query.group(lead, dim, metric))
         if within is not None:
@@ -167,7 +171,7 @@ def _peaks(sel: Selection) -> List[str]:
         if spec.aggregation == schema.PEAK:
             top = query.largest(sel.window_facts, name)
             if top is not None:
-                lines.append("largest call %s %s (of %s), %s=%s"
+                lines.append("largest single-call context %s %s (of %s), %s=%s"
                              % (num(top.metrics[name]), spec.unit, count(sel.n_windows, "window"),
                                 schema.WINDOW_DIM, schema.window_value(top.window)))
     return lines

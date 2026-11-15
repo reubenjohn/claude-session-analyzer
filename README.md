@@ -22,13 +22,13 @@ python3 -m sa context --by cause
 
 <!-- example: context --by cause -->
 ```
-read: 4 files modified in the last 7d (default) under ~/.claude/projects, 0 lines skipped, 0 duplicate records excluded
-kept: 3 windows°, 33 changes
+read: 4 files modified in the last 7d (default) under ~/.claude/projects, 0 lines skipped, 0 duplicates excluded
+in view: 3 windows°, 33 changes
 
 context tokens: 4,560 = the 3 windows' final sizes summed (% of the 4,860 added)
-  starting_context° 3,000 (61.7%) entered as windows started: session_start 2,000, fork 1,000
+  starting_context° 3,000 (61.7%) at window start: session_start 2,000, fork 1,000
   growth 1,860 (38.3%): tool=Bash 750 (15.4%), command=Bash:pytest 750 (100.0% of Bash, 15.4%)
-largest call 1,520 tokens (of 3 windows), window=aadeccf6
+largest single-call context 1,520 tokens (of 3 windows), window=aadeccf6
 
 by cause          context tokens  changes  share of 4,860 added
 starting_context           3,000        3   61.7%
@@ -37,13 +37,13 @@ ambiguous                    606        9   12.5%
 user_text                    255        3    5.2%
 replies                      249       12    5.1%
 shrink (signed)             -300        3       -
-= total                    4,560       33  ✓ matches the final window sizes
+= total                    4,560       33  ✓ = final window sizes
 
 key (°: sa explain TERM)
-  starting_context° what the first call already had, never split
-  ambiguous°        growth with no one contributor, never spread
+  starting_context° already in the first call, not assigned to any tool
+  ambiguous°        growth with no one contributor, left undivided
 
-✓ checks: 18 gaps between calls (21 calls - 3 windows) = exact 6 (33.3%) + ambiguous 9 (50.0%) + shrink 3 (16.7%)
+✓ checks: 18 gaps between calls (21 calls - 3 windows): 6 exact (33.3%), 9 ambiguous (50.0%), 3 shrink (16.7%)
 ```
 
 `--since 30d` or `--since all` widens the window; `sa explain [TERM]`
@@ -51,7 +51,7 @@ says what a term means. `python3 -m sa spend --by subagent`:
 
 <!-- example: spend --by subagent | by subagent -->
 ```
-by subagent  spend  calls  share of 988 with a subagent
+by subagent  spend  calls  share of 988 (all but ∅)
 agent-fake1    988      7  100.0%
 ∅            1,976     14       -
 ```

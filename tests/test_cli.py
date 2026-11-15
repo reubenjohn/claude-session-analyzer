@@ -27,7 +27,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     # (the shrink row out), as in the cause table, named once.
     assert re.search(r"^%s\s+3,000\s" % schema.STARTING_CONTEXT, out, re.M)
     assert first == ("%s%s = the 3 windows' final sizes summed (%% of the 4,860 added); %s 3,000"
-                     " (61.7%%) entered as windows started: %s 2,000, %s 1,000; growth 1,860 (38.3%%):"
+                     " (61.7%%) at window start: %s 2,000, %s 1,000; growth 1,860 (38.3%%):"
                      " %s=Bash 750 (15.4%%), %s=Bash:pytest 750 (100.0%% of Bash, 15.4%%)") % (
         fx.total_line(CONTEXT.metric), format(3 * fx.FINAL_OCCUPANCY, ",d"),
         tables.marked(schema.STARTING_CONTEXT), schema.SESSION_START, schema.FORK, TOOL, HEAD)
@@ -39,17 +39,17 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
         fx.PEAK_LINE, format(fx.FINAL_OCCUPANCY, ",d"), fx.unit(fx.PEAK), schema.WINDOW_DIM,
         schema.window_value(top.window))
     assert read == ("read: %d files modified in the last 7d (default) under %s, 0 lines skipped,"
-                    " 0 duplicate records excluded" % (len(loaded.files), root))
-    assert kept == "kept: 3 windows%s, %d %s" % (
+                    " 0 duplicates excluded" % (len(loaded.files), root))
+    assert kept == "in view: 3 windows%s, %d %s" % (
         glossary.MARKER, sum(f.kind == INCREMENT for f in facts), schema.PLURAL[INCREMENT])
     assert out.count(str(root)) == 1  # locators are root-relative
     # The cause table closes with its total against the final sizes; the
     # intervals collapse to one checks line, last.
-    assert re.search(r"^%s\s+%s\s+%d\s+%s matches the final window sizes$" % (
+    assert re.search(r"^%s\s+%s\s+%d\s+%s = final window sizes$" % (
         tables.TOTAL_LABEL, format(3 * fx.FINAL_OCCUPANCY, ",d"), sum(f.kind == INCREMENT for f in facts),
         tables.OK_MARK), out, re.M)
-    assert out.splitlines()[-1] == ("%s checks: 18 gaps between calls (21 calls - 3 windows) = exact 6 (33.3%%)"
-                                    " + ambiguous 9 (50.0%%) + shrink 3 (16.7%%)" % tables.OK_MARK)
+    assert out.splitlines()[-1] == ("%s checks: 18 gaps between calls (21 calls - 3 windows): 6 exact (33.3%%)"
+                                    ", 9 ambiguous (50.0%%), 3 shrink (16.7%%)" % tables.OK_MARK)
     assert "reconciliation" not in out and "MISMATCH" not in out  # full detail only on failure
     for dim in CONTEXT.tables:
         assert "by " + dim in out
@@ -83,10 +83,10 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     for name in others:
         assert re.search(r"^%s: [\d,]+ %s over 14 calls in 2 windows$"
                          % (name, fx.unit(name)), out, re.M)
-    assert "\nkept where project=proj-a: 2 windows%s, 14 calls\n" % glossary.MARKER in out  # spend reads calls only
-    assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+ with an? %s$"
-                     % (schema.SUBAGENT_DIM, fx.printed(SPEND.metric), fx.count_column(SPEND.metric),
-                        schema.SUBAGENT_DIM), out, re.M)
+    assert "\nin view where project=proj-a: 2 windows%s, 14 calls\n" % glossary.MARKER in out  # spend reads calls only
+    assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+ \(all but ∅\)$"
+                     % (schema.SUBAGENT_DIM, fx.printed(SPEND.metric), fx.count_column(SPEND.metric)),
+                     out, re.M)
     assert fx.count_column(SPEND.metric) != fx.count_column(CONTEXT.metric)  # each view names its carrier
     assert re.search(r"^%s%s %s \(of 2 windows\), %s=[0-9a-f]{8}$"
                      % (fx.PEAK_LINE, format(fx.FINAL_OCCUPANCY, ",d"), fx.unit(fx.PEAK), schema.WINDOW_DIM),

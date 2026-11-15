@@ -100,7 +100,7 @@ def test_a_declared_value_no_fact_carries_is_a_measured_zero(tmp_path):
         assert code == 0, err
         assert fx.headline(out).startswith("%s0 over 0 changes where %s=%s in 0 of 1 window" % (
             fx.total_line(CONTEXT.metric), schema.REASON_DIM, reason))
-        assert "\nkept: 1 window°, " in out
+        assert "\nin view: 1 window°, " in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=bogus" % schema.REASON_DIM)
     assert code == 2 and not out and "unknown %s" % schema.REASON_DIM in err  # a typo is still refused
 
@@ -119,10 +119,10 @@ def test_since_selects_files_by_mtime_and_zero_days_selects_none(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "0d")
     assert code == 0, err
-    assert "read: 0 files modified in the last 0d under " in out and "\nkept: 0 windows°, 0 changes" in out
+    assert "read: 0 files modified in the last 0d under " in out and "\nin view: 0 windows°, 0 changes" in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "1d")
     assert code == 0, err
-    assert "read: 4 files modified in the last 1d under " in out and "\nkept: 3 windows°, " in out
+    assert "read: 4 files modified in the last 1d under " in out and "\nin view: 3 windows°, " in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since=-1d")
     assert code == 2 and not out and "number of days" in err
 
@@ -142,13 +142,13 @@ def test_since_excludes_a_parent_before_dedup_so_its_continuation_owns_the_repla
     assert code == 0, err
     # 1,000 + 200: the continuation's head less what it inherited (1,300, counted in the original)
     assert fx.headline(out).startswith(headline % ("1,200", "2 changes", "2 windows"))
-    assert "read: 2 files modified in the last 1d under " in out and ", 5 duplicate records excluded\n" in out
+    assert "read: 2 files modified in the last 1d under " in out and ", 5 duplicates excluded\n" in out
     stale = time.time() - 2 * corpus.DAY
     os.utime(root / "proj-a" / "sess-0001.jsonl", (stale, stale))
     code, out, err = fx.run_cli(*args)
     assert code == 0, err
     assert fx.headline(out).startswith(headline % ("1,000", "1 change", "1 window"))
-    assert "read: 1 file modified in the last 1d under " in out and ", 0 duplicate records excluded\n" in out
+    assert "read: 1 file modified in the last 1d under " in out and ", 0 duplicates excluded\n" in out
 
 
 @pytest.mark.parametrize("limit", ["0", "-1"])

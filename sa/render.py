@@ -12,6 +12,7 @@ from .schema import Fact
 from .tables import count, leaves, num, table
 
 FACT = "fact"  # the ``--by`` that prints the leaves, not a table
+KEPT = "in view"  # the population line: the windows the time filter and pins kept
 
 
 class View(NamedTuple):
@@ -64,7 +65,7 @@ def _total(view: View, sel: Selection) -> Optional[str]:
     if not view.reconciles or sel.drill:
         return None
     if sel.reconciliation.mass_holds:
-        return "%s matches the final window sizes%s" % (tables.OK_MARK, headline.less(sel))
+        return "%s = final window sizes%s" % (tables.OK_MARK, headline.less(sel))
     return "%s does not match the final window sizes (below)" % tables.BAD_MARK
 
 
@@ -86,10 +87,10 @@ def population(view: View, sel: Selection, loaded: Corpus, since_default: bool =
     plural = schema.PLURAL[carrier]
     return ["read: %s %s under %s, %s skipped, %s excluded"
             % (count(len(loaded.files), "file"), since, tables.tilde(loaded.root),
-               count(loaded.skipped_lines, "line"), count(loaded.duplicate_records, "duplicate record"))
+               count(loaded.skipped_lines, "line"), count(loaded.duplicate_records, "duplicate"))
             ] + compacted + [
-            "kept%s: %s, %s"
-            % (headline.pins(sel.window_where), count(sel.n_windows, tables.marked(_window), _window + "s"
+            "%s%s: %s, %s"
+            % (KEPT, headline.pins(sel.window_where), count(sel.n_windows, tables.marked(_window), _window + "s"
                                               + glossary.MARKER),
                count(sum(f.kind == carrier for f in sel.window_facts), plural[:-1], plural))]
 
@@ -131,10 +132,16 @@ def _checks(r: query.Reconciliation, totalled: bool, scope: str = "") -> str:
     unless a cause table's total row already said it. ``scope`` names the
     whole windows a drill sits in."""
     mass = "" if totalled else "%s booked = the final window sizes; " % num(r.booked)
-    return tables.styled("%s checks%s: %s%s (%s - %s) = exact %s + ambiguous %s + shrink %s"
+    split = ", ".join(_part(r, n, name) for n, name in ((r.exact, glossary.EXACT), (
+        r.ambiguous, schema.AMBIGUOUS), (r.shrink, schema.SHRINK)))
+    return tables.styled("%s checks%s: %s%s (%s - %s): %s"
                          % (tables.OK_MARK, scope, mass, gaps(r.intervals), count(r.calls, "call"),
-                            count(r.windows, "window"), _rate(r, r.exact), _rate(r, r.ambiguous),
-                            _rate(r, r.shrink)), tables.GOOD)
+                            count(r.windows, "window"), split), tables.GOOD)
+
+
+def _part(r: query.Reconciliation, n: int, name: str) -> str:
+    """``786 exact (92.9%)``: the count first, so it reads as that many gaps."""
+    return "%s %s (%.1f%%)" % (num(n), name, 100.0 * n / r.intervals) if r.intervals else "0 " + name
 
 
 def footer(view: View, sel: Selection, totalled: bool = False) -> List[str]:

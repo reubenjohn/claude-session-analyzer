@@ -27,7 +27,7 @@ def test_the_first_line_names_the_files_the_default_window_and_the_root(tmp_path
     _age(old, 30)
     n = len(list(root.rglob("*.jsonl")))
     out = fx.run_cli("context", "--root", str(root))[1]
-    rest = ", 0 lines skipped, 0 duplicate records excluded"  # the one read line
+    rest = ", 0 lines skipped, 0 duplicates excluded"  # the one read line
     assert out.splitlines()[0] == "read: %d files modified in the last %gd (default) under %s%s" % (
         n - 1, cli.DEFAULT_DAYS, root, rest)
     out = fx.run_cli("context", "--root", str(root), "--since", cli.ALL)[1]
@@ -54,7 +54,7 @@ def test_sections_read_scope_answer_tables_key_checks(tmp_path):
     root = fx.cli_corpus(tmp_path)
     sections = fx.sections(fx.run_cli("context", "--root", str(root))[1])
     firsts = [s[0] for s in sections]
-    assert firsts[0].startswith("read: ") and sections[0][-1].startswith("kept: ")
+    assert firsts[0].startswith("read: ") and sections[0][-1].startswith("in view: ")
     assert firsts[1].startswith(fx.total_line(CONTEXT.metric))
     tables_at = [i for i, line in enumerate(firsts) if line.startswith("by ")]
     assert tables_at == list(range(2, 2 + len(tables_at))) and tables_at  # contiguous, non-empty
@@ -88,7 +88,7 @@ def test_the_share_column_names_its_base(tmp_path):
     out = fx.run_cli("spend", "--root", str(root), "--by", schema.SESSION_DIM)[1]
     assert re.search(r"^by %s\s.*share of total$" % schema.SESSION_DIM, out, re.M)
     out = fx.run_cli("spend", "--root", str(root), "--by", schema.SUBAGENT_DIM)[1]
-    assert re.search(r"^by %s\s.*share of [\d,]+ with an? %s$" % (schema.SUBAGENT_DIM, schema.SUBAGENT_DIM),
+    assert re.search(r"^by %s\s.*share of [\d,]+ \(all but ∅\)$" % schema.SUBAGENT_DIM,
                      out, re.M)
 
 
@@ -172,7 +172,7 @@ def test_an_encoded_home_prints_as_a_tilde_and_selects_as_printed(tmp_path, monk
     leaves = fx.run_cli("context", "--root", str(root), "--by", "fact", "--limit", "1")[1]
     assert re.search(r"^\s+[\d,]+  ~-work/sess-0001\.jsonl:\d+ ", leaves, re.M)
     assert cli.main(["context", "--root", str(root), "--where", "%s=~-work" % schema.PROJECT_DIM]) == 0
-    assert "\nkept where %s=~-work: " % schema.PROJECT_DIM in capsys.readouterr().out
+    assert "\nin view where %s=~-work: " % schema.PROJECT_DIM in capsys.readouterr().out
     # A refusal names the values present with home as ~ too.
     assert cli.main(["context", "--root", str(root), "--where", "%s=nope" % schema.PROJECT_DIM]) == 2
     err = capsys.readouterr().err
