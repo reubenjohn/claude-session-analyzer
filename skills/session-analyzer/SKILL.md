@@ -41,11 +41,12 @@ uncached input, cache writes (1h at 2.0x, 5m at 1.25x) and cache reads at
 answers "which subagent was expensive", its `∅` row being the main
 windows. Context shares are not cost shares.
 
-Whatever `--by` shows, the `context` headline names the top tool with
-its mass and share of the total, `within it` that tool's largest head
-with its share of the tool and of the total, then a larger head under
-another tool, one clause per line (`within it head=Bash:pytest 750
-(100.0% of Bash, 16.4% of the total)`); `spend` names the top agent. Never a cause or a window row. A `--where`
+Whatever `--by` shows, the `context` headline states one total, then
+two lines: the starting context by `start` (what entered as windows
+started, never a window size), then the growth: the top tool, `within it`
+its largest head (`100.0% of Bash, 15.4% of the added`), then a larger
+head under another tool. Shares are of the mass added, shrink out.
+`spend` names the top agent. Never a cause or a window row. A `--where`
 pin omits the default tables and levers it implies (a head its tool, a
 window its agent, session, project). A drill's headline names its pins and
 counts the windows its facts come from (`… in 1 of 2 windows`). `single-call peak

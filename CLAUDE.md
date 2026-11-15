@@ -2,7 +2,7 @@
 
 Answers TWO questions about Claude Code sessions: where is my context going
 (`context_delta`) and what did it cost (`spend`), from the JSONL transcripts
-under `Path.home()/".claude"/"projects"`. Stdlib, Python 3.8.
+under `~/.claude/projects`. Stdlib, Python 3.8.
 TIME/scheduling questions are deferred: design for them, do not add them.
 Standing premise: NO USERS, NO DEPLOYMENTS — breaking changes are free,
 legacy is deleted, published numbers move when the old one was wrong.
@@ -13,8 +13,8 @@ Owner directive: an elegant, simple implementation from which powerful
 capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
 
 Package `sa/`, one module per stage (`corpus` read+dedup, `windows`
-the cut, `walk` attribution, `heads`, `schema` METRICS and vocabularies,
-`query`, `tables`, `render`, `cli`, `usage` the ported helpers); each
+the cut, `walk` attribution, `heads`, `schema` METRICS, vocabularies,
+`query`, `headline`, `tables`, `render`, `cli`, `usage` the ported helpers); each
 docstring is its spec. The parser IS the product: probes import it, never copy it.
 
 One data model, `Fact`, specified in `schema.py`: `kind` is `call` or
@@ -39,12 +39,14 @@ naming what is present. `window_head` (never split by content) and
 `inherited` increment, counted once (D-INHERITED-ONCE).
 
 CLI: `python3 -m sa -h`. Order: scope (`read:`, `kept:`; `--since` 7d
-unless `all`), answer, tables, one dimmed key, `✓ checks`. Headline walks `View.levers` (context `tool` then
-`head`, spend `agent`) whatever `--by` shows: the top tool's share of the
-total, `within it` its largest head's share of the tool and of the total,
-then a larger head `under tool=`; a `--where` pin omits every default
-table and lever whose facts share one value (a head implies its tool); a
-drill is named on the headline, with the windows it hits.
+unless `all`), answer, tables, one dimmed key, `✓ checks`. Under one
+total (D-HEADLINE-TWO-LINES): starting context by `start` (mass that
+entered, not a window size), then growth down `View.levers` (context
+`tool`, `head`; spend `agent`) whatever `--by` shows (`headline._top`);
+shares of the mass added. A `--where` pin omits every table and lever whose facts share one
+value (a head implies its tool); a drill pin is named on the headline. A
+table repeating the one above row for row is one relabel line.
+D-OUTPUT-CAP caps the default output.
 `schema.GLOSSARY` drives `sa explain`, `°`, `--help`. The reconciliation
 holds by construction (`walk`): MISMATCH is a bug, exit 1.
 
@@ -86,12 +88,11 @@ confident in-place "improvement" that deletes a measured correction.
 - Feed-forward subtraction (`delta_occ >= out_prev`) holds on 97.79% of pairs.
 - Physical line numbers, not parsed index. A filename is not a session.
 - Contributors are token-relevant only (tool_result + user text), one per
-  tool_result block; counting 2.1.28x bookkeeping attachments collapses the
-  exact rate from 84% to under 1%; their text folds into the remainder.
+  tool_result block; counting 2.1.28x bookkeeping attachments drops the
+  exact rate from 84% to <1%; their text folds into the remainder.
 - Local figures (batched results, call spans, shared-tool ambiguity,
-  re-mints, parentUuid links never crossing files, windows and forks):
-  `python3 -m sa.sweep` and `sa.probe_window_model`, dated snapshots of
-  this machine's corpus that `sa/` docstrings cite by date.
+  re-mints, parentUuid links never cross files, windows, forks): dated
+  snapshots by `python3 -m sa.sweep`, `sa.probe_window_model`.
 
 ## Clean-room boundary — binds every session and subagent
 

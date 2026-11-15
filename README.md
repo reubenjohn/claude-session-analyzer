@@ -75,11 +75,12 @@ windows (`window=<hex>` isolates one; `--by window` lists them);
 otherwise it drills, named on the headline with the windows hit. `cause=bogus` or `tool=bash` (absent)
 exits 2, naming what is declared or present. A head is a Bash call's
 first command word (`Bash:pytest`) or a file tool's extension
-(`Read:py`). The headline names the top tool with its share of the
-total, `within it` that tool's largest head (share of the tool and of
-the total), then a larger head `under` another tool (`spend`: the top
-agent), whatever `--by` shows, never a cause or window row; a pin
-omits what it implies. `--by fact` lists the leaves
+(`Read:py`). Under one total the headline gives the starting context
+by `start` (what entered, not a window size), then the growth: the top
+tool, `within it` its largest head, then a larger head `under` another
+tool (`spend`: the top agent), whatever `--by` shows, never a cause or
+window row; shares are of the mass added. A pin omits what it implies;
+a table that repeats the one above row for row prints as one line. `--by fact` lists the leaves
 with `file:line  uuid  dimensions`, an ambiguous one's `candidates:`
 under it.
 
