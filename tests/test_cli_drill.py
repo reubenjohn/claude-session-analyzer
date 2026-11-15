@@ -53,7 +53,7 @@ def test_a_pinned_table_notes_only_the_cases_its_residual_row_holds(tmp_path):
     assert code == 0 and "no tool" in unpinned[0]  # vacuity guard: the pin removed the case
 
 
-def test_a_drill_prints_the_whole_window_reconciliation_once_as_a_pointer(tmp_path):
+def test_a_drill_prints_the_whole_window_checks_with_their_mass(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--where",
                           "%s=%s" % (CAUSE, schema.TOOL_RESULT))
@@ -61,11 +61,22 @@ def test_a_drill_prints_the_whole_window_reconciliation_once_as_a_pointer(tmp_pa
     assert fx.headline(out).startswith("%s: %s %s over 3 increment facts where %s=%s in 3 windows" % (
         CONTEXT.metric, format(3 * fx.EXACT_FIRST_DELTA, ",d"), fx.unit(CONTEXT.metric),
         CAUSE, schema.TOOL_RESULT))
-    assert out.splitlines()[-1] == "%s checks: hold over the 3 whole windows above; a drill is not reconciled" % (
-        tables.OK_MARK)
-    assert tables.TOTAL_LABEL not in out and " intervals (" not in out  # no total row, no interval split
+    last = out.splitlines()[-1]
+    assert last.startswith("%s checks over the 3 whole windows (a drill is not reconciled): %s booked"
+                           % (tables.OK_MARK, format(3 * fx.FINAL_OCCUPANCY, ",d")))
+    assert " %d intervals (" % (3 * fx.INTERVALS) in last
+    assert tables.TOTAL_LABEL not in out  # no total row on a drill
     whole = fx.run_cli("context", "--root", str(root))[1]
-    assert tables.TOTAL_LABEL in whole and " intervals (" in whole  # vacuity guard
+    assert tables.TOTAL_LABEL in whole  # vacuity guard
+
+
+def test_by_fact_prints_the_checks_with_their_mass(tmp_path):
+    root = fx.cli_corpus(tmp_path)
+    code, out, err = fx.run_cli("context", "--root", str(root), "--by", "fact", "--limit", "1")
+    assert code == 0, err
+    last = out.splitlines()[-1]
+    assert last.startswith("%s checks: %s booked" % (tables.OK_MARK, format(3 * fx.FINAL_OCCUPANCY, ",d")))
+    assert " %d intervals (" % (3 * fx.INTERVALS) in last
 
 
 def test_a_drill_headline_counts_the_windows_its_facts_come_from(tmp_path):
@@ -82,7 +93,7 @@ def test_a_drill_headline_counts_the_windows_its_facts_come_from(tmp_path):
     assert code == 0, err
     assert fx.headline(out).endswith(" over 1 increment fact where %s=%s in 1 of 2 windows"
                                         % (CAUSE, schema.USER_TEXT))  # no lever: no lead
-    assert "checks: hold over the 2 whole windows above" in out
+    assert "checks over the 2 whole windows (a drill is not reconciled)" in out
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (CAUSE, schema.TOOL_RESULT))
     assert code == 0, err

@@ -34,6 +34,7 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
     its total against the windows' final sizes."""
     spec = schema.metric(view.metric)
     notes: List[Tuple[str, str]] = [(view.metric, n) for n in view.notes]
+    totalled = False  # whether a cause table printed its total row
     if by == FACT:
         body = leaves(sel.facts, view.metric, limit) + [""]
     else:
@@ -42,12 +43,13 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
         for dim in dims:
             grouped = query.group(sel.facts, dim, view.metric)
             if grouped.rows:
-                body += table(grouped, view.metric, limit, whole=bool(by),
-                              total=_total(view, sel) if dim == schema.CAUSE_DIM else None) + [""]
+                total = _total(view, sel) if dim == schema.CAUSE_DIM else None
+                totalled = totalled or total is not None
+                body += table(grouped, view.metric, limit, whole=bool(by), total=total) + [""]
                 notes += tables.notes(grouped)
     keyed = tables.key(notes)
     return (population(view, sel, loaded, since_default) + [""] + headline(view, sel) + [""]
-            + body + keyed + ([""] if keyed else []) + footer(view, sel, by))
+            + body + keyed + ([""] if keyed else []) + footer(view, sel, totalled))
 
 
 def _total(view: View, sel: Selection) -> Optional[str]:
@@ -209,23 +211,26 @@ def _rate(r: query.Reconciliation, n: int) -> str:
     return "%s (%.1f%%)" % (num(n), 100.0 * n / r.intervals) if r.intervals else "0"
 
 
-def _checks(r: query.Reconciliation, totalled: bool) -> str:
-    """The one line a holding reconciliation prints: the intervals split
-    into exact, ambiguous and shrink, each with its rate (R4), and the
-    booked total against the final sizes unless the cause table's total
-    row already said it."""
+def _checks(r: query.Reconciliation, totalled: bool, scope: str = "") -> str:
+    """The one line a holding reconciliation prints, a drill and ``--by
+    fact`` included: the intervals split into exact, ambiguous and shrink,
+    each with its rate (R4), and the booked total against the final sizes
+    unless a cause table's total row already said it. ``scope`` names the
+    whole windows a drill sits in."""
     mass = "" if totalled else "%s booked = the final window sizes; " % num(r.booked)
-    return tables.styled("%s checks: %s%s intervals (%s - %s) = exact %s + ambiguous %s + shrink %s"
-                         % (tables.OK_MARK, mass, num(r.intervals), count(r.calls, "call"),
+    return tables.styled("%s checks%s: %s%s intervals (%s - %s) = exact %s + ambiguous %s + shrink %s"
+                         % (tables.OK_MARK, scope, mass, num(r.intervals), count(r.calls, "call"),
                             count(r.windows, "window"), _rate(r, r.exact), _rate(r, r.ambiguous),
                             _rate(r, r.shrink)), tables.GOOD)
 
 
-def footer(view: View, sel: Selection, by: Optional[str] = None) -> List[str]:
+def footer(view: View, sel: Selection, totalled: bool = False) -> List[str]:
     """The closing lines: for a view that reconciles, one checks line when
-    the reconciliation holds (a pointer when a drill is shown above it) and
-    the reconciliation in full when it fails; for one that does not, every
-    other additive call total over the population named."""
+    the reconciliation holds (over the whole windows when a drill is shown)
+    and the reconciliation in full when it fails; for one that does not,
+    every other additive call total over the population named.
+    ``totalled``: a cause table above printed its total row, so the checks
+    need not repeat the booked total; whatever printed, the mass is stated."""
     if not view.reconciles:
         return ["%s: %s %s %s" % (name, num(query.total(sel.facts, name)), spec.unit,
                                   _over(sel, schema.CALL))
@@ -235,8 +240,6 @@ def footer(view: View, sel: Selection, by: Optional[str] = None) -> List[str]:
     r = sel.reconciliation
     if not r.holds:
         return _reconciliation(r)
-    if sel.drill:
-        return [tables.styled("%s checks: hold over the %s above; a drill is not reconciled"
-                              % (tables.OK_MARK, count(sel.n_windows, "whole window")), tables.GOOD)]
-    shown = by == schema.CAUSE_DIM or (by is None and schema.CAUSE_DIM in view.tables)
-    return [_checks(r, totalled=shown)]
+    scope = (" over the %s (a drill is not reconciled)" % count(sel.n_windows, "whole window")
+             if sel.drill else "")
+    return [_checks(r, totalled, scope)]
