@@ -14,7 +14,7 @@ capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
 
 Package `sa/`, one module per stage (`corpus` read+dedup, `windows`
 the cut, `walk` attribution, `heads`, `schema` METRICS, vocabularies,
-`query`, `headline`, `tables`, `render`, `cli`, `usage` the ported helpers); each
+`glossary`, `query`, `headline`, `tables`, `render`, `cli`, `usage` the ported helpers); each
 docstring is its spec. The parser IS the product: probes import it, never copy it.
 
 One data model, `Fact`, specified in `schema.py`: `kind` is `call` or
@@ -27,28 +27,28 @@ double-counting. A window is ONE CONTEXT WINDOW (D-CONTEXT-WINDOW): from
 a session start, subagent, fork, replay or a compaction a call follows, to
 its file's end or the next compaction; cut after dedup, never by marking
 records; identity (file, start line). Window dimensions `project`,
-`session`, `agent` (none on a main window), `window` (8 hex of the key:
-display and `--where` only) and `start` are on both kinds; `cause`, `tool`, `head`, `reason`
-on increments only. A head
-is `<tool>:<summary>`: a Bash command's first COMMAND word (past keywords,
-wrappers, builtins) as a basename (`Bash:pytest`), or a file tool's
-extension (`Read:py`); never a path (R5). Unknown names, undeclared
-values and a `--where` value no fact carries exit 2 (`query.narrow`),
-naming what is present. `window_head` (never split by content) and
-`ambiguous` are rows, never spread, never a lever. A fork's copy is one
-`inherited` increment, counted once (D-INHERITED-ONCE).
+`session`, `subagent` (none on a main window), `window` (8 hex of the key:
+display and `--where` only) and `started_by` are on both kinds; `cause`,
+`tool`, `command`, `reason` on increments only. Spellings: D-PLAIN-TERMS
+(an increment prints as a change). A command is `<tool>:<summary>`: a
+Bash command's first COMMAND word (past keywords, wrappers, builtins) as
+a basename (`Bash:pytest`), or a file tool's extension (`Read:py`);
+never a path (R5). Unknown names, undeclared values and a `--where`
+value no fact carries exit 2 (`query.narrow`), naming what is present.
+`starting_context` (never split by content) and `ambiguous` are rows,
+never spread, never a lever. A fork's copy is one `inherited`
+increment, counted once (D-INHERITED-ONCE).
 
 CLI: `python3 -m sa -h`. Order: scope (`read:`, `kept:`; `--since` 7d
 unless `all`), answer, tables, one dimmed key, `✓ checks`. Under one
-total (D-HEADLINE-TWO-LINES): starting context by `start` (mass that
-entered, not a window size), then growth down `View.levers` (context
-`tool`, `head`; spend `agent`) whatever `--by` shows (`headline._top`);
-shares of the mass added. A `--where` pin omits every table and lever whose facts share one
-value (a head implies its tool); a drill pin is named on the headline. A
-table repeating the one above row for row is one relabel line.
-D-OUTPUT-CAP caps the default output.
-`schema.GLOSSARY` drives `sa explain`, `°`, `--help`. The reconciliation
-holds by construction (`walk`): MISMATCH is a bug, exit 1.
+total (D-HEADLINE-TWO-LINES): starting context by `started_by`, then
+growth down `View.levers` (context `tool`, `command`; spend `subagent`)
+whatever `--by` shows; shares of the mass added. A `--where` pin omits
+every table and lever whose facts share one value (a command implies
+its tool); a drill pin is named on the headline. D-OUTPUT-CAP caps the
+default output. `glossary.GLOSSARY` drives `sa explain`, `°`, `--help`.
+The reconciliation holds by construction (`walk`): MISMATCH is a bug,
+exit 1.
 
 ## Non-negotiables
 
@@ -58,7 +58,7 @@ holds by construction (`walk`): MISMATCH is a bug, exit 1.
   forks); per-file reading inflates totals by 94%.
 - The tree INVERTS under these metrics: the injected subtree (~95% of
   observed chars) carries ZERO mass. Design output for that first.
-- No estimated attribution: exact by subtracting the feed-forward term,
+- No estimated attribution: exact by subtracting the previous reply,
   everything else to ONE residual bucket, `ambiguous`, never a silent spread.
 - Every figure names its population; the exact/ambiguous/shrink rates are
   measured per run, never hard-coded.
@@ -66,7 +66,7 @@ holds by construction (`walk`): MISMATCH is a bug, exit 1.
   literals); every negative assertion has a vacuity guard.
 - Never sum a peak; a peak reports no value at a node. Never quote dollars.
 - Shrink is a signed row: excluded from shares, always in the reconciliation
-  footer. The residual row `∅` and signed rows never hide behind `--limit`;
+  footer. `∅`, signed rows and cause rows never hide behind `--limit`;
   a table with no base prints `share` alone.
 
 ## Measured corrections — stay pinned by tests
@@ -85,7 +85,7 @@ confident in-place "improvement" that deletes a measured correction.
 - Cache tiers priced per call: 1h write x2.0, 5m x1.25, read x0.1; one
   tier per call (0 mixed of 47,419).
 - Shrinks are real and unclamped: 830 of 45,555 pairs.
-- Feed-forward subtraction (`delta_occ >= out_prev`) holds on 97.79% of pairs.
+- Reply subtraction (`delta_occ >= out_prev`) holds on 97.79% of pairs.
 - Physical line numbers, not parsed index. A filename is not a session.
 - Contributors are token-relevant only (tool_result + user text), one per
   tool_result block; counting 2.1.28x bookkeeping attachments drops the

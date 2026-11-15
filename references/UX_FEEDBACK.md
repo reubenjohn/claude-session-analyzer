@@ -31,3 +31,13 @@ The full suite passes, as do the privacy gate and the doc caps; README/SKILL
 example lines are resynced to live output. A **cold reader** (a fresh agent
 with no repo context, given only `--help` and one live output) can answer:
 what fills my context, what should I fix first, and what is a window.
+
+## A2 status (2026-11-15)
+
+Done under D-PLAIN-TERMS: items 6, 7 (labels) and 10. Causes `replies`,
+`starting_context`; dimensions `started_by`, `command` ("by command /
+file type"), `subagent`; reasons `several`, `less_than_reply`,
+`unexplained`; printed `context tokens`, `changes`, `calls`; `-h` says
+subcommand and pin. `sa/glossary.py` holds the glossary; key entries are
+one clause. Output cut below pre-A1 (one read line, share base named
+once, `--limit 5`, the cause table whole). Open: the cold-reader check.
