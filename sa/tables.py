@@ -4,6 +4,7 @@ the formats every line shares: numbers, ``~`` for home, and line styles.
 A line is a ``str``; a styled one is a ``Styled`` str that also names its
 style, which ``paint`` turns into colour only when the CLI asks for it (a
 TTY, ``NO_COLOR`` unset), so every test compares plain text."""
+import re
 from pathlib import Path
 from typing import Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
@@ -44,6 +45,31 @@ def tilde(path: Path) -> str:
     """A path under home as ``~/...``: output never prints the home directory."""
     home, text = str(Path.home()), str(path)
     return "~" + text[len(home):] if text == home or text.startswith(home + "/") else text
+
+
+def _encoded_home() -> str:
+    """Home as Claude Code encodes it in a project directory name: every
+    character but a letter or digit as ``-``."""
+    return re.sub(r"[^A-Za-z0-9]", "-", str(Path.home()))
+
+
+def home(value: str) -> str:
+    """A project name or root-relative locator that starts with the encoded
+    home directory, that prefix printed as ``~``; ``unhome`` reverses it, so
+    a printed label still works in ``--where``."""
+    prefix = _encoded_home()
+    return "~" + value[len(prefix):] if value == prefix or value.startswith(prefix + "-") else value
+
+
+def unhome(value: str) -> str:
+    return _encoded_home() + value[1:] if value == "~" or value.startswith("~-") else value
+
+
+def home_text(text: str) -> str:
+    """Free text (a refusal naming present values) with the encoded home
+    prefix and the home path printed as ``~``."""
+    text = re.sub(re.escape(_encoded_home()) + r"(?![A-Za-z0-9])", "~", text)
+    return re.sub(re.escape(str(Path.home())) + r"(?![A-Za-z0-9])", "~", text)
 
 
 def marked(term: str) -> str:
@@ -147,7 +173,7 @@ def pct(share: Optional[float]) -> str:
 
 
 def at(locator: schema.Locator) -> str:
-    return "%s:%d" % (locator.file, locator.line)
+    return "%s:%d" % (home(locator.file), locator.line)
 
 
 def uuid(locator: schema.Locator) -> str:
@@ -156,13 +182,13 @@ def uuid(locator: schema.Locator) -> str:
 
 def tags(dims: dict) -> str:
     """Every dimension but ``window``, which the locator beside it names."""
-    return " ".join("%s=%s" % (d, dims[d]) for d in schema.DIMENSIONS
+    return " ".join("%s=%s" % (d, home(dims[d])) for d in schema.DIMENSIONS
                     if d in dims and d != schema.WINDOW_DIM)
 
 
 def _label(row: query.Row, whole: bool) -> str:
     label = RESIDUAL_LABEL if row.kind == query.RESIDUAL else (
-        row.value + (" (signed)" if row.kind == query.SIGNED else ""))
+        home(row.value) + (" (signed)" if row.kind == query.SIGNED else ""))
     return label if whole or len(label) <= LABEL_WIDTH else "…" + label[1 - LABEL_WIDTH:]
 
 

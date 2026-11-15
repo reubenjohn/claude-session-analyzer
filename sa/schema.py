@@ -216,7 +216,8 @@ GLOSSARY: Dict[str, Term] = {
                                   "each call writes one cache tier only"),
     "cache_write_5m_tokens": Term("tokens written to the 5-minute prompt cache (billed x1.25)",
                                   "each call writes one cache tier only"),
-    PROJECT_DIM: Term("the project directory the session ran in, path-encoded",
+    PROJECT_DIM: Term("the project directory the session ran in, path-encoded (/ as -),"
+                      " home printed as ~",
                       "a long name prints as its tail in a default table; --by prints it whole"),
     SESSION_DIM: Term("a session id: its main window and every subagent window",
                       "--where session= keeps the subagents too; --where window= isolates one"),

@@ -154,3 +154,22 @@ def test_view_help_names_each_dimension_with_its_glossary_meaning(view):
     for dim in schema.DIMENSIONS:
         assert re.search(r"^  %s\s+%s$" % (dim, re.escape(schema.GLOSSARY[dim].meaning)), out, re.M), dim
     assert render.FACT in out and cli.ALL in out
+
+
+def test_an_encoded_home_prints_as_a_tilde_and_selects_as_printed(tmp_path, monkeypatch, capsys):
+    """A project directory and locator start with home as Claude Code
+    encodes it; both print it as ``~``, and ``--where`` takes the label."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    encoded = tables._encoded_home() + "-work"
+    root = fx.corpus(tmp_path, {encoded + "/sess-0001.jsonl": fx.window_records()})
+    assert cli.main(["context", "--root", str(root), "--by", schema.PROJECT_DIM]) == 0
+    out = capsys.readouterr().out
+    assert encoded in "".join(p.name for p in root.iterdir())  # vacuity guard: the name is encoded
+    assert encoded not in out and re.search(r"^~-work\s", out, re.M)
+    assert re.search(r"^single-call peak .* at ~-work/sess-0001\.jsonl:\d+$", out, re.M)
+    assert cli.main(["context", "--root", str(root), "--where", "%s=~-work" % schema.PROJECT_DIM]) == 0
+    assert "\nkept where %s=~-work: " % schema.PROJECT_DIM in capsys.readouterr().out
+    # A refusal names the values present with home as ~ too.
+    assert cli.main(["context", "--root", str(root), "--where", "%s=nope" % schema.PROJECT_DIM]) == 2
+    err = capsys.readouterr().err
+    assert "present: ~-work" in err and encoded not in err and str(tmp_path) not in err

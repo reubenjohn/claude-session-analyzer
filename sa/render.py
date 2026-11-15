@@ -106,7 +106,7 @@ def _over(sel: Selection, carrier: str) -> str:
 
 def _pins(pairs: List[Tuple[str, str]]) -> str:
     """`` where dim=value ...`` for the pairs, or nothing."""
-    return " where " + " ".join("%s=%s" % p for p in pairs) if pairs else ""
+    return " where " + " ".join("%s=%s" % (d, tables.home(v)) for d, v in pairs) if pairs else ""
 
 
 def _largest(table: query.Table) -> Optional[query.Row]:

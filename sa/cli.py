@@ -69,7 +69,7 @@ def _pair(text: str) -> Tuple[str, str]:
     dim, sep, value = text.partition("=")
     if not sep:
         raise argparse.ArgumentTypeError("expected DIM=VALUE")
-    return dim, value
+    return dim, tables.unhome(value)  # a label printed with ~ for home selects as printed
 
 
 def _by(text: str) -> str:
@@ -168,7 +168,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             print("\n".join(explain(args.term)))
         except schema.SchemaError as error:
-            print("sa explain: error: %s" % error, file=sys.stderr)
+            print("sa explain: error: %s" % tables.home_text(str(error)), file=sys.stderr)
             return 2
         return 0
     view = VIEWS[args.view]
@@ -186,7 +186,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         lines = render.report(view, sel, loaded, args.by, args.limit,
                               since_default=args.since is None)
     except schema.SchemaError as error:
-        print("sa %s: error: %s" % (args.view, error), file=sys.stderr)
+        print("sa %s: error: %s" % (args.view, tables.home_text(str(error))), file=sys.stderr)
         return 2
     paint = tables.paint if _colour() else str
     print("\n".join(paint(line) for line in lines))
