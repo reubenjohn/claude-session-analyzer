@@ -6,6 +6,7 @@ arithmetic is written out so a test can assert exact figures rather than
 re-derive them.
 """
 import json
+import os
 import re
 import subprocess
 import sys
@@ -221,8 +222,10 @@ def interleaved_records():
 
 
 def run_cli(*args):
-    """``python3 -m sa <args>`` as a subprocess: (exit status, stdout, stderr)."""
-    done = subprocess.run([sys.executable, "-m", "sa"] + list(args), cwd=str(REPO),
+    """``python3 -m sa <args>`` as a subprocess: (exit status, stdout, stderr),
+    with no ``FORCE_COLOR`` inherited, so stdout is the plain contract."""
+    env = {k: v for k, v in os.environ.items() if k != "FORCE_COLOR"}
+    done = subprocess.run([sys.executable, "-m", "sa"] + list(args), cwd=str(REPO), env=env,
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           universal_newlines=True)
     return done.returncode, done.stdout, done.stderr
