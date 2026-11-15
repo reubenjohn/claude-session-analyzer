@@ -20,41 +20,41 @@ claude plugin install claude-session-analyzer@reubenjohn
 python3 -m sa context --by cause
 ```
 
+<!-- example: context --by cause -->
 ```
-read: 9 files modified in the last 7d (default) under ~/.claude/projects
+read: 4 files modified in the last 7d (default) under ~/.claude/projects
       0 lines skipped, 0 duplicate records excluded
-kept: 8 windows° (files with a call), 471 increment facts
+kept: 3 windows° (files with a call), 33 increment facts
 
-context_delta: 793,922 context tokens = the 8 windows' final occupancies summed
-  top tool=Bash 223,025 (28.1% of the 793,922 total)
-  within it head=Bash:git 50,904 (22.8% of Bash, 6.4% of the total)
-single-call peak context_tokens over the 8 whole windows: 164,074 context tokens at -home-me-workspace-myproject/<session-id>.jsonl:247
+context_delta: 4,560 context tokens = the 3 windows' final occupancies summed
+  top tool=Bash 750 (16.4% of the 4,560 total)
+  within it head=Bash:pytest 750 (100.0% of Bash, 16.4% of the total)
+single-call peak context_tokens over the 3 whole windows: 1,520 context tokens at ~-work-app/sess-0001.jsonl:14
 
-by cause         context_delta  increments  share of total
-window_head            335,056           8           42.2%
-tool_result            211,715         183           26.7%
-feed_forward           168,046         231           21.2%
-ambiguous               72,972          26            9.2%
-user_text                6,133          23            0.8%
-= total                793,922         471  ✓ matches the final window sizes
+by cause            context_delta  increments  share of 4,860 added
+window_head                 3,000           3                 61.7%
+tool_result                   750           3                 15.4%
+ambiguous                     606           9                 12.5%
+user_text                     255           3                  5.2%
+feed_forward                  249          12                  5.1%
+shrink (signed)              -300           3                     -
+= total                     4,560          33  ✓ matches the final window sizes
 
 key (°: sa explain TERM)
   window_head°   the context a window's first call already had: system prompt, tools, CLAUDE.md and first message, or the context a fork or resume inherited
-  ambiguous°     an interval whose tokens more than one contributor (or none) could have put there; never spread over them (by reason: multi_contributor, negative_remainder, no_contributor)
+  ambiguous°     an interval not booked to one contributor: more than one entered, none did, or it grew by less than the previous call's output; never spread over them (by reason: multi_contributor, negative_remainder, no_contributor)
 
-✓ checks: 232 intervals (240 calls - 8 windows) = exact 206 (88.8%) + ambiguous 26 (11.2%) + shrink 0 (0.0%)
+✓ checks: 18 intervals (21 calls - 3 windows) = exact 6 (33.3%) + ambiguous 9 (50.0%) + shrink 3 (16.7%)
 ```
 
 `--since 30d` or `--since all` widens the window; `sa explain [TERM]`
-says what a term means. `python3 -m sa spend --by agent --limit 3`:
+says what a term means. `python3 -m sa spend --by agent`:
 
+<!-- example: spend --by agent | by agent -->
 ```
-by agent                spend  calls  share of 1,615,785 with an agent
-agent-a1              672,796     42                             41.6%
-agent-b2              581,118     55                             36.0%
-agent-c3              255,305     21                             15.8%
-+1 more row           106,566      8                              6.6%
-∅                   1,674,748    116                                 -
+by agent                spend  calls  share of 988 with an agent
+agent-fake1               988      7                      100.0%
+∅                       1,976     14                           -
 ```
 
 Spend weights cache reads 0.1x, 5m writes 1.25x, 1h writes 2x; never

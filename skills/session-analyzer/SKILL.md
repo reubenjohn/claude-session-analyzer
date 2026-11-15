@@ -18,7 +18,7 @@ Narrow, then drill:
 | Flag | Meaning |
 |---|---|
 | `--since 30d` | files modified within the last N days (default 7d; `all` reads every file) |
-| `--where project=` / `session=` / `agent=` / `window=` | project directory name (`-home-me-workspace-myproject`), sessionId, agentId or root-relative file name (isolates one main window); keeps whole windows |
+| `--where project=` / `session=` / `agent=` / `window=` | project directory name as printed (`~-work-app`), sessionId, agentId or root-relative file name (isolates one main window); keeps whole windows |
 | `--where DIM=VALUE` | repeatable, exact; dims: project, session, agent, window, cause, tool, head, reason |
 | `--by DIM` | one dimension's table |
 | `--by fact` | leaf facts: `<metric>  file:line  uuid  dimensions`, evidence indented |
@@ -45,12 +45,12 @@ shares.
 Whatever `--by` shows, the `context` headline names the top tool with
 its mass and share of the total, `within it` that tool's largest head
 with its share of the tool and of the total, then a larger head under
-another tool, one clause per line: `top tool=Bash 223,025 (28.1% of the
-793,922 total)`, `within it head=Bash:git 50,904 (22.8% of Bash, 6.4% of
+another tool, one clause per line: `top tool=Bash 750 (16.4% of the
+4,560 total)`, `within it head=Bash:pytest 750 (100.0% of Bash, 16.4% of
 the total)`; `spend` names the top agent. Never a cause or a window row. A `--where`
 pin omits the default tables and levers it implies (a head its tool, a
 window its agent, session, project). A drill's headline names its pins and
-counts the windows its facts come from (`… where tool=Bash in 29 of 36
+counts the windows its facts come from (`… where cause=user_text in 1 of 2
 windows`). `single-call peak
 context_tokens` under it is the fullest call over the N whole windows,
 even under a drill.
@@ -97,8 +97,9 @@ Unnarrowed, the `context` cause table ends with `= total N  ✓ matches
 the final window sizes`, and the last line is this run's attribution
 quality over the intervals (calls minus windows):
 
+<!-- example: context | ✓ checks -->
 ```
-✓ checks: 232 intervals (240 calls - 8 windows) = exact 206 (88.8%) + ambiguous 26 (11.2%) + shrink 0 (0.0%)
+✓ checks: 18 intervals (21 calls - 3 windows) = exact 6 (33.3%) + ambiguous 9 (50.0%) + shrink 3 (16.7%)
 ```
 
 It holds by construction: a failure prints the reconciliation in full

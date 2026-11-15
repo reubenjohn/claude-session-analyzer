@@ -147,18 +147,19 @@ def load_facts(root, keep=None):
     return loaded, walk.forest(loaded)
 
 
-def cli_corpus(tmp_path):
+def cli_corpus(tmp_path, projects=("proj-a", "proj-b")):
     """Two projects, three windows: a main window, its forked subagent (a
     sibling fork: same text, new ids), another project's window, and a
-    file with no call at all."""
+    file with no call at all. ``projects`` names the two directories."""
     fork = {"type": "fork-context-ref", "parentSessionId": FORK_PARENT,
             "parentLastUuid": "uuid-0000", "agentId": "agent-fake1"}
+    a, b = projects
     return corpus(tmp_path, {
-        "proj-a/sess-0001.jsonl": window_records(),
-        "proj-a/sess-0001/subagents/agent-fake1.jsonl":
+        a + "/sess-0001.jsonl": window_records(),
+        a + "/sess-0001/subagents/agent-fake1.jsonl":
             [fork] + window_records("fork-", session="sess-0001"),
-        "proj-b/sess-0002.jsonl": window_records("b-", session="sess-0002"),
-        "proj-b/empty.jsonl": [user_text("uuid-9001", session="sess-0003")],
+        b + "/sess-0002.jsonl": window_records("b-", session="sess-0002"),
+        b + "/empty.jsonl": [user_text("uuid-9001", session="sess-0003")],
     })
 
 

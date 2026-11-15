@@ -112,10 +112,10 @@ reader to build what its tests forbid. Need another file? STOP AND ASK.
 Pre-commit warns on `.py` > 15,000 bytes and `.md` > 20,000. Privacy gate
 FAILS CLOSED (`tests/test_privacy.py`): no literal `/home/...` or
 `/Users/...` paths, no real-looking UUIDs, no transcript text in any tracked
-file. `.githooks/pre-push` does not fire under the global `core.hooksPath`:
-run the suite before pushing. Doc caps: README ≤ 5,000, SKILL.md ≤ 6,000,
-this file ≤ 7,000; example lines mirror live output: resync after any
-change.
+file. `.githooks/pre-push` does not fire (global `core.hooksPath`): run
+the suite before pushing. Tested: doc caps in bytes (README 5,000,
+SKILL.md 6,000, this file 7,000); examples = fixture output, synced by
+`scripts/resync_examples.py`.
 
 ## Pointers, never copies
 
