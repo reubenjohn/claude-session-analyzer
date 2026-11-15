@@ -168,3 +168,106 @@ def fact(kind: str, dims: dict, metrics: dict, locator: Locator,
     if kind == INCREMENT:
         check_value(CAUSE_DIM, dims.get(CAUSE_DIM))
     return Fact(kind, dims, metrics, locator, evidence or {})
+
+
+# The glossary: every term the output prints, in plain words, and why its
+# number might surprise a reader. It drives ``sa explain``, the key under the
+# tables, the ``°`` markers and ``--help``; a test holds that every declared
+# metric, kind, dimension, cause and reason has an entry. ``marked`` terms
+# are the irreducible concepts: they print with ``MARKER`` where the key
+# names them. The residual row's label is declared here so the key and the
+# glossary share it.
+RESIDUAL_LABEL = "∅"
+EXACT = "exact"
+DRILL = "drill"
+MARKER = "°"
+
+
+class Term(NamedTuple):
+    meaning: str
+    surprise: str
+    marked: bool = False
+
+
+GLOSSARY: Dict[str, Term] = {
+    WINDOW_DIM: Term(
+        "one transcript file: a main session or one subagent, each its own context window",
+        "a resume, fork or /branch writes a new file, so one session can be several windows;"
+        " a file with no call is read but is no window", True),
+    CALL: Term("one assistant message, its split records merged: what spend is read from",
+               "a message written as several records counts once"),
+    INCREMENT: Term("one booked change of a window's context between two calls:"
+                    " what context_delta is read from",
+                    "one ambiguous increment can name several tool results"),
+    CONTEXT_DELTA: Term(
+        "context tokens booked to what put them in a window; summed, they equal the"
+        " windows' final sizes",
+        "it is net: what a compaction or other shrink removed is not counted, so a window"
+        " that grew to 700K and compacted to 70K reports 70K"),
+    SPEND: Term("what the calls billed, in input-side base-token-equivalents"
+                " (cache writes x1.25 or x2.0, cache reads x0.1)",
+                "every call re-reads its whole context, so spend grows with context times"
+                " calls; it is never quoted in dollars"),
+    CONTEXT_TOKENS: Term("one call's context size; a peak, so only its largest call is shown",
+                         "never summed: a sum counts a token once per call that re-read it"),
+    "output_tokens": Term("tokens the calls generated",
+                          "the next call reads them back, as feed_forward"),
+    "cache_write_1h_tokens": Term("tokens written to the 1-hour prompt cache (billed x2.0)",
+                                  "each call writes one cache tier only"),
+    "cache_write_5m_tokens": Term("tokens written to the 5-minute prompt cache (billed x1.25)",
+                                  "each call writes one cache tier only"),
+    PROJECT_DIM: Term("the project directory the session ran in, path-encoded",
+                      "a long name prints as its tail in a default table; --by prints it whole"),
+    SESSION_DIM: Term("a session id: its main window and every subagent window",
+                      "--where session= keeps the subagents too; --where window= isolates one"),
+    AGENT_DIM: Term("a subagent's id; a main window has none",
+                    "main windows are the ∅ row of by agent"),
+    CAUSE_DIM: Term("what kind of thing put the tokens in the context",
+                    "window_head is often the largest and cannot be split further"),
+    TOOL_DIM: Term("the tool whose result put the tokens there",
+                   "context the model wrote or you typed has no tool: it is ∅"),
+    HEAD_DIM: Term("<tool>:<summary>: a Bash command's first command word (Bash:git) or a"
+                   " file tool's file extension (Read:py)",
+                   "never a path; python3 x.py is Bash:python3"),
+    REASON_DIM: Term("why an increment is ambiguous", "only ambiguous increments have one"),
+    WINDOW_HEAD: Term(
+        "the context a window's first call already had: system prompt, tools, CLAUDE.md and"
+        " first message, or the context a fork or resume inherited",
+        "often the largest cause; the transcript does not record its contents, so it is"
+        " not split further", True),
+    FEED_FORWARD: Term("the previous call's own output, read back by the next call",
+                       "it is what the model wrote, not what a tool returned"),
+    TOOL_RESULT: Term("a tool's output, booked exactly to its tool and head",
+                      "the part you can act on: drill it with --where tool="),
+    USER_TEXT: Term("text typed into the window (by you or a hook)",
+                    "usually small: typing rarely fills a window"),
+    AMBIGUOUS: Term(
+        "an interval whose tokens more than one contributor (or none) could have put there;"
+        " never spread over them",
+        "it still names a tool when every candidate came from one; --by fact lists the"
+        " candidates", True),
+    SHRINK: Term("a window that got smaller between two calls (a compaction): a negative row",
+                 "excluded from every share, always in the checks"),
+    MULTI_CONTRIBUTOR: Term("several results or texts entered in one interval",
+                            "the tokens are not split between them"),
+    NEGATIVE_REMAINDER: Term("the interval grew by less than the previous call's output",
+                             "rare; the whole delta stays ambiguous"),
+    NO_CONTRIBUTOR: Term("the context grew with nothing recorded to explain it",
+                         "declared so it is labelled should it appear"),
+    RESIDUAL_LABEL: Term("the part of a table's total with no value for its dimension;"
+                         " the key says why, per table",
+                         "often most of the total: window_head has no tool", True),
+    EXACT: Term("an interval with one contributor: booked to it after subtracting the"
+                " previous call's output",
+                "exact given that model; bookkeeping attachments fold into the remainder"),
+    DRILL: Term("a --where on cause, tool, head or reason: narrows the facts inside the"
+                " windows kept",
+                "the checks still cover the whole windows, not the drill"),
+}
+
+
+def explain(term: str) -> Term:
+    try:
+        return GLOSSARY[term.rstrip(MARKER)]
+    except KeyError:
+        raise SchemaError("unknown term %r; known: %s" % (term, ", ".join(GLOSSARY)))
