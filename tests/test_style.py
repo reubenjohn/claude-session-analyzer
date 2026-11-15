@@ -80,21 +80,45 @@ def test_tools_take_distinct_hues_and_only_whole_names_are_painted():
     assert set(_hues(painted, "Read")) == {style.TOOL_HUES[1]}
     assert ESC not in painter.paint(lines[-1])  # inside a word, a path or a project: no hue
     assert len(style.Painter("ABCDEFG").hues) == len(style.TOOL_HUES)  # the rest print plain
-    assert not set(style.TOOL_HUES) & {style.GREEN[0], style.RED[0]}  # the checks' colours
+    assert not set(style.TOOL_HUES) & {style.RED, style.YELLOW, style.GREEN}  # the heatmap's
 
 
-def test_rows_a_table_never_hides_are_never_dimmed(tmp_path):
-    """``∅`` and the signed rows print italic, whatever their share; only a
-    regular row under ``COLD`` is dimmed, and one at ``HOT`` has its share
-    bold."""
+def test_rows_a_table_never_hides_are_never_dimmed_nor_heated(tmp_path):
+    """``∅``, ``+N more rows`` and the signed rows print italic, whatever
+    their share, outside the heatmap; so does the total row."""
     root = str(fx.cli_corpus(tmp_path))
     out = fx.run_cli("context", "--root", root, "--color", style.ALWAYS)[1].splitlines()
     kept = [line for line in out if re.match(r"(\033\[\d+m)?(∅|shrink \(signed\))\s", line)]
     assert kept  # vacuity guard
     faint, italic = "%s%sm" % (ESC, style.FAINT[0]), "%s%sm" % (ESC, style.ITALIC[0])
-    assert all(line.startswith(italic) and faint not in line for line in kept)
-    painter = style.Painter()
-    cold = style.tag("x  1  0.5%", style.ROW, style.COLD / 2)
-    hot = style.tag("x  9  50.0%", style.ROW, style.HOT * 2)
-    assert painter.paint(cold).startswith(faint)
-    assert painter.paint(hot).endswith(style.sgr("50.0%", style.BOLD))
+    heated = re.compile(r"\033\[(%s)[;m]" % "|".join((style.RED, style.YELLOW, style.GREEN)))
+    assert all(line.startswith(italic) and faint not in line and not heated.search(line)
+               for line in kept)
+    total = [line for line in out if style.plain(line).startswith("= total")]
+    assert total and not heated.search(total[0])  # vacuity guard, then the total row
+
+
+@pytest.mark.parametrize("share, hue, bold, faint", [
+    (0.9, style.RED, True, False), (style.HOT, style.RED, True, False),
+    (0.2, style.YELLOW, False, False), (style.WARM, style.YELLOW, False, False),
+    (0.02, style.GREEN, False, False), (0.005, style.GREEN, False, True)])
+def test_the_heatmap_maps_a_share_to_a_hue_and_a_brightness(share, hue, bold, faint):
+    """Red, yellow, green by share of the base, on the figures only; bold
+    repeats red and dim the smallest, for a reader who cannot tell hues."""
+    line = style.tag("Bash    1,000    3   %5.1f%%" % (100 * share), style.ROW, share, ((8, 13), (19, 25)))
+    painted = style.Painter(["Bash"]).paint(line)
+    assert style.plain(painted) == line
+    on = "%s%s%sm" % (ESC, hue, ";1" if bold else "")
+    assert painted.count(on) == 2  # the mass and the share cells
+    assert ("%s1m" % ESC in painted or ";1m" in painted) is bold
+    assert painted.startswith("%s%sm" % (ESC, style.FAINT[0])) is faint
+    assert "%s%sm1,000" % (ESC, hue) in painted.replace(";1m", "m")  # the cell, not its padding
+    assert style.heat(share)[0].split(";")[0] == hue
+
+
+def test_the_checks_line_carries_no_heatmap_hue(tmp_path):
+    """Red, yellow and green mean a share: the ✓ line prints plain."""
+    root = str(fx.cli_corpus(tmp_path))
+    out = fx.run_cli("context", "--root", root, "--color", style.ALWAYS)[1].splitlines()
+    checks = [line for line in out if line.startswith("✓ checks")]
+    assert checks and ESC not in checks[0]

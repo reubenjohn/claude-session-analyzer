@@ -208,9 +208,10 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
                                                share_header(grouped).rjust(6)), style.HEADER)]
     for i, (label, r) in enumerate(zip(labels, shown)):
         share = grouped.share(r.mass) if r.kind == query.REGULAR else None
+        mass, cell = width + 2, width + mw + cw + 6  # the figures' spans: mass and share
         lines.append(style.tag("%-*s  %*s  %*s  %6s" % (
             width, label, mw, num(r.mass), cw, num(r.count), pct(share)),
-            style.ROW if i < values else style.OTHER, share))
+            style.ROW if i < values else style.OTHER, share, ((mass, mass + mw), (cell, cell + 6))))
     if total is not None:
         lines.append(style.tag("%-*s  %*s  %*s  %s" % (width, TOTAL_LABEL, mw, sums[0], cw, sums[1],
                                                        total), style.TOTAL))

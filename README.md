@@ -86,8 +86,9 @@ leaves with `file:line  uuid  dimensions`, an ambiguous one's
 `candidates:` under it.
 
 On a terminal the output is styled (`--color always|never|auto`,
-`NO_COLOR`, `FORCE_COLOR`); a pipe gets the same text, unstyled. Each
-of the top three tools keeps one hue wherever it prints.
+`NO_COLOR`, `FORCE_COLOR`); a pipe gets the same text, unstyled. A
+row's figures are a heatmap of its share (red, bold: 25% or more;
+yellow: 5%; green), and each of the top three tools keeps one hue.
 
 A window is one context window: from a session start, subagent, fork,
 replay or compaction to its file's end or the next compaction. A fork's
