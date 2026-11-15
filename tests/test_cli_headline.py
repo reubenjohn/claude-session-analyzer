@@ -65,7 +65,7 @@ def test_a_pin_omits_the_tables_and_levers_it_implies(tmp_path):
         assert re.search(r"^by %s\s" % dim, out, re.M), dim
     asked = fx.run_cli("context", "--root", str(root), "--where", "%s=Bash:pytest" % HEAD, "--by", TOOL)[1]
     assert re.search(r"^Bash\s+750\s+3\s+100\.0%$", asked, re.M)
-    window = ["--where", "%s=proj-a/sess-0001.jsonl" % schema.WINDOW_DIM]
+    window = ["--where", "%s=%s" % (schema.WINDOW_DIM, fx.window_value("proj-a/sess-0001.jsonl"))]
     code, out, err = fx.run_cli("context", "--root", str(root), *window)
     assert code == 0, err
     for dim in schema.WINDOW_DIMENSIONS:

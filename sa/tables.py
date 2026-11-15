@@ -108,6 +108,7 @@ RESIDUAL_NOTES: Dict[str, Tuple[str, List[Case]]] = {
     schema.AGENT_DIM: ("main windows (no subagent)", []),
     schema.TOOL_DIM: ("no tool", [(c, _cause(c)) for c in (
         schema.WINDOW_HEAD, schema.FEED_FORWARD, schema.USER_TEXT)] + [
+        (schema.INHERITED, _cause(schema.INHERITED)),
         ("%s whose candidates share no one tool" % schema.AMBIGUOUS, _cause(schema.AMBIGUOUS)),
         ("a %s whose tool_use did not resolve" % schema.TOOL_RESULT, _cause(schema.TOOL_RESULT))]),
     schema.HEAD_DIM: ("no head", [
@@ -181,9 +182,8 @@ def uuid(locator: schema.Locator) -> str:
 
 
 def tags(dims: dict) -> str:
-    """Every dimension but ``window``, which the locator beside it names."""
-    return " ".join("%s=%s" % (d, home(dims[d])) for d in schema.DIMENSIONS
-                    if d in dims and d != schema.WINDOW_DIM)
+    """Every dimension the fact has, ``window`` too: a file can hold several."""
+    return " ".join("%s=%s" % (d, home(dims[d])) for d in schema.DIMENSIONS if d in dims)
 
 
 def _label(row: query.Row, whole: bool) -> str:
@@ -235,7 +235,8 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
 def leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:
     """The ``limit`` largest facts, each with its dimensions and, indented
     under it, its evidence: the candidate contributors of an ambiguous
-    increment, the parent of a fork's window head."""
+    increment, the parent of a fork's window head, the parent window and
+    branch call of an inherited increment."""
     spec = schema.metric(metric)
     largest = sorted((f for f in facts if f.kind == spec.carrier),
                      key=lambda f: -abs(f.metrics[metric]))[:limit]  # a shrink is as large as its |mass|
@@ -256,5 +257,9 @@ def _evidence(evidence: dict) -> Iterator[str]:
             for candidate in value:
                 yield "%20s%s %s  %s" % ("", at(candidate.locator), uuid(candidate.locator),
                                          tags(candidate.dims))
+        elif isinstance(value, schema.WindowKey):  # a parent window: its --where value
+            yield "%18s%s: %s=%s" % ("", key, schema.WINDOW_DIM, schema.window_value(value))
+        elif isinstance(value, schema.Locator):
+            yield "%18s%s: %s %s" % ("", key, at(value), uuid(value))
         else:
             yield "%18s%s: %s" % ("", key, value)

@@ -31,7 +31,8 @@ def test_chain_integrity_holds_over_every_branch(tmp_path):
     facts = _one_window(tmp_path)
     causes = {f.dims[schema.CAUSE_DIM] for f in facts if f.kind == INCREMENT}
     reasons = {f.dims[schema.REASON_DIM] for f in facts if f.dims.get(schema.REASON_DIM)}
-    assert causes == set(schema.CAUSES), "fixture must exercise every cause"
+    # One window inherits nothing: ``inherited`` needs a parent (tests/test_windows.py).
+    assert causes == set(schema.CAUSES) - {schema.INHERITED}, "fixture must exercise every other cause"
     assert reasons == set(schema.REASONS), "fixture must exercise every reason"
     booked, final = _chain(facts)
     assert booked == final == {next(iter(final)): fx.FINAL_OCCUPANCY}
@@ -70,7 +71,7 @@ def test_a_call_split_across_files_is_one_call_owned_by_the_earlier_file(tmp_pat
     assert code == 0, err
     assert ("read: 2 files modified in the last 7d (default) under %s\n"
             "      0 lines skipped, 1 duplicate record excluded\n"
-            "kept: 1 window° (a file with a call), 1 call fact\n" % root) in out
+            "kept: 1 window°, 1 call fact\n" % root) in out
     # Merged over both files' constituents: the same metrics as the split within one file.
     (within,) = [f for f in _one_window(tmp_path / "within", [parent, copy]) if f.kind == CALL]
     assert call.metrics == within.metrics

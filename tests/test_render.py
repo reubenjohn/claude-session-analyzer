@@ -42,7 +42,7 @@ def test_every_dimension_a_view_can_group_with_a_residual_row_has_a_note(tmp_pat
     """The fixture carries every cause and reason, a main window and a
     subagent's, so each dimension that can lack a value does so here, and
     every fact in a residual row is read by a case of the row's note."""
-    facts = fx.load_facts(fx.cli_corpus(tmp_path))[1]
+    facts = fx.load_facts(fx.every_corpus(tmp_path))[1]
     grouped = [query.group(facts, dim, view.metric) for view in cli.VIEWS.values()
                for dim in schema.KIND_DIMENSIONS[schema.metric(view.metric).carrier]]
     with_residual = {t.dim for t in grouped if t.residual}

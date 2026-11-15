@@ -12,8 +12,8 @@ never a zero headline); ``--since`` selects FILES by modification time
 before reading, 7 days unless given (``all`` reads every file), so dedup
 runs over the selected files only, and a day count that keeps no file is a
 legitimate empty population; ``--where`` selects facts after dedup. A
-``--where`` on a window dimension (project, session, agent, window) keeps
-whole windows; any other dimension is a drill, and the reconciliation and
+``--where`` on a window dimension (project, session, agent, window, start)
+keeps whole windows; any other dimension is a drill, and the reconciliation and
 the single-call peak then apply to the whole-window population they are
 printed for. What ``query`` refuses (an unknown name, an undeclared value,
 an open-vocabulary value no fact carries) is exit status 2 with its
@@ -38,7 +38,7 @@ ALL = "all"
 SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What put"
               " the tokens there is answered by `sa context` (--by tool, --by head).")
 
-# ``window`` is one row per file: a drill target (--by, --where), never a default table.
+# ``window`` is one row per context window: a drill target (--by, --where), never a default table.
 VIEWS = {"context": View(metric=schema.CONTEXT_DELTA,
                          tables=(schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM,
                                  schema.AGENT_DIM, schema.SESSION_DIM, schema.PROJECT_DIM),

@@ -10,14 +10,9 @@ from collections import Counter
 from typing import List, Optional, Tuple
 
 from . import query, schema, usage, walk
-from .corpus import Corpus, SourceFile
+from .corpus import COMPACT, Corpus, SourceFile, is_marker  # noqa: F401 (re-exported)
 
-COMPACT = "compact_boundary"
 HOUR = 3600.0
-
-
-def is_marker(data: dict) -> bool:
-    return data.get("type") == "system" and data.get("subtype") == COMPACT
 
 
 def is_subagent(source: SourceFile) -> bool:

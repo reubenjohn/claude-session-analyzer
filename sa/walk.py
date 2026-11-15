@@ -1,7 +1,8 @@
-"""One file's records become facts.
+"""Each window's records become facts.
 
-A window is a file. Its ``call`` facts are the max-merged assistant messages
-that carried usage; its ``increment`` facts book every change of context
+A window is one context window, cut by ``windows`` (a file holds one or
+more). Its ``call`` facts are the max-merged assistant messages that
+carried usage; its ``increment`` facts book every change of context
 occupancy from an empty window to the last call, so that per window
 ``sum(context_delta) == final occupancy`` by construction. What the
 telescoping chain cannot check is whether one interval's mass went to the
@@ -12,8 +13,11 @@ token-relevant contributor is booked as exact and everything else is one
 Records marked duplicate (replays owned by another file, by uuid or by the
 call's message.id) mint no call, no contributor and no fact; the tool_use
 join index spans every record so a tool_result whose tool_use was replayed
-still resolves to its tool. A file whose first calls are replays books
-``window_head`` at its first live call, the ruled inherited-context row.
+still resolves to its tool. A window's first call books its head: for a
+fork or replayed window whose parent is in the forest, ``inherited`` (the
+parent window's occupancy at the branch call, one increment, its evidence
+the parent window and that call) and ``window_head``, the remainder; for
+any other window, ``window_head`` alone (D-FORK-INHERITED, D-NO-START-SPLIT).
 
 Every figure below marked "local sweep 2026-10-01T11:50Z" is a line of
 ``python3 -m sa.sweep`` run at that minute over this machine's live
@@ -23,17 +27,12 @@ figures name their own population.
 """
 from typing import Dict, Iterator, List, NamedTuple, Optional, Tuple
 
-from . import heads, schema, usage
-from .corpus import Corpus, Record, SourceFile, message_id
+from . import heads, schema, usage, windows as windows_module
+from .corpus import Corpus, Record, SourceFile
 from .schema import Candidate, Fact, Locator
+from .windows import Call, Usages, Window, calls, first_value, _message  # noqa: F401 (re-exported)
 
 ToolUses = Dict[str, Tuple[str, dict]]
-Usages = Dict[str, List[dict]]  # ``Corpus.usages``: message.id -> every usage dict under it
-
-
-def _message(data: dict) -> dict:
-    message = data.get("message")
-    return message if isinstance(message, dict) else {}
 
 
 def blocks(data: dict) -> List[dict]:
@@ -41,41 +40,6 @@ def blocks(data: dict) -> List[dict]:
     if not isinstance(content, list):
         return []
     return [block for block in content if isinstance(block, dict)]
-
-
-class Call(NamedTuple):
-    first: int      # index of the first constituent in the records walked
-    record: Record  # the first constituent, which locates the call
-    usage: dict     # max-merged over the constituents
-
-
-def calls(records: List[Record], usages: Usages) -> List[Call]:
-    """Usage-carrying calls in first-constituent order.
-
-    Assistant records sharing a ``message.id`` are one call, merged by
-    ``usage.max_merge_usage`` (its docstring has why a field-wise max) over
-    every constituent the forest carries under that id (``usages``), so a
-    split spread over a fork and its parent merges whole and is credited
-    once, to the owning file. A record without ``message.id`` is a call by
-    itself. A call carries usage iff it has occupancy or output: a
-    ``<synthetic>`` zero-usage record is not a call and does not advance
-    the chain.
-    """
-    found, seen = [], set()
-    for index, record in enumerate(records):
-        if record.data.get("type") != "assistant":
-            continue
-        key = message_id(record.data)
-        if key in seen:
-            continue  # a later constituent of a call already found
-        if key is None:
-            merged = usage.max_merge_usage([_message(record.data).get("usage")])
-        else:
-            seen.add(key)
-            merged = usage.max_merge_usage(usages[key])
-        if usage.usage_context(merged) or merged.get("output_tokens"):
-            found.append(Call(index, record, merged))
-    return found
 
 
 def tool_uses(records: List[Record]) -> ToolUses:
@@ -161,18 +125,13 @@ def fork_evidence(records: List[Record]) -> dict:
     return {}
 
 
-def first_value(records: List[Record], key: str) -> Optional[str]:
-    for record in records:
-        value = record.data.get(key)
-        if value:
-            return value
-    return None
-
-
-def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
-    """Facts of one window in file order, each call followed by the
+def walk(source: SourceFile, usages: Usages, cut: Optional[List[Window]] = None,
+         inherit: Optional[windows_module.Inherit] = None) -> Iterator[Fact]:
+    """Facts of one file's windows in file order, each call followed by the
     increments it closes; ``usages`` is the forest's, so a split call
-    merges whole wherever its constituents landed.
+    merges whole wherever its constituents landed. ``cut`` is the file's
+    windows (``windows.cut`` when omitted); ``inherit``, what its first
+    window copied from its parent (``windows.inherits``).
 
     An interval's contributors are the user records strictly between the
     previous call's FIRST constituent and the current call's first. A split
@@ -184,16 +143,22 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
     """
     uses = tool_uses(source.records)
     live = source.live
-    # The window dimensions come from the live records, the ones that mint
+    # The file's dimensions come from the live records, the ones that mint
     # the facts: a replayed prefix owned by another file names that file's
     # window (local sweep 2026-10-01T11:50Z: 0 of 67 files whose first
     # record and first live record disagree on either key).
-    window = {schema.PROJECT_DIM: source.project,
-              schema.SESSION_DIM: first_value(live, "sessionId"),
-              schema.AGENT_DIM: first_value(live, "agentId"),  # None: a main window
-              schema.WINDOW_DIM: source.name}
-    window = {k: v for k, v in window.items() if v is not None}
+    named = {schema.PROJECT_DIM: source.project,
+             schema.SESSION_DIM: first_value(live, "sessionId"),
+             schema.AGENT_DIM: first_value(live, "agentId")}  # None: a main window
+    named = {k: v for k, v in named.items() if v is not None}
+    for k, win in enumerate(windows_module.cut(source, usages) if cut is None else cut):
+        dims = dict(named)
+        dims.update({schema.WINDOW_DIM: schema.window_value(win.key), schema.START_DIM: win.start})
+        yield from _window(source, live, uses, win, dims, inherit if k == 0 else None)
 
+
+def _window(source: SourceFile, live: List[Record], uses: ToolUses, win: Window, window: dict,
+            inherit: Optional[windows_module.Inherit]) -> Iterator[Fact]:
     def locator(record: Record) -> Locator:
         return Locator(source.name, record.line, record.data.get("uuid"))
 
@@ -202,7 +167,7 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
         all_dims = dict(window)
         all_dims.update((k, v) for k, v in dims.items() if v is not None)
         return schema.fact(schema.INCREMENT, all_dims, {schema.CONTEXT_DELTA: delta},
-                           locator(record), evidence)
+                           locator(record), evidence, win.key)
 
     def interval(previous: Call, current: Call) -> Iterator[Fact]:
         delta = usage.context_delta(previous.usage, current.usage)
@@ -227,13 +192,19 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
             **shared_dims(found))
 
     previous = None
-    for call in calls(live, usages):
+    for call in win.calls:
         yield schema.fact(schema.CALL, dict(window), {
             name: spec.read(call.usage) for name, spec in schema.METRICS.items()
-            if spec.carrier == schema.CALL}, locator(call.record))
+            if spec.carrier == schema.CALL}, locator(call.record), window=win.key)
         if previous is None:
-            yield increment(usage.usage_context(call.usage), call.record,
-                            evidence=fork_evidence(source.records), cause=schema.WINDOW_HEAD)
+            head = usage.usage_context(call.usage)
+            if inherit is not None:
+                head -= inherit.mass  # unclamped: the remainder is the window's own start
+                yield increment(inherit.mass, call.record, cause=schema.INHERITED, evidence={
+                    schema.PARENT_WINDOW: inherit.parent, schema.BRANCH_CALL: inherit.branch})
+            first = win.start != schema.COMPACTION
+            yield increment(head, call.record, evidence=fork_evidence(source.records) if first else None,
+                            cause=schema.WINDOW_HEAD)
         else:
             yield from interval(previous, call)
         previous = call
@@ -241,5 +212,9 @@ def walk(source: SourceFile, usages: Usages) -> Iterator[Fact]:
 
 def forest(loaded: Corpus) -> List[Fact]:
     """Every window's facts, files in owner order: the one population the
-    views, the sweep and the tests select from."""
-    return [f for source in loaded.files for f in walk(source, loaded.usages)]
+    views, the sweep and the tests select from. The files are cut first,
+    so a fork finds its parent's window and branch call."""
+    cuts = {source.name: windows_module.cut(source, loaded.usages) for source in loaded.files}
+    inherited = windows_module.inherits(loaded, cuts)
+    return [f for source in loaded.files
+            for f in walk(source, loaded.usages, cuts[source.name], inherited.get(source.name))]

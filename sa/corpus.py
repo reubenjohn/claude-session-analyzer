@@ -17,10 +17,11 @@ call under a new uuid (local sweep 2026-10-01T11:50Z, one minute's snapshot
 of this machine's corpus by ``python3 -m sa.sweep``, 67 files and 1,672
 live calls: 1 re-mint, 15,240 input-side base-token-equivalents, one
 phantom call and interval), while records sharing an id within one file are the split
-constituents of one call. A window is a file, never a ``parentUuid``
-chain: no link names a uuid in another file (same sweep,
+constituents of one call. A file is the unit of reading and dedup, never a
+``parentUuid`` chain: no link names a uuid in another file (same sweep,
 ``sweep.cross_file_parents``: 0 of 12,557), so a continuation is joined by
-its replayed records, not by its parent.
+its replayed records, not by its parent. Context windows are cut from the
+deduplicated files afterwards (``windows``), never by marking records.
 Files are read in owner order, so that the earliest-starting,
 longest-running copy of a window owns the records it shares with any other
 copy, and a replayed record in any later copy is MARKED duplicate rather
@@ -68,6 +69,14 @@ class Corpus(NamedTuple):
     usages: Dict[str, List[dict]]  # message.id -> every usage dict the forest carries under it
     skipped_lines: int        # blank, unparseable, or not a JSON object
     duplicate_records: int    # marked because their uuid or message.id was already seen
+
+
+COMPACT = "compact_boundary"
+
+
+def is_marker(data: dict) -> bool:
+    """A compaction marker: the system record a compaction writes."""
+    return data.get("type") == "system" and data.get("subtype") == COMPACT
 
 
 def message_id(data: dict) -> Optional[str]:

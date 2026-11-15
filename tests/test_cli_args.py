@@ -51,13 +51,18 @@ def test_unknown_dimension_is_refused(tmp_path):
                                        for value in schema.VOCABULARY[dim]])
 def test_unknown_value_of_a_closed_vocabulary_dimension_is_refused(tmp_path, dim, value):
     """Every declared value is accepted (the fixture carries each one), and
-    the undeclared one beside it is refused naming the vocabulary."""
-    root = fx.cli_corpus(tmp_path)
+    the undeclared one beside it is refused naming the vocabulary. Every
+    parent is kept, so inherited mass is counted in its parent: the drill
+    is a measured zero and the footer names the mass."""
+    root = fx.every_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=bogus" % dim)
     assert code == 2 and not out
     assert "unknown %s 'bogus'; declared: %s" % (dim, ", ".join(schema.VOCABULARY[dim])) in err
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=%s" % (dim, value))
     assert code == 0, err  # vacuity guard
+    if value == schema.INHERITED:
+        assert re.search(r"^%s: [1-9]" % re.escape(render.INHERITED_LABEL), out, re.M)
+        return
     assert re.search(r"^%s: -?[1-9]" % CONTEXT.metric, fx.headline(out))  # shrink's total is negative
 
 
@@ -95,7 +100,7 @@ def test_a_declared_value_no_fact_carries_is_a_measured_zero(tmp_path):
         assert code == 0, err
         assert fx.headline(out).startswith("%s: 0 %s over 0 increment facts where %s=%s in 0 of 1 window" % (
             CONTEXT.metric, fx.unit(CONTEXT.metric), schema.REASON_DIM, reason))
-        assert "\nkept: 1 window° (a file with a call), " in out
+        assert "\nkept: 1 window°, " in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=bogus" % schema.REASON_DIM)
     assert code == 2 and not out and "unknown %s" % schema.REASON_DIM in err  # a typo is still refused
 
@@ -114,10 +119,10 @@ def test_since_selects_files_by_mtime_and_zero_days_selects_none(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "0d")
     assert code == 0, err
-    assert "read: 0 files modified in the last 0d under " in out and "\nkept: 0 windows° (files with a call), 0 increment facts" in out
+    assert "read: 0 files modified in the last 0d under " in out and "\nkept: 0 windows°, 0 increment facts" in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "1d")
     assert code == 0, err
-    assert "read: 4 files modified in the last 1d under " in out and "\nkept: 3 windows° (files with a call), " in out
+    assert "read: 4 files modified in the last 1d under " in out and "\nkept: 3 windows°, " in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since=-1d")
     assert code == 2 and not out and "number of days" in err
 
@@ -125,7 +130,8 @@ def test_since_selects_files_by_mtime_and_zero_days_selects_none(tmp_path):
 def test_since_excludes_a_parent_before_dedup_so_its_continuation_owns_the_replayed_prefix(tmp_path):
     """Dedup runs over the kept files only: once the parent is too old, the
     continuation's replayed prefix is live and its window is booked from its
-    first record (occupancy 1,000), not from its first unshared one (1,500)."""
+    first record (occupancy 1,000), not from its first unshared one (1,500,
+    of which 1,300 inherited)."""
     original = fx.stamped(fx.window_records(), 0)  # runs longest, so it owns the shared prefix
     continuation = fx.stamped(fx.window_records()[:5], 0) + fx.stamped(fx.window_records("c-")[5:10], 5)
     root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": original, "proj-a/sess-0002.jsonl": continuation})
@@ -134,7 +140,8 @@ def test_since_excludes_a_parent_before_dedup_so_its_continuation_owns_the_repla
         CONTEXT.metric, fx.unit(CONTEXT.metric), CAUSE, schema.WINDOW_HEAD)
     code, out, err = fx.run_cli(*args)  # vacuity guard: both kept, the prefix is duplicate
     assert code == 0, err
-    assert fx.headline(out).startswith(headline % ("2,500", "2 increment facts", "2 windows"))
+    # 1,000 + 200: the continuation's head less what it inherited (1,300, counted in the original)
+    assert fx.headline(out).startswith(headline % ("1,200", "2 increment facts", "2 windows"))
     assert "read: 2 files modified in the last 1d under " in out and ", 5 duplicate records excluded\n" in out
     stale = time.time() - 2 * corpus.DAY
     os.utime(root / "proj-a" / "sess-0001.jsonl", (stale, stale))

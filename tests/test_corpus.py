@@ -104,8 +104,8 @@ def test_the_longest_running_copy_owns_a_replayed_prefix_whatever_its_filename(t
         by_file = {s.path.stem: [r.duplicate for r in s.records] for s in loaded.files}
         assert by_file[names[0]] == [True] * 5 + [False] * 9
         assert by_file[names[1]] == [False] * 14
-        heads = [f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.WINDOW_HEAD]
-        assert sorted(f.metrics[fx.DELTA] for f in heads) == [1000, 1500]
+        heads = [f for f in facts if f.dims.get(schema.CAUSE_DIM) in (schema.WINDOW_HEAD, schema.INHERITED)]
+        assert sorted(f.metrics[fx.DELTA] for f in heads) == [200, 1000, 1300]  # 1,500 = 1,300 inherited + 200
         results.append(query.reconcile(facts).by_cause)
     assert results[0] == results[1]
     assert sum(results[0].values()) == 2 * fx.FINAL_OCCUPANCY

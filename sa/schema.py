@@ -13,6 +13,7 @@ Adding a metric or a dimension is one line here; a cause is its entry in
 raises rather than skipping: a silent skip is how a wrong number stays
 plausible.
 """
+import hashlib
 from typing import Callable, Dict, NamedTuple, Optional
 
 from . import usage
@@ -49,53 +50,66 @@ METRICS: Dict[str, Metric] = {
     CONTEXT_TOKENS: Metric(PEAK, CALL, "context tokens", usage.usage_context),
 }
 
-# Causes of an increment. The first five book non-negative mass; ``shrink``
+# Causes of an increment. All but ``shrink`` book non-negative mass; ``shrink``
 # books the signed delta of a window that got smaller (``usage.context_delta``
 # has the measurement) and is reported as its own signed row, never spread.
+# ``inherited`` is what a fork or replayed window copied: its parent window's
+# occupancy at the branch call (D-FORK-INHERITED); ``window_head`` is then the
+# window's own start, the remainder, never split by content (D-NO-START-SPLIT).
 WINDOW_HEAD = "window_head"
+INHERITED = "inherited"
 FEED_FORWARD = "feed_forward"
 TOOL_RESULT = "tool_result"
 USER_TEXT = "user_text"
 AMBIGUOUS = "ambiguous"
 SHRINK = "shrink"
-CAUSES = (WINDOW_HEAD, FEED_FORWARD, TOOL_RESULT, USER_TEXT, AMBIGUOUS, SHRINK)
+CAUSES = (WINDOW_HEAD, INHERITED, FEED_FORWARD, TOOL_RESULT, USER_TEXT, AMBIGUOUS, SHRINK)
 EXACT_CAUSES = (TOOL_RESULT, USER_TEXT)
 
-# Why an increment is ``ambiguous``. ``no_contributor`` was measured at 0 of
-# 51,960 intervals (2026-07-28 sweep); it is declared so that an empty
-# interval, should one appear, is labelled rather than miscounted.
+# Why an increment is ``ambiguous``. ``no_contributor`` (0 of 51,960
+# intervals, 2026-07-28) is declared so an empty interval is labelled.
 MULTI_CONTRIBUTOR = "multi_contributor"
 NEGATIVE_REMAINDER = "negative_remainder"
 NO_CONTRIBUTOR = "no_contributor"
 REASONS = (MULTI_CONTRIBUTOR, NEGATIVE_REMAINDER, NO_CONTRIBUTOR)
 
-# A window is a file. The window dimensions are constant over a window
-# (no file in the Phase 0 sweep named in ``corpus`` mixes assistant records
-# from two agentIds), so a filter on them selects whole windows and the
-# reconciliation footer still telescopes. A main window has no ``agent``
-# (D-AGENT-DIM): only a subagent's window carries one. ``window`` is the
-# root-relative file name (D-WINDOW-DIM): the one dimension that selects a
-# main window alone, since ``session`` keeps its subagents too; a drill
-# target, never a default table. ``DIMENSIONS`` is the presentation order
-# of the tables; the headline walks each view's levers (``cli.VIEWS``).
+# A window is one context window (D-CONTEXT-WINDOW, ``windows``). The window
+# dimensions are constant over a window, so a filter on them selects whole
+# windows and the reconciliation still telescopes. A main window has no
+# ``agent`` (D-AGENT-DIM). ``window`` is ``window_value`` of the window's
+# identity: the one dimension that isolates a window, a drill target, never
+# a default table. ``start`` names what began it (D-START-CAUSE).
+# ``DIMENSIONS`` is the presentation order of the tables.
 PROJECT_DIM = "project"
 SESSION_DIM = "session"
 AGENT_DIM = "agent"
 WINDOW_DIM = "window"
-WINDOW_DIMENSIONS = (PROJECT_DIM, SESSION_DIM, AGENT_DIM, WINDOW_DIM)
+START_DIM = "start"
+WINDOW_DIMENSIONS = (PROJECT_DIM, SESSION_DIM, AGENT_DIM, WINDOW_DIM, START_DIM)
 CAUSE_DIM = "cause"
 TOOL_DIM = "tool"
 HEAD_DIM = "head"
 REASON_DIM = "reason"
 DIMENSIONS = WINDOW_DIMENSIONS + (CAUSE_DIM, TOOL_DIM, HEAD_DIM, REASON_DIM)
 KIND_DIMENSIONS = {CALL: WINDOW_DIMENSIONS, INCREMENT: DIMENSIONS}
-VOCABULARY = {CAUSE_DIM: CAUSES, REASON_DIM: REASONS}  # dimensions whose values are declared
+# Starts: fork beats subagent; ``replayed``: a main file opening with
+# another file's records (a resume or /branch).
+SESSION_START = "session_start"
+SUBAGENT = "subagent"
+FORK = "fork"
+REPLAYED = "replayed"
+COMPACTION = "compaction"
+STARTS = (SESSION_START, SUBAGENT, FORK, REPLAYED, COMPACTION)
+VOCABULARY = {CAUSE_DIM: CAUSES, REASON_DIM: REASONS, START_DIM: STARTS}  # declared values
 
 # Evidence keys: an ambiguous increment lists its contributors; a fork's
-# window head names the parent whose context it inherited.
+# window head names the parent ids its fork-context-ref gives; an inherited
+# increment names its parent window and the parent's branch call.
 CANDIDATES = "candidates"
 PARENT_SESSION = "parent_session"
 PARENT_LAST_UUID = "parent_last_uuid"
+PARENT_WINDOW = "parent_window"
+BRANCH_CALL = "branch_call"
 
 
 class SchemaError(ValueError):
@@ -111,9 +125,8 @@ def metric(name: str) -> Metric:
 
 
 def check_dimension(dim: str, kind: Optional[str] = None) -> str:
-    """``dim`` is declared and, when ``kind`` is given, carried by that kind:
-    a filter or table over a dimension the carrier never has would print a
-    confident zero."""
+    """``dim`` is declared and, when ``kind`` is given, carried by it: a
+    dimension the carrier never has would print a confident zero."""
     if dim not in DIMENSIONS:
         raise SchemaError("unknown dimension %r; declared: %s"
                           % (dim, ", ".join(DIMENSIONS)))
@@ -138,12 +151,27 @@ class Locator(NamedTuple):
     uuid: Optional[str]
 
 
+class WindowKey(NamedTuple):
+    """A window's identity: its file and the physical line of its start
+    record (the file's first, or the compaction marker's). Independent of
+    dedup and ``--since``; what ``reconcile`` and ``window_count`` key on."""
+    file: str
+    line: int
+
+
+def window_value(key: WindowKey) -> str:
+    """The ``window`` value: 8 hex of sha1 over ``file:line``. Display and
+    ``--where`` only; a collision cannot merge two windows' accounting."""
+    return hashlib.sha1(("%s:%d" % key).encode("utf-8")).hexdigest()[:8]
+
+
 class Fact(NamedTuple):
     kind: str
     dims: dict      # dimension name -> str value (ids, names, declared constants), only those this fact has
     metrics: dict   # metric name -> number, only metrics of this fact's kind
     locator: Locator
     evidence: dict  # drill material that is not a dimension: candidates, parent ids
+    window: WindowKey
 
 
 class Candidate(NamedTuple):
@@ -154,9 +182,10 @@ class Candidate(NamedTuple):
 
 
 def fact(kind: str, dims: dict, metrics: dict, locator: Locator,
-         evidence: Optional[dict] = None) -> Fact:
+         evidence: Optional[dict] = None, window: Optional[WindowKey] = None) -> Fact:
     """Build a fact, refusing one whose metrics or dimensions are undeclared
-    or whose metrics belong to the other kind."""
+    or whose metrics belong to the other kind. Without ``window`` (a
+    hand-built fact) it sits in its file's one window, keyed at line 1."""
     if kind not in KINDS:
         raise SchemaError("unknown fact kind %r" % kind)
     for name in metrics:
@@ -167,16 +196,13 @@ def fact(kind: str, dims: dict, metrics: dict, locator: Locator,
         check_value(check_dimension(dim, kind), dims[dim])
     if kind == INCREMENT:
         check_value(CAUSE_DIM, dims.get(CAUSE_DIM))
-    return Fact(kind, dims, metrics, locator, evidence or {})
+    return Fact(kind, dims, metrics, locator, evidence or {}, window or WindowKey(locator.file, 1))
 
 
 # The glossary: every term the output prints, in plain words, and why its
-# number might surprise a reader. It drives ``sa explain``, the key under the
-# tables, the ``°`` markers and ``--help``; a test holds that every declared
-# metric, kind, dimension, cause and reason has an entry. ``marked`` terms
-# are the irreducible concepts: they print with ``MARKER`` where the key
-# names them. The residual row's label is declared here so the key and the
-# glossary share it.
+# number might surprise. It drives ``sa explain``, the key, the ``°`` markers
+# and ``--help``; a test holds that every declared term has an entry.
+# ``marked`` terms, the irreducible concepts, print with ``MARKER``.
 RESIDUAL_LABEL = "∅"
 EXACT = "exact"
 DRILL = "drill"
@@ -191,9 +217,13 @@ class Term(NamedTuple):
 
 GLOSSARY: Dict[str, Term] = {
     WINDOW_DIM: Term(
-        "one transcript file: a main session or one subagent, each its own context window",
-        "a resume, fork or /branch writes a new file, so one session can be several windows;"
-        " a file with no call is read but is no window", True),
+        "one context window: from a session start, subagent, fork, replay or compaction to"
+        " its file's end or the next compaction; named by a short hash",
+        "a file holds one window per compaction that a call follows; a file with no call"
+        " is read but is no window", True),
+    START_DIM: Term("what began the window: " + ", ".join(STARTS),
+                    "a compaction starts a new window in the same file; its head re-counts"
+                    " the system prompt"),
     CALL: Term("one assistant message, its split records merged: what spend is read from",
                "a message written as several records counts once"),
     INCREMENT: Term("one booked change of a window's context between two calls:"
@@ -232,10 +262,14 @@ GLOSSARY: Dict[str, Term] = {
                    "never a path; python3 x.py is Bash:python3"),
     REASON_DIM: Term("why an increment is ambiguous", "only ambiguous increments have one"),
     WINDOW_HEAD: Term(
-        "the context a window's first call already had: system prompt, tools, CLAUDE.md and"
-        " first message, or the context a fork or resume inherited",
+        "the context a window's first call already had, less what it inherited: system prompt,"
+        " tools, CLAUDE.md and first message, or a compaction's summary",
         "often the largest cause; the transcript does not record its contents, so it is"
         " not split further", True),
+    INHERITED: Term("what a fork or replayed window copied: its parent window's occupancy at"
+                    " the branch call",
+                    "counted once: left out of the total when the parent window is kept;"
+                    " its breakdown is the parent's up to that call"),
     FEED_FORWARD: Term("the previous call's own output, read back by the next call",
                        "it is what the model wrote, not what a tool returned"),
     TOOL_RESULT: Term("a tool's output, booked exactly to its tool and head",

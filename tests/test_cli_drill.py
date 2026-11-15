@@ -116,21 +116,23 @@ def test_a_drill_reports_the_peak_over_the_whole_windows_it_names(tmp_path):
         fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), fx.unit(fx.PEAK))
 
 
-def test_a_main_window_is_selected_by_its_file_name_alone(tmp_path):
-    """D-WINDOW-DIM: a main window carries no agent and its session keeps
-    every subagent, so ``window`` is the one filter that isolates it; it
-    keeps a whole window, so the view still reconciles."""
+def test_a_main_window_is_selected_by_its_window_value_alone(tmp_path):
+    """D-WINDOW-DIM as amended by D-CONTEXT-WINDOW: a main window carries no
+    agent and its session keeps every subagent, so ``window`` (its key's
+    hash) is the one filter that isolates it; it keeps a whole window, so
+    the view still reconciles."""
     root = fx.cli_corpus(tmp_path)
     facts = fx.load_facts(root)[1]
-    main = "proj-a/sess-0001.jsonl"
+    name = "proj-a/sess-0001.jsonl"
+    main = fx.window_value(name)
     assert [f.locator.file for f in query.select(facts, [(schema.WINDOW_DIM, main)])] == [
-        f.locator.file for f in facts if f.locator.file == main]
-    assert {f.locator.file for f in query.select(facts, [(schema.SESSION_DIM, fx.SESSION)])} > {main}
+        f.locator.file for f in facts if f.locator.file == name]
+    assert {f.locator.file for f in query.select(facts, [(schema.SESSION_DIM, fx.SESSION)])} > {name}
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (schema.WINDOW_DIM, main))
     assert code == 0, err
     assert "= the 1 window's final occupancy;" in fx.headline(out)
-    assert "\nkept where %s=%s: 1 window° (a file with a call), 11 increment facts\n" % (schema.WINDOW_DIM, main) in out
+    assert "\nkept where %s=%s: 1 window°, 11 increment facts\n" % (schema.WINDOW_DIM, main) in out
     assert re.search(r"^%s\s+%s\s.*%s matches the final window sizes$" % (
         tables.TOTAL_LABEL, format(fx.FINAL_OCCUPANCY, ",d"), tables.OK_MARK), out, re.M)
     assert out.splitlines()[-1].startswith("%s checks: 6 intervals (7 calls - 1 window) = " % tables.OK_MARK)
@@ -139,8 +141,8 @@ def test_a_main_window_is_selected_by_its_file_name_alone(tmp_path):
         code, out, err = fx.run_cli(view, "--root", str(root), "--by", schema.WINDOW_DIM)
         assert code == 0, err
         rows = [l.split()[0] for l in out.splitlines() if l.endswith("%")]  # the regular rows
-        assert sorted(rows) == sorted({f.locator.file for f in facts})  # one row per window, whole
-        assert main in rows and len(max(rows, key=len)) > tables.LABEL_WIDTH  # one a default table cuts
+        assert sorted(rows) == sorted({f.dims[schema.WINDOW_DIM] for f in facts})  # one row per window
+        assert main in rows
 
 
 def test_an_asked_for_table_prints_its_labels_whole_so_they_copy_into_where(tmp_path):
@@ -159,7 +161,7 @@ def test_an_asked_for_table_prints_its_labels_whole_so_they_copy_into_where(tmp_
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (schema.PROJECT_DIM, project))
     assert code == 0, err
-    assert "\nkept where %s=%s: 1 window° (a file with a call), " % (schema.PROJECT_DIM, project) in out
+    assert "\nkept where %s=%s: 1 window°, " % (schema.PROJECT_DIM, project) in out
 
 
 def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
@@ -175,7 +177,7 @@ def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
     population = [l for l in out.splitlines() if l.startswith(("read: ", "kept"))]
     assert population == [l for l in unpinned.splitlines() if l.startswith(("read: ", "kept"))] == [
         "read: 4 files modified in the last 7d (default) under %s" % root,
-        "kept where %s: 2 windows° (files with a call), 22 increment facts" % window]
+        "kept where %s: 2 windows°, 22 increment facts" % window]
     assert drill not in "".join(population)
     assert fx.headline(out).startswith("%s: %s %s over 2 increment facts where %s in 2 windows" % (
         CONTEXT.metric, format(2 * fx.EXACT_FIRST_DELTA, ",d"), fx.unit(CONTEXT.metric), drill))
@@ -215,8 +217,9 @@ def test_by_fact_lists_leaves_with_their_dimensions_and_evidence(tmp_path):
                           "--where", "%s=agent-fake1" % schema.AGENT_DIM)
     assert code == 0, err
     (leaf,) = [l for l in out.splitlines() if re.match(r"\s+[\d,]+\s+\S+:\d+\s", l)]
-    window = "proj-a/sess-0001/subagents/agent-fake1.jsonl"
-    assert leaf.split()[1].startswith(window + ":")  # the locator names the window...
-    assert "%s=" % schema.WINDOW_DIM not in leaf       # ...so the tags do not repeat it
-    assert all("%s=" % dim in leaf for dim in schema.WINDOW_DIMENSIONS if dim != schema.WINDOW_DIM)
-    assert query.select(fx.load_facts(root)[1], [(schema.WINDOW_DIM, window)])  # vacuity guard
+    name = "proj-a/sess-0001/subagents/agent-fake1.jsonl"
+    assert leaf.split()[1].startswith(name + ":")  # the locator names the file; a file can hold
+    assert all("%s=" % dim in leaf for dim in schema.WINDOW_DIMENSIONS)  # several windows, so tagged
+    window = "%s=%s" % (schema.WINDOW_DIM, fx.window_value(name))
+    assert window in leaf
+    assert query.select(fx.load_facts(root)[1], [tuple(window.split("="))])  # vacuity guard

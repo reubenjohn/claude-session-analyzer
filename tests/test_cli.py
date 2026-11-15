@@ -33,7 +33,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
         fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), fx.unit(fx.PEAK))
     assert read == "read: %d files modified in the last 7d (default) under %s" % (len(loaded.files), root)
     assert read_more == "      0 lines skipped, 0 duplicate records excluded"
-    assert kept == "kept: 3 windows%s (files with a call), %d increment facts" % (
+    assert kept == "kept: 3 windows%s, %d increment facts" % (
         schema.MARKER, sum(f.kind == INCREMENT for f in facts))
     assert out.count(str(root)) == 1  # locators are root-relative
     # The cause table closes with its total against the final sizes; the
@@ -76,7 +76,7 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     for name in others:
         assert re.search(r"^%s: [\d,]+ %s over 14 call facts in 2 windows$"
                          % (name, fx.unit(name)), out, re.M)
-    assert "\nkept where project=proj-a: 2 windows%s (files with a call), 14 call facts\n" % schema.MARKER in out  # spend reads calls only
+    assert "\nkept where project=proj-a: 2 windows%s, 14 call facts\n" % schema.MARKER in out  # spend reads calls only
     assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+ with an %s$"
                      % (schema.AGENT_DIM, SPEND.metric, fx.count_column(SPEND.metric), schema.AGENT_DIM), out, re.M)
     assert fx.count_column(SPEND.metric) != fx.count_column(CONTEXT.metric)  # each view names its carrier
@@ -106,8 +106,8 @@ def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
 def test_a_reconciliation_mismatch_is_exit_status_1(tmp_path, monkeypatch, capsys, drill):
     root = fx.cli_corpus(tmp_path)
     whole = walk.walk
-    monkeypatch.setattr(walk, "walk", lambda source, usages: [
-        f for f in whole(source, usages) if f.dims.get(CAUSE) != schema.SHRINK])
+    monkeypatch.setattr(walk, "walk", lambda *args: [
+        f for f in whole(*args) if f.dims.get(CAUSE) != schema.SHRINK])
     assert cli.main(["context", "--root", str(root)] + drill) == 1
     out = capsys.readouterr().out
     assert ": MISMATCH" in out and tables.OK_MARK + " checks" not in out  # full detail on failure

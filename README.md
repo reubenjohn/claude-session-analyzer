@@ -24,7 +24,7 @@ python3 -m sa context --by cause
 ```
 read: 4 files modified in the last 7d (default) under ~/.claude/projects
       0 lines skipped, 0 duplicate records excluded
-kept: 3 windows° (files with a call), 33 increment facts
+kept: 3 windows°, 33 increment facts
 
 context_delta: 4,560 context tokens = the 3 windows' final occupancies summed
   top tool=Bash 750 (16.4% of the 4,560 total)
@@ -41,7 +41,7 @@ shrink (signed)              -300           3                     -
 = total                     4,560          33  ✓ matches the final window sizes
 
 key (°: sa explain TERM)
-  window_head°   the context a window's first call already had: system prompt, tools, CLAUDE.md and first message, or the context a fork or resume inherited
+  window_head°   the context a window's first call already had, less what it inherited: system prompt, tools, CLAUDE.md and first message, or a compaction's summary
   ambiguous°     an interval not booked to one contributor: more than one entered, none did, or it grew by less than the previous call's output; never spread over them (by reason: multi_contributor, negative_remainder, no_contributor)
 
 ✓ checks: 18 intervals (21 calls - 3 windows) = exact 6 (33.3%) + ambiguous 9 (50.0%) + shrink 3 (16.7%)

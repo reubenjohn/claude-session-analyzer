@@ -17,6 +17,11 @@ FORK_PARENT = "sess-0000"
 REPO = Path(__file__).resolve().parents[1]
 
 
+def window_value(name, line=1):
+    """The ``window`` value of the window starting at ``name:line``."""
+    return schema.window_value(schema.WindowKey(name, line))
+
+
 def metric_named(**spec):
     """The one declared metric whose spec has these fields, e.g. the only
     metric carried by increments; fails if the schema no longer has exactly one."""
@@ -235,3 +240,89 @@ def key(out):
     assert len(keyed) <= 1
     width = tables_module.KEY_WIDTH
     return [(line[2:2 + width].rstrip(), line[3 + width:]) for line in (keyed[0][1:] if keyed else [])]
+
+
+def marker(uuid):
+    """A compaction marker (``corpus.is_marker``)."""
+    return {"type": "system", "subtype": "compact_boundary", "uuid": uuid,
+            "compactMetadata": {"trigger": "auto"}}
+
+
+# The window corpus: six windows in five files (D-CONTEXT-WINDOW).
+#   P  main, compacted mid-file:  window 1 head 1000 -> 1600 (A3, the branch
+#      call, at 1500); marker; window 2 head 400 -> 500
+#   F  fork of P (a subagent replaying P through A3, A3 re-minted):
+#      inherited 1500, head 150, -> 1700
+#   R  replayed main (a resume of P through A2's result): inherited 1300,
+#      head 100, -> 1450
+#   E  main whose marker ends its file: 800 -> 900, then the marker
+#   S  plain subagent: 600 -> 650
+W_PARENT, W_FORK, W_REPLAY = "proj-w/sess-0101.jsonl", "proj-w/sess-0101/subagents/agent-fork1.jsonl", \
+    "proj-w/sess-0102.jsonl"
+W_ENDED, W_SUB = "proj-w/sess-0103.jsonl", "proj-w/sess-0103/subagents/agent-plain.jsonl"
+W_FINALS = {(W_PARENT, 1): 1600, (W_PARENT, 8): 500, (W_FORK, 1): 1700, (W_REPLAY, 1): 1450,
+            (W_ENDED, 1): 900, (W_SUB, 1): 650}
+W_INHERITED = {W_FORK: 1500, W_REPLAY: 1300}
+W_STARTS = {(W_PARENT, 1): schema.SESSION_START, (W_PARENT, 8): schema.COMPACTION,
+            (W_FORK, 1): schema.FORK, (W_REPLAY, 1): schema.REPLAYED,
+            (W_ENDED, 1): schema.SESSION_START, (W_SUB, 1): schema.SUBAGENT}
+W_DUPLICATES = 6 + 1 + 4  # F's replayed prefix and re-mint, R's prefix
+
+
+def _with(record, **extra):
+    return dict(record, **extra)
+
+
+def window_parent(session="sess-0101"):
+    return stamped([
+        assistant("w-uuid-0001", "w-msg-0001", usage(1000, 50),
+                  [tool_use("toolu_w001", "Bash", command="pytest -q")], session),
+        tool_result("w-uuid-0002", "toolu_w001", session=session),
+        assistant("w-uuid-0003", "w-msg-0002", usage(1300, 20),
+                  [tool_use("toolu_w002", "Read", file_path="/x/a.py")], session),
+        tool_result("w-uuid-0004", "toolu_w002", session=session),
+        assistant("w-uuid-0005", "w-msg-0003", usage(1500, 10),
+                  [tool_use("toolu_w003", "Bash", command="git status")], session),
+        tool_result("w-uuid-0006", "toolu_w003", session=session),
+        assistant("w-uuid-0007", "w-msg-0004", usage(1600, 0), [], session),
+        marker("w-uuid-0008"),
+        _with(user_text("w-uuid-0009", "summary", session), isCompactSummary=True),
+        assistant("w-uuid-0010", "w-msg-0005", usage(400, 10),
+                  [tool_use("toolu_w004", "Read", file_path="/x/b.md")], session),
+        tool_result("w-uuid-0011", "toolu_w004", session=session),
+        assistant("w-uuid-0012", "w-msg-0006", usage(500, 0), [], session),
+    ], 0)
+
+
+def window_corpus(tmp_path):
+    """The window corpus above; returns the root."""
+    parent = window_parent()
+    s = "sess-0101"
+    fork = parent[:6] + [_with(r, agentId="agent-fork1") for r in stamped([
+        assistant("fork-uuid-0005", "w-msg-0003", usage(1500, 10), [], s),
+        assistant("fork-uuid-0001", "fork-msg-0001", usage(1650, 30),
+                  [tool_use("toolu_f001", "Bash", command="ls")], s),
+        tool_result("fork-uuid-0002", "toolu_f001", session=s),
+        assistant("fork-uuid-0003", "fork-msg-0002", usage(1700, 0), [], s)], 6)]
+    replay = parent[:4] + stamped([
+        assistant("r-uuid-0001", "r-msg-0001", usage(1400, 10), [], "sess-0102"),
+        user_text("r-uuid-0002", "again", "sess-0102"),
+        assistant("r-uuid-0003", "r-msg-0002", usage(1450, 0), [], "sess-0102")], 4)
+    ended = stamped([
+        assistant("e-uuid-0001", "e-msg-0001", usage(800, 20), [], "sess-0103"),
+        user_text("e-uuid-0002", "more", "sess-0103"),
+        assistant("e-uuid-0003", "e-msg-0002", usage(900, 0), [], "sess-0103"),
+        marker("e-uuid-0004")], 100)
+    sub = [_with(r, agentId="agent-plain") for r in stamped([
+        assistant("s-uuid-0001", "s-msg-0001", usage(600, 5), [], "sess-0103"),
+        user_text("s-uuid-0002", "task", "sess-0103"),
+        assistant("s-uuid-0003", "s-msg-0002", usage(650, 0), [], "sess-0103")], 110)]
+    return corpus(tmp_path, {W_PARENT: parent, W_FORK: fork, W_REPLAY: replay,
+                             W_ENDED: ended, W_SUB: sub})
+
+
+def every_corpus(tmp_path):
+    """``cli_corpus`` and ``window_corpus`` under one root: every declared
+    cause, reason and start is carried by some fact."""
+    cli_corpus(tmp_path)
+    return window_corpus(tmp_path)

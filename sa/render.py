@@ -4,7 +4,7 @@ checks. The tables are grouped here from the selection's facts; its total
 and reconciliation come with it, so nothing here decides the exit status."""
 from typing import List, NamedTuple, Optional, Tuple
 
-from . import query, schema, tables
+from . import query, schema, tables, windows
 from .corpus import Corpus
 from .query import Selection
 from .schema import Fact
@@ -58,7 +58,7 @@ def _total(view: View, sel: Selection) -> Optional[str]:
     if not view.reconciles or sel.drill:
         return None
     if sel.reconciliation.mass_holds:
-        return "%s matches the final window sizes" % tables.OK_MARK
+        return "%s matches the final window sizes%s" % (tables.OK_MARK, _less(sel))
     return "%s does not match the final window sizes (below)" % tables.BAD_MARK
 
 
@@ -84,13 +84,26 @@ def headline(view: View, sel: Selection) -> List[str]:
         line += " " + _over(sel, spec.carrier)
     elif sel.reconciliation.mass_holds:
         line += " = the " + count(sel.n_windows, "window's final occupancy",
-                                   "windows' final occupancies summed")
+                                   "windows' final occupancies summed") + _less(sel)
     else:
         line += " booked over %s (reconciliation MISMATCH below)" % count(sel.n_windows, "window")
     levers = _open(sel, view.levers, spec.carrier)
     return ([tables.styled(line, tables.BOLD)]
             + ["  " + clause for clause in _top(sel.facts, levers, view.metric, sel.total)]
             + _peaks(sel))
+
+
+def _inherited(sel: Selection) -> float:
+    return sum(f.metrics[schema.CONTEXT_DELTA] for f in sel.inherited)
+
+
+def _less(sel: Selection) -> str:
+    """What the total leaves out of the final sizes it is stated against:
+    the inherited mass its parent windows already count (D-INHERITED-ONCE)."""
+    return " less %s %s" % (num(_inherited(sel)), INHERITED_LABEL) if sel.inherited else ""
+
+
+INHERITED_LABEL = "%s (counted in parent)" % schema.INHERITED
 
 
 def _over(sel: Selection, carrier: str) -> str:
@@ -172,19 +185,24 @@ def population(view: View, sel: Selection, loaded: Corpus, since_default: bool =
     """The scope, first: the read (the files its ``--since`` kept, named
     with that window and the root, then what the read skipped or excluded,
     corpus-wide) and what the window pins kept: the windows (the files with
-    a call, which is why they are fewer than the files read) and the facts
-    the view's metric is read from, its carrier's. A drill pin is named on
-    the headline, the one line that counts what it narrows."""
+    a call; a compaction a call follows starts another) and the facts
+    the view's metric is read from, its carrier's. The compactions read
+    print as one line when there are any: every one is unpriced. A drill pin
+    is named on the headline, the one line that counts what it narrows."""
     carrier, _window = schema.metric(view.metric).carrier, schema.WINDOW_DIM
     since = ("of any age" if loaded.since_days is None else "modified in the last %gd%s"
              % (loaded.since_days, " (default)" if since_default else ""))
+    marks = windows.compactions(loaded)
+    compacted = ["      %s unpriced: %s started a window, %s ended their file"
+                 % (count(sum(marks.values()), "compaction"), num(marks["started"]), num(marks["ended"]))
+                 ] if marks else []
     return ["read: %s %s under %s" % (count(len(loaded.files), "file"), since, tables.tilde(loaded.root)),
             "      %s skipped, %s excluded" % (count(loaded.skipped_lines, "line"),
-                                              count(loaded.duplicate_records, "duplicate record")),
+                                              count(loaded.duplicate_records, "duplicate record"))
+            ] + compacted + [
             "kept%s: %s, %s"
-            % (_pins(sel.window_where),
-               count(sel.n_windows, tables.marked(_window) + " (a file with a call)", _window + "s"
-                     + schema.MARKER + " (files with a call)"),
+            % (_pins(sel.window_where), count(sel.n_windows, tables.marked(_window), _window + "s"
+                                              + schema.MARKER),
                count(sum(f.kind == carrier for f in sel.window_facts), carrier + " fact"))]
 
 
@@ -230,7 +248,9 @@ def footer(view: View, sel: Selection, totalled: bool = False) -> List[str]:
     and the reconciliation in full when it fails; for one that does not,
     every other additive call total over the population named.
     ``totalled``: a cause table above printed its total row, so the checks
-    need not repeat the booked total; whatever printed, the mass is stated."""
+    need not repeat the booked total; whatever printed, the mass is stated.
+    Inherited mass its parent window counts closes it, one line, never
+    hidden and never in a share (D-INHERITED-ONCE)."""
     if not view.reconciles:
         return ["%s: %s %s %s" % (name, num(query.total(sel.facts, name)), spec.unit,
                                   _over(sel, schema.CALL))
@@ -242,4 +262,7 @@ def footer(view: View, sel: Selection, totalled: bool = False) -> List[str]:
         return _reconciliation(r)
     scope = (" over the %s (a drill is not reconciled)" % count(sel.n_windows, "whole window")
              if sel.drill else "")
-    return [_checks(r, totalled, scope)]
+    once = (["%s: %s %s in %s, in their checks, not the total"
+             % (INHERITED_LABEL, num(_inherited(sel)), schema.metric(view.metric).unit,
+                count(len(sel.inherited), "window"))] if sel.inherited else [])
+    return [_checks(r, totalled, scope)] + once

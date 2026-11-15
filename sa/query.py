@@ -66,8 +66,22 @@ def total(facts: List[Fact], metric: str) -> float:
 
 
 def window_count(facts: Iterable[Fact]) -> int:
-    """How many windows the facts come from: a window is a file."""
-    return len({f.locator.file for f in facts})
+    """How many windows the facts come from, by identity (``WindowKey``),
+    never by the ``window`` value, whose hash could collide."""
+    return len({f.window for f in facts})
+
+
+def through(facts: List[Fact], key: schema.WindowKey, call: schema.Locator) -> List[Fact]:
+    """The facts of window ``key`` up to the call at ``call`` and the
+    increments it closes: an inherited increment's breakdown, by reference
+    (its evidence names both). Their context_delta sums to that call's
+    occupancy, the window telescoping; a list without the call is empty."""
+    mine = [f for f in facts if f.window == key]
+    at = next((i for i, f in enumerate(mine) if f.kind == schema.CALL and f.locator == call), None)
+    if at is None:
+        return []
+    after = next((i for i in range(at + 1, len(mine)) if mine[i].kind == schema.CALL), len(mine))
+    return mine[:after]
 
 
 # The three kinds of row a table has. Only regular rows take part in shares.
@@ -172,8 +186,9 @@ class Reconciliation(NamedTuple):
 
 
 def reconcile(facts: Iterable[Fact]) -> Reconciliation:
-    """Chain integrity over whole windows: every booked increment, summed by
-    cause, against the occupancy the windows ended at; and the exact,
+    """Chain integrity over whole windows, keyed by identity: every booked
+    increment (``inherited`` included), summed by cause, against the
+    occupancy the windows ended at; and the exact,
     ambiguous and shrink increments against the interval count, which is
     calls minus windows because every call but a window's first closes one.
     The rates are measured from this run, never quoted."""
@@ -185,7 +200,7 @@ def reconcile(facts: Iterable[Fact]) -> Reconciliation:
     for f in facts:
         if f.kind == schema.CALL:
             calls += 1
-            final[f.locator.file] = f.metrics[schema.CONTEXT_TOKENS]
+            final[f.window] = f.metrics[schema.CONTEXT_TOKENS]
         else:
             cause = f.dims[schema.CAUSE_DIM]
             by_cause[cause] += f.metrics[schema.CONTEXT_DELTA]
@@ -204,9 +219,10 @@ class Selection(NamedTuple):
     window_where: List[Tuple[str, str]]  # the --where pairs that kept whole windows
     drill: List[Tuple[str, str]]     # the --where pairs that selected within them
     window_facts: List[Fact]        # whole windows kept by ``window_where``
-    facts: List[Fact]               # the windows' facts kept by ``drill`` too
+    facts: List[Fact]               # the windows' facts kept by ``drill`` too, less ``inherited``
     total: float                    # the view's metric over ``facts``, summed once
     reconciliation: Optional[Reconciliation]  # over ``window_facts`` (a drill never changes it), or None
+    inherited: Tuple[Fact, ...] = ()  # inherited increments whose parent window is kept: counted there
 
     @property
     def where(self) -> List[Tuple[str, str]]:
@@ -218,13 +234,26 @@ class Selection(NamedTuple):
         return window_count(self.window_facts)
 
 
+def counted_in_parent(facts: List[Fact]) -> List[Fact]:
+    """The inherited increments whose parent window is among ``facts``'
+    windows: its mass is already there (D-INHERITED-ONCE)."""
+    kept = {f.window for f in facts}
+    return [f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED
+            and f.evidence.get(schema.PARENT_WINDOW) in kept]
+
+
 def selection(facts: List[Fact], where: Where, metric: str, reconciles: bool) -> Selection:
     """The view's population: the window pins narrow first and keep whole
     windows, the drill pins narrow within them; the total is over the
     drilled facts, the reconciliation (for a view that reconciles) over the
-    whole windows."""
+    whole windows. An inherited increment counts once: decided here, over
+    the windows kept, it leaves the total and every table when its parent
+    window is kept, and counts in full when the parent is out of scope;
+    either way its own window's reconciliation includes it."""
     window_where, drill = split(where)
     window_facts = narrow(facts, window_where, metric)
-    kept = narrow(window_facts, drill, metric)
+    once = counted_in_parent(window_facts)
+    dropped = set(map(id, once))
+    kept = narrow([f for f in window_facts if id(f) not in dropped], drill, metric)
     return Selection(window_where, drill, window_facts, kept, total(kept, metric),
-                     reconcile(window_facts) if reconciles else None)
+                     reconcile(window_facts) if reconciles else None, tuple(once))
