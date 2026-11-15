@@ -40,4 +40,23 @@ file type"), `subagent`; reasons `several`, `less_than_reply`,
 `unexplained`; printed `context tokens`, `changes`, `calls`; `-h` says
 subcommand and pin. `sa/glossary.py` holds the glossary; key entries are
 one clause. Output cut below pre-A1 (one read line, share base named
-once, `--limit 5`, the cause table whole). Open: the cold-reader check.
+once, `--limit 5`, the cause table whole). Cold-reader check passed twice
+(2026-11-15): all three questions answered from `-h` plus one live output.
+
+## Filed for a later pass (triaged 2026-11-15)
+
+- Residual cold-reader guesses: `changes` never defined on screen; `incl.
+  ambiguous` lets tool=Bash exceed cause=tool_result (D-AMBIGUOUS-TOOL);
+  each table's own `all but ∅` base; `exact`/`shrink` in the checks line;
+  `replayed`; encoded project names (`~--home…`).
+- Starting line's total includes `inherited` when the parent is out of
+  scope, while the cause table splits them.
+- `subagent` is both a dimension and a `started_by` value.
+- No CLI filter shows a parent's breakdown up to a branch call except a
+  pinned fork; `sa/probe_window_model.py` still measures the file-keyed model.
+- Fixture corpus is thin (one head at 100%); fixture output now sits well
+  under D-OUTPUT-CAP (lowering it is an owner ruling).
+- Size headroom: SKILL.md 6,000/6,000, CLAUDE.md ~6,970/7,000,
+  DECISION_LOG*.md near 20,000; schema-adjacent tests near 15,000.
+- Fork/compaction/`/branch` counts are small (10/9/0): re-measure before
+  pinning; `replayed` is declared with 0 observed.
