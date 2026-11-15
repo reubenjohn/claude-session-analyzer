@@ -222,8 +222,7 @@ def interleaved_records():
 
 
 def run_cli(*args):
-    """``python3 -m sa <args>`` as a subprocess: (exit status, stdout, stderr),
-    with no ``FORCE_COLOR`` inherited, so stdout is the plain contract."""
+    """``python3 -m sa <args>``: (exit status, stdout, stderr), plain."""
     env = {k: v for k, v in os.environ.items() if k != "FORCE_COLOR"}
     done = subprocess.run([sys.executable, "-m", "sa"] + list(args), cwd=str(REPO), env=env,
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE,
