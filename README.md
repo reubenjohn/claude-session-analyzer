@@ -17,56 +17,49 @@ claude plugin install claude-session-analyzer@reubenjohn
 ## Usage
 
 ```
-python3 -m sa context --since 7d --by cause
+python3 -m sa context --by cause
 ```
 
 ```
-context_delta: 3,872,684 context tokens = the 32 windows' final occupancies summed; top tool=Bash 1,049,312 (27.1% of the 3,872,684 total); within it head=Bash:cat 554,879 (52.9% of Bash, 14.3% of the total)
-single-call peak context_tokens over the 32 whole windows: 255,333 context tokens at -home-me-workspace-myproject/<session-id>.jsonl:807
-read: root ~/.claude/projects, 39 files (modified within 7d), 0 lines skipped, 0 duplicate records excluded
-kept: 32 windows (files with a call), 1,693 increment facts
+read: 9 files modified in the last 7d (default) under ~/.claude/projects
+      0 lines skipped, 0 duplicate records excluded
+kept: 8 windows° (files with a call), 471 increment facts
 
-by cause         context_delta  increments  share of 3,872,684
-window_head          1,323,189          32               34.2%
-tool_result          1,287,069         591               33.2%
-ambiguous              998,551         200               25.8%
-feed_forward           205,510         830                5.3%
-user_text               58,365          40                1.5%
-window_head: first call's context: boot prompt + first message, or context inherited from a parent (fork, resume or branch); not splittable by content
-ambiguous: intervals not attributable to one contributor (by reason: multi_contributor, negative_remainder, no_contributor); never spread; --by fact lists them
+context_delta: 793,922 context tokens = the 8 windows' final occupancies summed
+  top tool=Bash 223,025 (28.1% of the 793,922 total)
+  within it head=Bash:git 50,904 (22.8% of Bash, 6.4% of the total)
+single-call peak context_tokens over the 8 whole windows: 164,074 context tokens at -home-me-workspace-myproject/<session-id>.jsonl:247
 
-reconciliation over 32 windows: window_head 1,323,189 + feed_forward 205,510 + tool_result 1,287,069 + user_text 58,365 + ambiguous 998,551 + shrink 0 = 3,872,684; final occupancy 3,872,684: OK; holds by construction (walk.py), so a mismatch is a bug in this tool
-intervals 831 (= 863 calls - 32 windows): exact 631 (75.9%) + ambiguous 200 (24.1%) [multi_contributor 199, negative_remainder 1] + shrink 0 (0.0%): OK
-exact: the interval's one token-relevant contributor (a tool_result or user text) after subtracting the previous call's output. Exact given the feed-forward model; bookkeeping attachments are folded into the single contributor's remainder.
+by cause         context_delta  increments  share of total
+window_head            335,056           8           42.2%
+tool_result            211,715         183           26.7%
+feed_forward           168,046         231           21.2%
+ambiguous               72,972          26            9.2%
+user_text                6,133          23            0.8%
+= total                793,922         471  ✓ matches the final window sizes
+
+key (°: sa explain TERM)
+  window_head°   the context a window's first call already had: system prompt, tools, CLAUDE.md and first message, or the context a fork or resume inherited
+  ambiguous°     an interval whose tokens more than one contributor (or none) could have put there; never spread over them (by reason: multi_contributor, negative_remainder, no_contributor)
+
+✓ checks: 232 intervals (240 calls - 8 windows) = exact 206 (88.8%) + ambiguous 26 (11.2%) + shrink 0 (0.0%)
 ```
 
-```
-python3 -m sa spend --since 7d --by agent --limit 3
-```
+`--since 30d` or `--since all` widens the window; `sa explain [TERM]`
+says what a term means. `python3 -m sa spend --by agent --limit 3`:
 
 ```
-spend: 14,626,322 input-side base-token-equivalents over 863 call facts in 32 windows; top agent=agent-a1 1,116,805 (7.6% of the 14,626,322 total)
-single-call peak context_tokens over the 32 whole windows: 255,333 context tokens at -home-me-workspace-myproject/<session-id>.jsonl:807
-spend is paid per call; context shares are not cost shares. What put the tokens there is answered by `sa context` (--by tool, --by head).
-read: root ~/.claude/projects, 39 files (modified within 7d), 0 lines skipped, 0 duplicate records excluded
-kept: 32 windows (files with a call), 863 call facts
-
-by agent                  spend  calls  share of 9,858,904
-agent-a1              1,116,805     68               11.3%
-agent-b2              1,089,695     65               11.1%
-agent-c3              1,007,906     71               10.2%
-+20 more rows         6,644,499    412               67.4%
-∅                     4,767,417    247                   -
-∅: main windows (no subagent)
-
-output_tokens: 212,917 tokens
-cache_write_1h_tokens: 925,228 tokens
-cache_write_5m_tokens: 2,728,855 tokens
+by agent                spend  calls  share of 1,615,785 with an agent
+agent-a1              672,796     42                             41.6%
+agent-b2              581,118     55                             36.0%
+agent-c3              255,305     21                             15.8%
++1 more row           106,566      8                              6.6%
+∅                   1,674,748    116                                 -
 ```
 
 Spend weights cache reads 0.1x, 5m writes 1.25x, 1h writes 2x; never
 dollars. No estimated attribution (one `ambiguous` row, never a spread),
-no summed peaks; `MISMATCH` is a bug, exit 1.
+no summed peaks; a failed check is a bug, exit 1.
 
 ## The drill
 

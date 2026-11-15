@@ -36,17 +36,17 @@ values and a `--where` value no fact carries exit 2 (`query.narrow`),
 naming what is present. A window IS a file (R2);
 `window_head` and `ambiguous` are rows, never spread, never a lever.
 
-CLI: `python3 -m sa context --help`. The headline walks `View.levers`
-(context `tool` then `head`, spend `agent`) whatever `--by` shows: the
-top tool with its share of the total, `within it` that tool's largest
-head with its share of the tool and of the total, then a larger head
-elsewhere `under tool=`; a `--where` pin omits every default table and
-lever whose facts share one value (a head implies its tool); a drill is
-named on the headline, which counts the windows its facts come from, while
-the `read:` (corpus-wide) and `kept:` (window pins) population lines carry
-every other count; only a default table cuts a
-label over `tables.LABEL_WIDTH` to `…tail`. The reconciliation holds by construction (`walk`): MISMATCH
-is a bug, exit 1.
+CLI: `python3 -m sa -h`. Order: scope (`read:`, `kept:`;
+`--since` 7d unless `all`), answer, tables, one dimmed key, one
+`✓ checks` line. The headline walks `View.levers` (context `tool` then
+`head`, spend `agent`) whatever `--by` shows: the top tool's share of the
+total, `within it` its largest head's share of the tool and of the total,
+then a larger head `under tool=`; a `--where` pin omits every default
+table and lever whose facts share one value (a head implies its tool); a
+drill is named on the headline, with the windows it hits.
+`schema.GLOSSARY` drives `sa explain`, `°`, `--help`. Only a default
+table cuts a label past `tables.LABEL_WIDTH` to `…tail`. The
+reconciliation holds by construction (`walk`): MISMATCH is a bug, exit 1.
 
 ## Non-negotiables
 

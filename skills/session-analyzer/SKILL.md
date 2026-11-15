@@ -17,7 +17,7 @@ Narrow, then drill:
 
 | Flag | Meaning |
 |---|---|
-| `--since 7d` | files modified within the last N days |
+| `--since 30d` | files modified within the last N days (default 7d; `all` reads every file) |
 | `--where project=` / `session=` / `agent=` / `window=` | project directory name (`-home-me-workspace-myproject`), sessionId, agentId or root-relative file name (isolates one main window); keeps whole windows |
 | `--where DIM=VALUE` | repeatable, exact; dims: project, session, agent, window, cause, tool, head, reason |
 | `--by DIM` | one dimension's table |
@@ -45,9 +45,9 @@ shares.
 Whatever `--by` shows, the `context` headline names the top tool with
 its mass and share of the total, `within it` that tool's largest head
 with its share of the tool and of the total, then a larger head under
-another tool: `top tool=Bash 1,553,915 (31.5% of the 4,936,844 total);
-within it head=Bash:cat 712,004 (45.8% of Bash, 14.4% of the total)`;
-`spend` names the top agent. Never a cause or a window row. A `--where`
+another tool, one clause per line: `top tool=Bash 223,025 (28.1% of the
+793,922 total)`, `within it head=Bash:git 50,904 (22.8% of Bash, 6.4% of
+the total)`; `spend` names the top agent. Never a cause or a window row. A `--where`
 pin omits the default tables and levers it implies (a head its tool, a
 window its agent, session, project). A drill's headline names its pins and
 counts the windows its facts come from (`… where tool=Bash in 29 of 36
@@ -80,30 +80,31 @@ Exit 2, naming what is declared or present: `spend --where cause=...`
 
 ## Reading the output
 
-Every run prints `read:` (corpus root, files, lines skipped, duplicates
-excluded: corpus-wide) and `kept where <window pins>:` (windows and the
-view's carrier facts). Quote both with a figure: a number without its
-population is no finding. Table columns: the metric, its carrier's count
-(`increments`, `calls`) and `share of <base>`, the mass the shares are
-over. Tables end with the residual row `∅` (facts lacking
-the grouped dimension, a note saying what it holds) and any `(signed)`
+Sections, in order: scope, answer, tables, key, checks. The scope is
+`read:` (files, the `--since` window, the root, then lines skipped and
+duplicates excluded: corpus-wide) and `kept where <window pins>:`
+(windows and the view's carrier facts). Quote both with a figure: a
+number without its population is no finding. Table columns: the metric,
+its carrier's count (`increments`, `calls`) and `share of <base>`, which
+names its base (`total`, `N added`, `N with a tool`). Tables end with the
+residual row `∅` (facts lacking the grouped dimension) and any `(signed)`
 rows; neither has a share. Only a default table cuts a label over 40
-chars to `…tail`; `--by` shows it whole, ready for `--where`.
+chars to `…tail`; `--by` shows it whole, ready for `--where`. One dimmed
+`key` says what each `∅` and unsplittable row holds; a `°` term is in
+`python3 -m sa explain TERM`, with why its number may surprise.
 
-Unnarrowed, the `context` headline reads `= the N windows' final
-occupancies summed` and ends with a three-line **reconciliation footer**
-whose first two lines are:
+Unnarrowed, the `context` cause table ends with `= total N  ✓ matches
+the final window sizes`, and the last line is this run's attribution
+quality over the intervals (calls minus windows):
 
 ```
-reconciliation over 32 windows: window_head 1,323,189 + feed_forward 205,510 + tool_result 1,287,069 + user_text 58,365 + ambiguous 998,551 + shrink 0 = 3,872,684; final occupancy 3,872,684: OK; holds by construction (walk.py), so a mismatch is a bug in this tool
-intervals 831 (= 863 calls - 32 windows): exact 631 (75.9%) + ambiguous 200 (24.1%) [multi_contributor 199, negative_remainder 1] + shrink 0 (0.0%): OK
+✓ checks: 232 intervals (240 calls - 8 windows) = exact 206 (88.8%) + ambiguous 26 (11.2%) + shrink 0 (0.0%)
 ```
 
-Line 1 holds by construction: `MISMATCH` is a bug in this tool, exit 1.
-Line 2 is this run's attribution quality over the intervals (calls minus
-windows); line 3 defines *exact*. A drill replaces the footer with one
-line naming the N whole windows it applies to. `spend` ends with the
-output and cache-write token totals.
+It holds by construction: a failure prints the reconciliation in full
+with `MISMATCH`, a bug in this tool, exit 1. A drill's checks line names
+the N whole windows it applies to. `spend` ends with the output and
+cache-write token totals.
 
 ## Refusals
 
@@ -115,7 +116,7 @@ is a high-water mark).
 
 1. Run the matching command, narrowed (`--since`, `--where project=` /
    `session=`) to what was asked.
-2. Report the headline, the population lines and the footer rates.
+2. Report the headline, the scope lines and the checks rates.
 3. Drill one step past the headline; name the heaviest leaf with its
    `file:line`.
 4. End with the action the numbers suggest, or say the attribution is too
