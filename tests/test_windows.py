@@ -136,6 +136,24 @@ def test_the_cli_states_inherited_once_on_the_headline_and_the_footer(tmp_path):
     assert re.search(r"^%s\s+1,500\s+1\s" % schema.INHERITED, out, re.M)
 
 
+
+def test_a_pinned_fork_shows_its_copy_as_the_parent_breakdown_by_tool(tmp_path):
+    """Under a ``--where window=`` pin, each inherited increment prints its
+    parent window's breakdown by tool through the branch call, found by
+    reference; the parts sum to the inherited mass. Unpinned, never."""
+    root = fx.window_corpus(tmp_path)
+    facts = fx.load_facts(root)[1]
+    for name, mass in fx.W_INHERITED.items():
+        out = fx.run_cli("context", "--root", str(root), "--where", "=".join(_pin(name)))[1]
+        (line,) = [l for l in fx.sections(out)[1] if l.lstrip().startswith(schema.INHERITED + " ")]
+        assert line.startswith("    %s %s copied from %s=%s through " % (
+            schema.INHERITED, format(mass, ",d"), schema.WINDOW_DIM, fx.window_value(fx.W_PARENT)))
+        parts = [part.rsplit(" ", 1) for part in line.split(", by %s: " % schema.TOOL_DIM)[1].split(", ")]
+        assert parts and sum(int(n.replace(",", "")) for _, n in parts) == mass, line
+        assert "Bash" in dict(parts)  # vacuity guard: a real tool, not the residual alone
+    unpinned = fx.run_cli("context", "--root", str(root))[1]
+    assert " copied from " not in unpinned and schema.INHERITED in unpinned  # guard: inherited is there
+
 def test_a_window_value_selects_and_an_unknown_one_exits_2_naming_those_present(tmp_path):
     root = fx.window_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=0000zzzz" % schema.WINDOW_DIM)

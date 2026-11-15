@@ -8,6 +8,7 @@ from . import headline, query, schema, tables, windows
 from .corpus import Corpus
 from .query import Selection
 from .headline import INHERITED_LABEL
+from .schema import Fact
 from .tables import count, leaves, num, table
 
 FACT = "fact"  # the ``--by`` that prints the leaves, not a table
@@ -26,7 +27,7 @@ class View(NamedTuple):
 
 
 def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit: int,
-           since_default: bool = False) -> List[str]:
+           since_default: bool = False, forest: List[Fact] = ()) -> List[str]:
     """Every line of the view, in reading order: the scope (what was read
     and kept), the answer (the headline and its lever walk, the peak), the
     tables a pin left open (``--by`` one dimension's table with its labels
@@ -53,7 +54,7 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
                 body += table(grouped, view.metric, limit, whole=bool(by), total=total) + [""]
                 notes += tables.notes(grouped)
     keyed = tables.key(notes)
-    return (population(view, sel, loaded, since_default) + [""] + headline.headline(view, sel) + [""]
+    return (population(view, sel, loaded, since_default) + [""] + headline.headline(view, sel, forest) + [""]
             + body + keyed + ([""] if keyed else []) + footer(view, sel, totalled))
 
 

@@ -182,9 +182,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     if sys.stderr.isatty():
         print("\033[K", end="", file=sys.stderr, flush=True)
     try:
-        sel = query.selection(walk.forest(loaded), args.where, view.metric, view.reconciles)
+        forest = walk.forest(loaded)
+        sel = query.selection(forest, args.where, view.metric, view.reconciles)
         lines = render.report(view, sel, loaded, args.by, args.limit,
-                              since_default=args.since is None)
+                              since_default=args.since is None, forest=forest)
     except schema.SchemaError as error:
         print("sa %s: error: %s" % (args.view, tables.home_text(str(error))), file=sys.stderr)
         return 2

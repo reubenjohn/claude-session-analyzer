@@ -21,13 +21,14 @@ def open_dims(sel: Selection, dims: Tuple[str, ...], carrier: str) -> List[str]:
             if len({f.dims.get(dim) for f in sel.facts if f.kind == carrier}) != 1]
 
 
-def headline(view, sel: Selection) -> List[str]:
+def headline(view, sel: Selection, forest: List[Fact] = ()) -> List[str]:
     """The total and how it was taken, then two lines over that one total
     (D-HEADLINE-TWO-LINES): the starting context by what started each
     window, then the growth walked down the view's levers, whatever ``--by``
     shows: a category (``cause``) or a population row is never the answer
     (D-HEADLINE-SPECIFIC as amended). Shares are of the mass added: the
-    signed rows stay out of them, as out of every table's."""
+    signed rows stay out of them, as out of every table's. A pinned window
+    that inherited shows each copy's breakdown in its parent (``copied``)."""
     spec = schema.metric(view.metric)
     line = "%s: %s %s" % (view.metric, num(sel.total), spec.unit)
     if not view.reconciles or sel.drill:
@@ -51,7 +52,7 @@ def headline(view, sel: Selection) -> List[str]:
             text += ": " + ", ".join("%s %s" % (r.value, num(r.mass)) for r in
                                      query.group(starting, view.starts, view.metric).rows
                                      if r.kind == query.REGULAR)
-        out.append(text)
+        out += [text] + copied(sel, forest)
         base = word
     walk = []
     if out and added - mass:  # growth is stated beside a starting context only
@@ -60,6 +61,25 @@ def headline(view, sel: Selection) -> List[str]:
                  named=base == word)
     return ([tables.styled(line, tables.BOLD)] + ["  " + t for t in out + (["; ".join(walk)] if walk else [])]
             + _peaks(sel))
+
+
+def copied(sel: Selection, forest: List[Fact]) -> List[str]:
+    """Under a ``--where window=`` pin, each inherited increment counted
+    here, as its parent window's exact breakdown by tool through the branch
+    call, signed rows included, found by reference (D-FORK-INHERITED)."""
+    if schema.WINDOW_DIM not in dict(sel.window_where):
+        return []
+    lines = []
+    for f in sel.facts:
+        if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED:
+            key, call = f.evidence[schema.PARENT_WINDOW], f.evidence[schema.BRANCH_CALL]
+            rows = query.group(query.through(forest, key, call), schema.TOOL_DIM, schema.CONTEXT_DELTA).rows
+            lines.append("  %s %s copied from %s=%s through %s, by tool: %s" % (
+                schema.INHERITED, num(f.metrics[schema.CONTEXT_DELTA]), schema.WINDOW_DIM,
+                schema.window_value(key), at(call), ", ".join(
+                    "%s %s" % (tables.RESIDUAL_LABEL if r.kind == query.RESIDUAL else r.value, num(r.mass))
+                    for r in rows)))
+    return lines
 
 
 STARTING = (schema.WINDOW_HEAD, schema.INHERITED)  # the causes that enter as a window starts
