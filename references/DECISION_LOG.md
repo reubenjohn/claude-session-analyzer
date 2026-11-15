@@ -316,8 +316,9 @@ entered, never a window size: compaction starts re-count the system
 prompt. [W][O]
 
 **D-OUTPUT-CAP — default `context` output never exceeds its baseline.**
-RULED. A test caps it at 46 lines, 3,214 chars: the pre-A1 fixture
+RULED. A test caps it at 46 lines, 3,228 chars: the pre-A1 fixture
 baseline at ux-pass HEAD (live: about 71, 5,450), the root string pinned
-so the temp path cannot flake it. No headroom: "no higher than the
+so the temp path cannot flake it. CORRECTED from 3,214 (ux-pass's own
+corpus, 8-char root): the resync corpus, root and projects as `~`. No headroom: "no higher than the
 baseline". Doc caps count BYTES, as the pre-commit gates do, stricter
 given ∅ ✓ ° (`tests/test_doc_caps.py`). [W][O]
