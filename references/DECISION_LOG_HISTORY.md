@@ -1,4 +1,6 @@
-# session-analyzer v2 — decision log history: the Phase 3 synthesis rows (R1–R6, P1–P9) as originally proposed, before the 2026-09-30 rulings recorded in `DECISION_LOG.md`.
+# session-analyzer v2 — decision log history: rows as proposed (the Phase 3
+synthesis R1–R6, P1–P9, before the 2026-09-30 rulings) and rows moved
+verbatim out of `DECISION_LOG.md`.
 
 ## R1 — Carrier of attributed mass (ENGINE_CONTRACT §5) — NEEDS-RULING
 
@@ -259,7 +261,7 @@ figure: see the brief; corpus figures are 2026-07-28 sweeps and drift.
 |---|---|---|
 | D-ENGINE | Retire the ported ranking engine | RULED |
 | R1 | Carrier of attributed mass (ENGINE_CONTRACT §5) | RULED |
-| R2 | §6 file=lane re-tag + continuation-head probe | RULED |
+| R2 | §6 file=lane re-tag + continuation-head probe | SUPERSEDED (D-CONTEXT-WINDOW) |
 | R3 | Misfile-lens re-tag batch (9 verdicts) | RECORD-ONLY |
 | R4 | Bless 94.98%/~5% headline over ~77%/~23% | RULED (neither) |
 | R5 | `tool_input_head` normalization rule (privacy) | RULED |
@@ -274,3 +276,79 @@ figure: see the brief; corpus figures are 2026-07-28 sweeps and drift.
 | P8 | Schema rules: depth-2 nesting, one lane home | MOOT |
 | P9 | Presets-as-data; computed denominators | RULED |
 
+## 2026-11-15 rows as proposed
+
+`PROPOSAL_UX_MODEL.md`: D-CONTEXT-WINDOW is 1B (its review preferred
+A+), D-START-CAUSE 2, D-FORK-INHERITED 3B, D-INHERITED-ONCE 3C (rejected
+there), D-NO-START-SPLIT 4, D-HEADLINE-TWO-LINES 5; D-OUTPUT-CAP is new.
+
+## Rows moved from `DECISION_LOG.md`, 2026-11-15 (verbatim)
+
+**R2 — window model.** RULED: a window is a file in build v1. The opus second
+opinion had proposed a parentUuid-chain window model pending a probe; the
+probe falsified it, so the fallback (file = window) is adopted as this log
+originally recommended. Measured basis (local corpus probe, 21 files,
+2026-09-30): 0 of 1,523 parentUuid links cross files and 0 uuids repeat
+across files, so a parentUuid chain cannot stitch continuations. Forked agent
+files instead start with a null-parent assistant root and carry a uuid-less
+`fork-context-ref` record (fields `agentId`, `parentSessionId`,
+`parentLastUuid`, `contextLength`) whose first-call occupancy is ~1.01x the
+parent's occupancy at that point. Consequence: the `window_head` bucket (the
+first usage-carrying call's occupancy) is inherited context for a fork and
+boot context for a fresh session; either way it is always its own labelled
+row and never spread. Design-for-later: the parser records
+`fork-context-ref`'s `parentSessionId` and `parentLastUuid` as evidence on
+the window_head fact so cross-file stitching can be added without a schema
+change; no stitching ships in v1.
+
+**R5-BASENAME — the Bash head is the first COMMAND word; a path's
+basename.** RULED 2026-10-01, on a fourth judge's rejection of 859225b;
+opus agreed. R5's "first token" is read as the first command word:
+`for f in …; do cmd; done` had yielded `Bash:for` (the #2 Bash head on the
+live corpus, 164k tokens: a keyword, not a command). Now `for`, `while`,
+`until`, `if`, `elif` drop everything through the `do` or `then` that opens
+their body; the bare wrappers `{`, `(`, `!`, `time`, `sudo`, `env`,
+`nohup`, `xargs` drop, and `timeout` with its duration, as a leading
+assignment does; each list is one declared tuple in `heads.py`. Amendment:
+a path-shaped first command word is its basename (`./check.sh` ->
+`Bash:check.sh`, `/usr/bin/python3` -> `Bash:python3`), still subject to
+`HEAD_SHAPE` and never a directory (`scripts/` -> `other`); it is one
+expression in `heads.bash_head`. Known gaps, logged
+and not widened now: an interpreter followed by a script (`python3
+scripts/x.py`, `bash x.sh`) still yields the interpreter; and a loop whose
+body opens with a label (`for f in …; do echo "== $f"; cat "$f"; done`)
+yields `Bash:echo`, so on the live corpus (31 windows, 2026-10-01)
+`Bash:echo` rose from under 44k to 167k tokens as `Bash:for`'s mass
+dispersed. Same pass: a `--where` value that no fact carries (`tool=bash`)
+exits 2 naming the values present by descending mass, narrowed pair by
+pair, instead of printing a confident zero; each table's count column is
+named for its carrier kind (`increments`, `calls`), since one ambiguous
+increment counts several results; `cli` computes the reconciliation once
+on the `Selection` (now in `query`, with `VIEWS` in `cli`) and `render`
+only formats; `schema` reads the cache tiers through
+`usage.cache_creation_tiers`, the ported helper made public with its body
+unchanged; `walk.Contributor.dims` names its dimensions explicitly.
+
+**D-WINDOW-DIM — a window is selectable by its file name.** RULED
+2026-10-01, on a sixth judge's rejection of 8746202. A main window could
+not be isolated: it carries no `agent` (D-AGENT-DIM) and `--where
+session=` keeps every subagent window of that session, so the window the
+user sat in was only ever answered mixed with its forks. Now every fact of
+both kinds carries `window`, the root-relative file name (a window IS a
+file, R2), constant per window, so filtering on it keeps a whole window
+and the reconciliation still telescopes (local corpus, 36 windows,
+2026-10-01: one main window answered alone reconciles at 280,967 tokens
+over 97 intervals, 84.5% exact). It is drillable via `--where` and `--by`
+and sits in no default table: one row per file is a listing, not a
+breakdown; `--by fact` leaves omit the `window=` tag because the locator
+beside it already names the file. Same pass: a drill's headline counts
+the windows its facts actually come from ("in 29 of 36 windows"; plain
+"in 36 windows" when every window qualifies) instead of the whole-window
+count; `ambiguous` joins `window_head` as a row the headline never names
+as the lever, with its own note under `by cause`; the forest-wide usage
+index moved from every `SourceFile` to `Corpus.usages` and is passed to
+`walk`; `query.narrow` is the one `--where` check (undeclared dimension
+or value, a dimension the carrier never has, a value no fact carries) and
+`query.group` checks `--by` against the carrier, the CLI only surfacing
+the library's error as exit 2; the fork evidence keys and `candidates`
+are declared once in `schema`.

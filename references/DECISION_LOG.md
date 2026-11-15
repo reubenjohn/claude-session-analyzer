@@ -30,22 +30,8 @@ call fact, `context_delta` -> increment fact); the query layer reads a metric
 only from its carrier kind, so the measured 2.000000x double-count is
 impossible by construction.
 
-**R2 — window model.** RULED: a window is a file in build v1. The opus second
-opinion had proposed a parentUuid-chain window model pending a probe; the
-probe falsified it, so the fallback (file = window) is adopted as this log
-originally recommended. Measured basis (local corpus probe, 21 files,
-2026-09-30): 0 of 1,523 parentUuid links cross files and 0 uuids repeat
-across files, so a parentUuid chain cannot stitch continuations. Forked agent
-files instead start with a null-parent assistant root and carry a uuid-less
-`fork-context-ref` record (fields `agentId`, `parentSessionId`,
-`parentLastUuid`, `contextLength`) whose first-call occupancy is ~1.01x the
-parent's occupancy at that point. Consequence: the `window_head` bucket (the
-first usage-carrying call's occupancy) is inherited context for a fork and
-boot context for a fresh session; either way it is always its own labelled
-row and never spread. Design-for-later: the parser records
-`fork-context-ref`'s `parentSessionId` and `parentLastUuid` as evidence on
-the window_head fact so cross-file stitching can be added without a schema
-change; no stitching ships in v1.
+**R2 — window model.** RULED 2026-09-30: a window is a file.
+SUPERSEDED by D-CONTEXT-WINDOW. Full row: `_HISTORY`.
 
 **R3 — misfile-lens re-tag batch.** RECORD-ONLY. Accepted as a record of
 what kind of claim each invariant is; no build work follows. Rows 3, 5, 7
@@ -155,32 +141,7 @@ dimension (`cause`, `reason`) is validated at parse time, since
 `--where cause=bogus` had printed a confident zero.
 
 **R5-BASENAME — the Bash head is the first COMMAND word; a path's
-basename.** RULED 2026-10-01, on a fourth judge's rejection of 859225b;
-opus agreed. R5's "first token" is read as the first command word:
-`for f in …; do cmd; done` had yielded `Bash:for` (the #2 Bash head on the
-live corpus, 164k tokens: a keyword, not a command). Now `for`, `while`,
-`until`, `if`, `elif` drop everything through the `do` or `then` that opens
-their body; the bare wrappers `{`, `(`, `!`, `time`, `sudo`, `env`,
-`nohup`, `xargs` drop, and `timeout` with its duration, as a leading
-assignment does; each list is one declared tuple in `heads.py`. Amendment:
-a path-shaped first command word is its basename (`./check.sh` ->
-`Bash:check.sh`, `/usr/bin/python3` -> `Bash:python3`), still subject to
-`HEAD_SHAPE` and never a directory (`scripts/` -> `other`); it is one
-expression in `heads.bash_head`. Known gaps, logged
-and not widened now: an interpreter followed by a script (`python3
-scripts/x.py`, `bash x.sh`) still yields the interpreter; and a loop whose
-body opens with a label (`for f in …; do echo "== $f"; cat "$f"; done`)
-yields `Bash:echo`, so on the live corpus (31 windows, 2026-10-01)
-`Bash:echo` rose from under 44k to 167k tokens as `Bash:for`'s mass
-dispersed. Same pass: a `--where` value that no fact carries (`tool=bash`)
-exits 2 naming the values present by descending mass, narrowed pair by
-pair, instead of printing a confident zero; each table's count column is
-named for its carrier kind (`increments`, `calls`), since one ambiguous
-increment counts several results; `cli` computes the reconciliation once
-on the `Selection` (now in `query`, with `VIEWS` in `cli`) and `render`
-only formats; `schema` reads the cache tiers through
-`usage.cache_creation_tiers`, the ported helper made public with its body
-unchanged; `walk.Contributor.dims` names its dimensions explicitly.
+basename.** RULED 2026-10-01. Full row: `_HISTORY`.
 
 **R5-BUILTINS — output-less shell builtins are skipped like keywords.**
 RULED 2026-10-01, closing R5-BASENAME's logged gap: a loop body that opens
@@ -288,25 +249,75 @@ done`); `query.Selection` dropped the CLI's root, since and corpus,
 which `cli` now hands to `render.population`.
 
 **D-WINDOW-DIM — a window is selectable by its file name.** RULED
-2026-10-01, on a sixth judge's rejection of 8746202. A main window could
-not be isolated: it carries no `agent` (D-AGENT-DIM) and `--where
-session=` keeps every subagent window of that session, so the window the
-user sat in was only ever answered mixed with its forks. Now every fact of
-both kinds carries `window`, the root-relative file name (a window IS a
-file, R2), constant per window, so filtering on it keeps a whole window
-and the reconciliation still telescopes (local corpus, 36 windows,
-2026-10-01: one main window answered alone reconciles at 280,967 tokens
-over 97 intervals, 84.5% exact). It is drillable via `--where` and `--by`
-and sits in no default table: one row per file is a listing, not a
-breakdown; `--by fact` leaves omit the `window=` tag because the locator
-beside it already names the file. Same pass: a drill's headline counts
-the windows its facts actually come from ("in 29 of 36 windows"; plain
-"in 36 windows" when every window qualifies) instead of the whole-window
-count; `ambiguous` joins `window_head` as a row the headline never names
-as the lever, with its own note under `by cause`; the forest-wide usage
-index moved from every `SourceFile` to `Corpus.usages` and is passed to
-`walk`; `query.narrow` is the one `--where` check (undeclared dimension
-or value, a dimension the carrier never has, a value no fact carries) and
-`query.group` checks `--by` against the carrier, the CLI only surfacing
-the library's error as exit 2; the fork evidence keys and `candidates`
-are declared once in `schema`.
+2026-10-01. SUPERSEDED in part by D-CONTEXT-WINDOW: the value is the
+window key, not the file name. Full row: `_HISTORY`.
+
+## Rulings — 2026-11-15
+
+Owner-approved, amended after review. Each row cites [W], its
+measurement (`sa/probe_window_model.py`, `WINDOW PROBE 2026-11-15`), and
+[O], its second opinions (an independent opus review, 2026-11-15, and
+`PROPOSAL_UX_MODEL.md` §Second opinion). The rows as proposed: that
+proposal, mapped in `_HISTORY`.
+
+**D-CONTEXT-WINDOW — a window is one context window.** RULED,
+superseding R2. It starts at a session start, a subagent, a fork or a
+compaction marker and fills until its file ends or the next compaction;
+a marker that ends its file starts none (4 of 9). A file holds one or
+more windows and stays internal: dedup and `file:line:uuid` locators are
+unchanged. Windows are cut AFTER forest dedup, never by marking records
+duplicate; the duplicate count must not change. Identity is (file, start
+line: the file's first or the marker's), independent of dedup and
+`--since`; `reconcile` and `window_count` key on it. The `window` value
+is 8 hex of sha1 over the start record's root-relative `file:line`, for
+display and `--where` only: a collision cannot merge windows. The
+summarising call is absent (0 of 23,662 api-request records): the
+population line counts the unpriced compactions. Measured: 0 windows
+span files (605 files); 591 file-windows become 596; shrinks 8 -> 3, 5
+becoming starts; exact 84.73% -> 84.75%; spend unchanged; peaks per
+window, never summed. [W][O]
+
+**D-START-CAUSE — `start` names what began a window.** RULED. A window
+dimension on both kinds, constant per window: `session_start`,
+`subagent`, `fork`, `replayed`, `compaction`; fork beats subagent (forks
+live under `subagents/`). `start`, not `trigger`: it names the line it
+heads; `replayed`, not `resume`: the record, not a guessed intent.
+Measured 68 / 513 / 10 / 0 / 5; `replayed` declared, 0 observed. [W][O]
+
+**D-FORK-INHERITED — a fork copies the parent's occupancy at the branch
+call.** RULED, changed from the owner's "parent's starting context":
+fork head / parent occupancy is 1.006 to 1.034. The copied part,
+`inherited`, equals the parent window's occupancy at the branch call and
+carries the parent's exact breakdown to that call, signed rows included,
+found by reference, never re-minted as facts; the remainder is the
+fork's own start. `replayed` windows likewise. [W][O]
+
+**D-INHERITED-ONCE — inherited mass counts once.** RULED. An increment,
+cause `inherited`, carrying `context_delta` (one carrier kind); evidence
+names the parent window key and the branch call. A window's own
+reconciliation includes it; corpus totals exclude it only when the
+parent window is in the selected population (query selection decides),
+else count it in full: the fallback for the 1 fork inheriting by
+reference only. Footer "inherited (counted in parent)", like shrink.
+Revives the proposal's rejected 3C, whose objections (the window carried
+the tokens; a second total costs reading) fail here: the window keeps
+them and one total prints. [W][O]
+
+**D-NO-START-SPLIT — starting context is never split by content.**
+RULED. A session start is system prompt, tools, CLAUDE.md and first
+message; a subagent's, system prompt and prompt; a compaction's, summary
+and re-sent system prompt. No part has its own token count: any split
+is an estimate, which is forbidden. [W][O]
+
+**D-HEADLINE-TWO-LINES — starting context, then growth.** RULED. Line 1:
+starting context by `start`; line 2: growth by tool -> head; one stated
+total; signed rows out of shares. Starting context is labelled mass that
+entered, never a window size: compaction starts re-count the system
+prompt. [W][O]
+
+**D-OUTPUT-CAP — default `context` output never exceeds its baseline.**
+RULED. A test caps it at 46 lines, 3,214 chars: the pre-A1 fixture
+baseline at ux-pass HEAD (live: about 71, 5,450), the root string pinned
+so the temp path cannot flake it. No headroom: "no higher than the
+baseline". Doc caps count BYTES, as the pre-commit gates do, stricter
+given ∅ ✓ ° (`tests/test_doc_caps.py`). [W][O]
