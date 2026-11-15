@@ -68,8 +68,9 @@ def test_a_call_split_across_files_is_one_call_owned_by_the_earlier_file(tmp_pat
     assert query.reconcile(facts).holds
     code, out, err = fx.run_cli("spend", "--root", str(root))
     assert code == 0, err
-    assert ("read: root %s, 2 files, 0 lines skipped, 1 duplicate record excluded\n"
-            "kept: 1 window (a file with a call), 1 call fact\n" % root) in out
+    assert ("read: 2 files modified in the last 7d (default) under %s\n"
+            "      0 lines skipped, 1 duplicate record excluded\n"
+            "kept: 1 window° (a file with a call), 1 call fact\n" % root) in out
     # Merged over both files' constituents: the same metrics as the split within one file.
     (within,) = [f for f in _one_window(tmp_path / "within", [parent, copy]) if f.kind == CALL]
     assert call.metrics == within.metrics

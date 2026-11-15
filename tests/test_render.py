@@ -17,19 +17,25 @@ DIM = schema.PROJECT_DIM  # declared, with no residual note
 TOOL, HEAD = schema.TOOL_DIM, schema.HEAD_DIM
 
 
+def _top(*args, **kwargs):
+    """The lever walk's clauses as the headline reads them, ``; ``-joined."""
+    return "".join("; " + clause for clause in render._top(*args, **kwargs))
+
+
 def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
     table = query.Table(DIM, ROWS, 100)
     lines = tables.table(table, M, limit=1, whole=False)
-    assert lines[0].startswith("by " + DIM) and lines[0].endswith("share of 100")
+    assert lines[0].startswith("by " + DIM) and lines[0].endswith("share of 100 with a " + DIM)
     assert [l.split()[0] for l in lines[1:]] == ["a", "+2", tables.RESIDUAL_LABEL, schema.SHRINK]
     assert re.match(r"\+2 more rows\s+40\s+2\s+40\.0%", lines[2])
     assert [l.split()[0] for l in tables.table(table, M, limit=3, whole=False)[1:]] == [
         "a", "b", "c", tables.RESIDUAL_LABEL, schema.SHRINK]
-    for dim, (meaning, _) in tables.RESIDUAL_NOTES.items():
-        noted = tables.table(table._replace(dim=dim), M, limit=3, whole=False)
-        assert noted[-1] == tables.residual_note(dim, ()) == tables.RESIDUAL_LABEL + ": " + meaning
-        no_residual = tables.table(query.Table(dim, ROWS[:3], 100), M, 3, whole=False)
-        assert noted[-1] not in no_residual
+    for dim, (meaning, _) in tables.RESIDUAL_NOTES.items():  # a residual row's note is in the key
+        noted = tables.notes(table._replace(dim=dim))
+        assert noted[-1] == (tables.residual_label(dim), meaning) == (
+            tables.marked(tables.RESIDUAL_LABEL) + " by " + dim, tables.residual_note(dim, ()))
+        assert noted[-1] not in tables.notes(query.Table(dim, ROWS[:3], 100))  # no residual row
+    assert tables.notes(table) == []  # vacuity guard: DIM has no note
 
 
 def test_every_dimension_a_view_can_group_with_a_residual_row_has_a_note(tmp_path):
@@ -56,7 +62,7 @@ def test_the_mass_column_is_the_metric_and_the_count_column_its_carrier_kind():
     table = query.Table(DIM, ROWS, 100)
     for name, spec in schema.METRICS.items():  # the unit never heads the mass column
         header = tables.table(table, name, limit=3, whole=False)[0].split()
-        assert header == ["by", DIM, name, spec.carrier + "s", "share", "of", "100"]
+        assert header == ["by", DIM, name, spec.carrier + "s", "share", "of", "100", "with", "a", DIM]
         assert spec.unit != name and "count" not in header  # vacuity guard: distinguishable
     assert {spec.carrier for spec in schema.METRICS.values()} == set(schema.KINDS)  # both kinds seen
 
@@ -67,10 +73,10 @@ def test_a_zero_base_table_truncates_without_a_share():
     assert lines[0].endswith("  share") and "share of" not in lines[0]
     assert re.match(r"\+2 more rows\s+0\s+2\s+-$", lines[2])
     facts = [f._replace(metrics={fx.DELTA: 0}) for f in FACTS[:3]]
-    assert render._top(facts, [TOOL], fx.DELTA, total=0) == ""
-    assert render._top(facts, [TOOL], fx.DELTA, total=5) == (
+    assert _top(facts, [TOOL], fx.DELTA, total=0) == ""
+    assert _top(facts, [TOOL], fx.DELTA, total=5) == (
         "; top %s=Bash 0 (0.0%% of the 5 total)" % TOOL)  # vacuity guard
-    assert render._top(facts, [TOOL, HEAD], fx.DELTA, total=5).endswith(
+    assert _top(facts, [TOOL, HEAD], fx.DELTA, total=5).endswith(
         "; within it %s=Bash:cat 0 (- of Bash, 0.0%% of the total)" % HEAD)  # no share of a 0 row
 
 
@@ -92,12 +98,12 @@ def test_headline_top_row_shares_the_total_it_is_given_never_the_table_base():
     the residual and signed rows); the headline says the row's share of the
     headline total, and names that total."""
     assert query.group(FACTS, TOOL, fx.DELTA).base == 100 != query.total(FACTS, fx.DELTA) == 98
-    assert render._top(FACTS, [TOOL], fx.DELTA, total=98) == (
+    assert _top(FACTS, [TOOL], fx.DELTA, total=98) == (
         "; top %s=Bash 90 (91.8%% of the 98 total)" % TOOL)
-    assert render._top(FACTS, [TOOL], fx.DELTA, total=100) == (
+    assert _top(FACTS, [TOOL], fx.DELTA, total=100) == (
         "; top %s=Bash 90 (90.0%% of the 100 total)" % TOOL)
-    assert render._top(FACTS[3:], [TOOL], fx.DELTA, total=98) == ""  # no regular row
-    assert render._top(FACTS, [], fx.DELTA, total=98) == ""          # every lever pinned
+    assert _top(FACTS[3:], [TOOL], fx.DELTA, total=98) == ""  # no regular row
+    assert _top(FACTS, [], fx.DELTA, total=98) == ""          # every lever pinned
 
 
 def test_the_headline_refines_the_top_row_and_names_both_bases():
@@ -105,7 +111,7 @@ def test_the_headline_refines_the_top_row_and_names_both_bases():
     of the 98 total: both bases are named, since a share of the total
     beside ``within it`` would read as a share of Bash. Here it is also
     the top head overall, so nothing follows."""
-    assert render._top(FACTS, [TOOL, HEAD], fx.DELTA, total=98) == (
+    assert _top(FACTS, [TOOL, HEAD], fx.DELTA, total=98) == (
         "; top %s=Bash 90 (91.8%% of the 98 total); within it %s=Bash:cat 60"
         " (66.7%% of Bash, 61.2%% of the total)" % (TOOL, HEAD))
 
@@ -116,15 +122,15 @@ def test_a_top_row_under_another_lead_follows_the_refinement_naming_what_it_lies
     it is named too with its tool and its share of the total."""
     other = [_inc(60, 1, "Bash", "Bash:ls"), _inc(40, 2, "Bash", "Bash:make"),
              _inc(70, 3, "Read", "Read:py")]
-    assert render._top(other, [HEAD], fx.DELTA, total=170) == (
+    assert _top(other, [HEAD], fx.DELTA, total=170) == (
         "; top %s=Read:py 70 (41.2%% of the 170 total)" % HEAD)  # the top head on its own
-    assert render._top(other, [TOOL, HEAD], fx.DELTA, total=170) == (
+    assert _top(other, [TOOL, HEAD], fx.DELTA, total=170) == (
         "; top %s=Bash 100 (58.8%% of the 170 total); within it %s=Bash:ls 60"
         " (60.0%% of Bash, 35.3%% of the total); top %s=Read:py 70 (41.2%% of the total)"
         " under %s=Read" % (TOOL, HEAD, HEAD, TOOL))
-    assert "under" not in render._top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
+    assert "under" not in _top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
     with pytest.raises(ValueError):  # Bash lies under two heads: the levers must nest
-        render._top(other, [HEAD, TOOL], fx.DELTA, total=170)
+        _top(other, [HEAD, TOOL], fx.DELTA, total=170)
 
 
 def test_an_equal_head_under_another_tool_is_not_named_as_the_top():
@@ -132,11 +138,11 @@ def test_an_equal_head_under_another_tool_is_not_named_as_the_top():
     head table's stable sort: ``under`` names only a strictly larger head."""
     tie = [_inc(60, 1, "Read", "Read:py"), _inc(60, 2, "Bash", "Bash:ls"), _inc(40, 3, "Bash", "Bash:make")]
     assert render._largest(query.group(tie, HEAD, fx.DELTA)).value == "Read:py"
-    assert render._top(tie, [TOOL, HEAD], fx.DELTA, total=160) == (
+    assert _top(tie, [TOOL, HEAD], fx.DELTA, total=160) == (
         "; top %s=Bash 100 (62.5%% of the 160 total); within it %s=Bash:ls 60"
         " (60.0%% of Bash, 37.5%% of the total)" % (TOOL, HEAD))
     larger = [tie[0]._replace(metrics={fx.DELTA: 61})] + tie[1:]  # vacuity guard
-    assert render._top(larger, [TOOL, HEAD], fx.DELTA, total=161).endswith(
+    assert _top(larger, [TOOL, HEAD], fx.DELTA, total=161).endswith(
         "; top %s=Read:py 61 (37.9%% of the total) under %s=Read" % (HEAD, TOOL))
 
 
@@ -145,12 +151,12 @@ def test_a_top_tool_with_no_head_still_names_the_top_head_under_its_tool():
     anywhere, Bash:cat 60 under Bash, is still named. With no head anywhere
     the tool clause stands alone."""
     headless = [_inc(90, 1, "Agent"), _inc(60, 2, "Bash", "Bash:cat")]
-    assert render._top(headless, [TOOL, HEAD], fx.DELTA, total=150) == (
+    assert _top(headless, [TOOL, HEAD], fx.DELTA, total=150) == (
         "; top %s=Agent 90 (60.0%% of the 150 total); top %s=Bash:cat 60 (40.0%% of the total)"
         " under %s=Bash" % (TOOL, HEAD, TOOL))
-    assert render._top(headless[:1], [TOOL, HEAD], fx.DELTA, total=90) == (
+    assert _top(headless[:1], [TOOL, HEAD], fx.DELTA, total=90) == (
         "; top %s=Agent 90 (100.0%% of the 90 total)" % TOOL)
-    assert "within it" in render._top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
+    assert "within it" in _top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
 
 
 def test_limit_never_hides_a_row_whose_note_prints_under_the_table(tmp_path):
@@ -170,7 +176,7 @@ def test_limit_never_hides_a_row_whose_note_prints_under_the_table(tmp_path):
     assert shown[-1][3:5] == [tables.num(sum(int(r[1].replace(",", "")) for r in others)),
                               tables.num(sum(int(r[2]) for r in others))]
     for value, note in tables.UNSPLITTABLE.items():
-        assert "%s: %s" % (value, note) in out
+        assert (tables.marked(value), note) in fx.key(out)
 
 
 def test_a_row_named_like_a_cause_folds_and_gets_no_note_outside_the_cause_table():
@@ -183,7 +189,9 @@ def test_a_row_named_like_a_cause_folds_and_gets_no_note_outside_the_cause_table
     assert [l.split()[0] for l in lines[1:]] == ["a", "+%d" % len(tables.UNSPLITTABLE)]
     kept = tables.table(query.Table(schema.CAUSE_DIM, rows, 80), M, limit=1, whole=False)
     assert [l.split()[0] for l in kept[1:] if l.endswith("%")] == ["a"] + list(tables.UNSPLITTABLE)
-    assert all("%s: %s" % (cause, note) in kept for cause, note in tables.UNSPLITTABLE.items())
+    assert tables.notes(query.Table(schema.CAUSE_DIM, rows, 80)) == [
+        (tables.marked(cause), note) for cause, note in tables.UNSPLITTABLE.items()]
+    assert tables.notes(query.Table(DIM, rows, 80)) == []
 
 
 def test_the_ambiguous_note_names_every_declared_reason():

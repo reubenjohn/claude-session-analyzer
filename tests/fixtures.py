@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from sa import corpus as corpus_module, schema, walk
+from sa import corpus as corpus_module, schema, tables as tables_module, walk
 
 SESSION = "sess-0001"
 FORK_PARENT = "sess-0000"
@@ -209,3 +209,28 @@ def run_cli(*args):
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           universal_newlines=True)
     return done.returncode, done.stdout, done.stderr
+
+
+def sections(out):
+    """The report's blank-line-separated sections, each a list of lines:
+    the scope first, then the answer, the tables, the key, the checks."""
+    return [s.splitlines() for s in out.rstrip("\n").split("\n\n")]
+
+
+def headline(out):
+    """The answer as one string: the total line, then each lever clause
+    indented under it, ``; ``-joined in reading order."""
+    first, *rest = sections(out)[1]
+    return "; ".join([first] + [line.strip() for line in rest if line.startswith("  ")])
+
+
+def peaks(out):
+    return [line for line in sections(out)[1] if line.startswith("single-call peak ")]
+
+
+def key(out):
+    """The key's entries as (label, text): the one place notes print."""
+    keyed = [s for s in sections(out) if s[0].startswith("key (")]
+    assert len(keyed) <= 1
+    width = tables_module.KEY_WIDTH
+    return [(line[2:2 + width].rstrip(), line[3 + width:]) for line in (keyed[0][1:] if keyed else [])]

@@ -20,7 +20,7 @@ def _where(pairs):
 
 def _answers(code, out, err):
     assert code == 0, err
-    assert re.search(r"^%s: [1-9]" % CONTEXT.metric, out)
+    assert re.search(r"^%s: [1-9]" % CONTEXT.metric, fx.headline(out))
 
 
 @pytest.mark.parametrize("flag,value", [("--where", "%s=Bash" % TOOL), ("--by", CAUSE)])
@@ -58,7 +58,7 @@ def test_unknown_value_of_a_closed_vocabulary_dimension_is_refused(tmp_path, dim
     assert "unknown %s 'bogus'; declared: %s" % (dim, ", ".join(schema.VOCABULARY[dim])) in err
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=%s" % (dim, value))
     assert code == 0, err  # vacuity guard
-    assert re.search(r"^%s: -?[1-9]" % CONTEXT.metric, out)  # shrink's total is negative
+    assert re.search(r"^%s: -?[1-9]" % CONTEXT.metric, fx.headline(out))  # shrink's total is negative
 
 
 @pytest.mark.parametrize("bogus,message,good", [
@@ -93,9 +93,9 @@ def test_a_declared_value_no_fact_carries_is_a_measured_zero(tmp_path):
         code, out, err = fx.run_cli("context", "--root", str(root), "--where",
                                     "%s=%s" % (schema.REASON_DIM, reason))
         assert code == 0, err
-        assert out.startswith("%s: 0 %s over 0 increment facts where %s=%s in 0 of 1 window\n" % (
+        assert fx.headline(out).startswith("%s: 0 %s over 0 increment facts where %s=%s in 0 of 1 window" % (
             CONTEXT.metric, fx.unit(CONTEXT.metric), schema.REASON_DIM, reason))
-        assert "\nkept: 1 window (a file with a call), " in out
+        assert "\nkept: 1 window° (a file with a call), " in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=bogus" % schema.REASON_DIM)
     assert code == 2 and not out and "unknown %s" % schema.REASON_DIM in err  # a typo is still refused
 
@@ -114,10 +114,10 @@ def test_since_selects_files_by_mtime_and_zero_days_selects_none(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "0d")
     assert code == 0, err
-    assert ", 0 files (modified within 0d), " in out and "\nkept: 0 windows (files with a call), 0 increment facts" in out
+    assert "read: 0 files modified in the last 0d under " in out and "\nkept: 0 windows° (files with a call), 0 increment facts" in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "1d")
     assert code == 0, err
-    assert ", 4 files (modified within 1d), " in out and "\nkept: 3 windows (files with a call), " in out
+    assert "read: 4 files modified in the last 1d under " in out and "\nkept: 3 windows° (files with a call), " in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since=-1d")
     assert code == 2 and not out and "number of days" in err
 
@@ -130,18 +130,18 @@ def test_since_excludes_a_parent_before_dedup_so_its_continuation_owns_the_repla
     continuation = fx.stamped(fx.window_records()[:5], 0) + fx.stamped(fx.window_records("c-")[5:10], 5)
     root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": original, "proj-a/sess-0002.jsonl": continuation})
     args = ("context", "--root", str(root), "--since", "1d", "--where", "%s=%s" % (CAUSE, schema.WINDOW_HEAD))
-    headline = "%s: %%s %s over %%s where %s=%s in %%s\n" % (
+    headline = "%s: %%s %s over %%s where %s=%s in %%s" % (
         CONTEXT.metric, fx.unit(CONTEXT.metric), CAUSE, schema.WINDOW_HEAD)
     code, out, err = fx.run_cli(*args)  # vacuity guard: both kept, the prefix is duplicate
     assert code == 0, err
-    assert out.startswith(headline % ("2,500", "2 increment facts", "2 windows"))
-    assert ", 2 files (modified within 1d), " in out and ", 5 duplicate records excluded\n" in out
+    assert fx.headline(out).startswith(headline % ("2,500", "2 increment facts", "2 windows"))
+    assert "read: 2 files modified in the last 1d under " in out and ", 5 duplicate records excluded\n" in out
     stale = time.time() - 2 * corpus.DAY
     os.utime(root / "proj-a" / "sess-0001.jsonl", (stale, stale))
     code, out, err = fx.run_cli(*args)
     assert code == 0, err
-    assert out.startswith(headline % ("1,000", "1 increment fact", "1 window"))
-    assert ", 1 file (modified within 1d), " in out and ", 0 duplicate records excluded\n" in out
+    assert fx.headline(out).startswith(headline % ("1,000", "1 increment fact", "1 window"))
+    assert "read: 1 file modified in the last 1d under " in out and ", 0 duplicate records excluded\n" in out
 
 
 @pytest.mark.parametrize("limit", ["0", "-1"])

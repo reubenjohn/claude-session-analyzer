@@ -1,9 +1,10 @@
-"""Plain-text rendering of a selection: headline, population, tables, leaves,
-footer. The tables are grouped here from the selection's facts; its total
+"""Plain-text rendering of a selection, in reading order: scope (the
+population), answer (headline, lever walk, peak), tables or leaves, one key,
+checks. The tables are grouped here from the selection's facts; its total
 and reconciliation come with it, so nothing here decides the exit status."""
 from typing import List, NamedTuple, Optional, Tuple
 
-from . import query, schema
+from . import query, schema, tables
 from .corpus import Corpus
 from .query import Selection
 from .schema import Fact
@@ -20,27 +21,43 @@ class View(NamedTuple):
     tables: Tuple[str, ...]  # printed by default
     levers: Tuple[str, ...]  # the headline walks down these; a value lies under one of the lever above
     reconciles: bool
-    notes: Tuple[str, ...]   # printed under the headline
+    notes: Tuple[str, ...]   # printed in the key, under the view's metric
 
 
-def _status(holds: bool) -> str:
-    return "OK" if holds else "MISMATCH"
-
-
-def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit: int) -> List[str]:
-    """Every line of the view: the headline, the population lines, the
-    default tables a pin left open (``--by`` one dimension's table with its
-    labels whole, or the leaves for ``fact``) and the footer."""
+def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit: int,
+           since_default: bool = False) -> List[str]:
+    """Every line of the view, in reading order: the scope (what was read
+    and kept), the answer (the headline and its lever walk, the peak), the
+    tables a pin left open (``--by`` one dimension's table with its labels
+    whole, or the leaves for ``fact``), one key for every note they call
+    for, and the checks. The cause table of a whole-window view closes with
+    its total against the windows' final sizes."""
     spec = schema.metric(view.metric)
+    notes: List[Tuple[str, str]] = [(view.metric, n) for n in view.notes]
     if by == FACT:
-        body = leaves(sel.facts, view.metric, limit)
+        body = leaves(sel.facts, view.metric, limit) + [""]
     else:
         dims = [by] if by else _open(sel, view.tables, spec.carrier)
-        tables = [query.group(sel.facts, dim, view.metric) for dim in dims]
-        body = [line for t in tables if t.rows
-                for line in table(t, view.metric, limit, whole=bool(by)) + [""]]
-    return (headline(view, sel) + population(view, sel, loaded) + [""]
-            + body + footer(view, sel))
+        body = []
+        for dim in dims:
+            grouped = query.group(sel.facts, dim, view.metric)
+            if grouped.rows:
+                body += table(grouped, view.metric, limit, whole=bool(by),
+                              total=_total(view, sel) if dim == schema.CAUSE_DIM else None) + [""]
+                notes += tables.notes(grouped)
+    keyed = tables.key(notes)
+    return (population(view, sel, loaded, since_default) + [""] + headline(view, sel) + [""]
+            + body + keyed + ([""] if keyed else []) + footer(view, sel, by))
+
+
+def _total(view: View, sel: Selection) -> Optional[str]:
+    """The cause table's closing text: the booked total against the final
+    sizes, for a whole-window view that reconciles; no drill has one."""
+    if not view.reconciles or sel.drill:
+        return None
+    if sel.reconciliation.mass_holds:
+        return "%s matches the final window sizes" % tables.OK_MARK
+    return "%s does not match the final window sizes (below)" % tables.BAD_MARK
 
 
 def _open(sel: Selection, dims: Tuple[str, ...], carrier: str) -> List[str]:
@@ -57,7 +74,8 @@ def _open(sel: Selection, dims: Tuple[str, ...], carrier: str) -> List[str]:
 def headline(view: View, sel: Selection) -> List[str]:
     """The total, how it was taken, and the lever walk, whatever ``--by``
     shows: a category (``cause``) or a population row (a window dimension)
-    is never the answer (D-HEADLINE-SPECIFIC as amended)."""
+    is never the answer (D-HEADLINE-SPECIFIC as amended). Each lever's
+    clause is a line of its own, indented under the total."""
     spec = schema.metric(view.metric)
     line = "%s: %s %s" % (view.metric, num(sel.total), spec.unit)
     if not view.reconciles or sel.drill:
@@ -68,7 +86,9 @@ def headline(view: View, sel: Selection) -> List[str]:
     else:
         line += " booked over %s (reconciliation MISMATCH below)" % count(sel.n_windows, "window")
     levers = _open(sel, view.levers, spec.carrier)
-    return [line + _top(sel.facts, levers, view.metric, sel.total)] + _peaks(sel) + list(view.notes)
+    return ([tables.styled(line, tables.BOLD)]
+            + ["  " + clause for clause in _top(sel.facts, levers, view.metric, sel.total)]
+            + _peaks(sel))
 
 
 def _over(sel: Selection, carrier: str) -> str:
@@ -92,7 +112,7 @@ def _largest(table: query.Table) -> Optional[query.Row]:
     return next((r for r in table.rows if r.kind == query.REGULAR), None)
 
 
-def _top(facts: List[Fact], levers: List[str], metric: str, total: float) -> str:
+def _top(facts: List[Fact], levers: List[str], metric: str, total: float) -> List[str]:
     """The first lever's largest row with its share of the headline total,
     named as such (a table's share column is over its base, which the
     residual and signed rows make smaller). Each next lever refines the
@@ -102,28 +122,29 @@ def _top(facts: List[Fact], levers: List[str], metric: str, total: float) -> str
     strictly larger, it follows with what it lies under (``top head=Read:py
     70 (41.2% of the total) under tool=Read``), never silent. A row with
     none of the lever within it (a top tool with no head: Agent, MCP tools)
-    still has the largest row elsewhere named, then ends the walk."""
+    still has the largest row elsewhere named, then ends the walk. Each
+    clause is one string."""
     if not total or not levers:
-        return ""
+        return []
     top = _largest(query.group(facts, levers[0], metric))
     if top is None:
-        return ""
-    text = "; top %s=%s %s (%s of the %s total)" % (
-        levers[0], top.value, num(top.mass), pct(top.mass / total), num(total))
+        return []
+    text = ["top %s=%s %s (%s of the %s total)" % (
+        levers[0], top.value, num(top.mass), pct(top.mass / total), num(total))]
     lead = query.select(facts, [(levers[0], top.value)])
     for above, dim in zip(levers, levers[1:]):
         within = _largest(query.group(lead, dim, metric))
         if within is not None:
-            text += "; within it %s=%s %s (%s of %s, %s of the total)" % (
+            text.append("within it %s=%s %s (%s of %s, %s of the total)" % (
                 dim, within.value, num(within.mass), pct(within.mass / top.mass if top.mass else None),
-                top.value, pct(within.mass / total))
+                top.value, pct(within.mass / total)))
         overall = _largest(query.group(facts, dim, metric))
         if overall is not None and overall.mass > (within.mass if within else 0):
             # A lever's value implies one value of the lever above (a head its tool,
             # as walk books it); a View whose levers do not nest fails to unpack here.
             (under,) = query.values(query.select(facts, [(dim, overall.value)]), above, metric)
-            text += "; top %s=%s %s (%s of the total) under %s=%s" % (
-                dim, overall.value, num(overall.mass), pct(overall.mass / total), above, under)
+            text.append("top %s=%s %s (%s of the total) under %s=%s" % (
+                dim, overall.value, num(overall.mass), pct(overall.mass / total), above, under))
         if within is None:
             break
         top, lead = within, query.select(lead, [(dim, within.value)])
@@ -145,49 +166,65 @@ def _peaks(sel: Selection) -> List[str]:
     return lines
 
 
-def population(view: View, sel: Selection, loaded: Corpus) -> List[str]:
-    """Each count beside the population it was taken over: the read (the
-    corpus's root, the files its ``--since`` kept, what the read skipped or
-    excluded, corpus-wide) and what the window pins kept: the windows (the
-    files with a call, which is why they are fewer than the files read) and
-    the facts the view's metric is read from, its carrier's. A drill pin is
-    named on the headline, the one line that counts what it narrows."""
-    carrier = schema.metric(view.metric).carrier
-    return ["read: root %s, %s%s, %s skipped, %s excluded"
-            % (loaded.root, count(len(loaded.files), "file"),
-               "" if loaded.since_days is None else " (modified within %gd)" % loaded.since_days,
-               count(loaded.skipped_lines, "line"),
-               count(loaded.duplicate_records, "duplicate record")),
+def population(view: View, sel: Selection, loaded: Corpus, since_default: bool = False) -> List[str]:
+    """The scope, first: the read (the files its ``--since`` kept, named
+    with that window and the root, then what the read skipped or excluded,
+    corpus-wide) and what the window pins kept: the windows (the files with
+    a call, which is why they are fewer than the files read) and the facts
+    the view's metric is read from, its carrier's. A drill pin is named on
+    the headline, the one line that counts what it narrows."""
+    carrier, _window = schema.metric(view.metric).carrier, schema.WINDOW_DIM
+    since = ("of any age" if loaded.since_days is None else "modified in the last %gd%s"
+             % (loaded.since_days, " (default)" if since_default else ""))
+    return ["read: %s %s under %s" % (count(len(loaded.files), "file"), since, tables.tilde(loaded.root)),
+            "      %s skipped, %s excluded" % (count(loaded.skipped_lines, "line"),
+                                              count(loaded.duplicate_records, "duplicate record")),
             "kept%s: %s, %s"
             % (_pins(sel.window_where),
-               count(sel.n_windows, "window (a file with a call)", "windows (files with a call)"),
+               count(sel.n_windows, tables.marked(_window) + " (a file with a call)", _window + "s"
+                     + schema.MARKER + " (files with a call)"),
                count(sum(f.kind == carrier for f in sel.window_facts), carrier + " fact"))]
 
 
+def _status(holds: bool) -> str:
+    return "OK" if holds else "MISMATCH"
+
+
 def _reconciliation(r: query.Reconciliation) -> List[str]:
+    """The reconciliation in full, printed only when it fails."""
     terms = " + ".join("%s %s" % (c, num(r.by_cause[c])) for c in schema.CAUSES)
     reasons = ", ".join("%s %s" % (k, num(v)) for k, v in r.by_reason.items() if v)
-
-    def rate(n: int) -> str:
-        return "%s (%.1f%%)" % (num(n), 100.0 * n / r.intervals) if r.intervals else "0"
-    return [
-        "reconciliation over %s: %s = %s; final occupancy %s: %s; holds by construction"
-        " (walk.py), so a mismatch is a bug in this tool"
-        % (count(r.windows, "window"), terms, num(r.booked), num(r.final_occupancy),
-           _status(r.mass_holds)),
-        "intervals %s (= %s - %s): exact %s + ambiguous %s [%s] + shrink %s: %s"
-        % (num(r.intervals), count(r.calls, "call"), count(r.windows, "window"), rate(r.exact),
-           rate(r.ambiguous), reasons or "none", rate(r.shrink), _status(r.count_holds)),
-        "exact: the interval's one token-relevant contributor (a tool_result or user"
-        " text) after subtracting the previous call's output. Exact given the"
-        " feed-forward model; bookkeeping attachments are folded into the single"
-        " contributor's remainder.",
-    ]
+    return [tables.styled(line, tables.BAD) for line in [
+        "%s reconciliation over %s: %s = %s; final occupancy %s: %s"
+        % (tables.BAD_MARK, count(r.windows, "window"), terms, num(r.booked),
+           num(r.final_occupancy), _status(r.mass_holds)),
+        "%s intervals %s (= %s - %s): exact %s + ambiguous %s [%s] + shrink %s: %s"
+        % (tables.BAD_MARK, num(r.intervals), count(r.calls, "call"), count(r.windows, "window"),
+           _rate(r, r.exact), _rate(r, r.ambiguous), reasons or "none", _rate(r, r.shrink),
+           _status(r.count_holds)),
+        "it holds by construction (walk.py), so a mismatch is a bug in this tool"]]
 
 
-def footer(view: View, sel: Selection) -> List[str]:
-    """The closing lines: the reconciliation in full, as a pointer when a
-    drill is shown above it, or, for a view that does not reconcile, every
+def _rate(r: query.Reconciliation, n: int) -> str:
+    return "%s (%.1f%%)" % (num(n), 100.0 * n / r.intervals) if r.intervals else "0"
+
+
+def _checks(r: query.Reconciliation, totalled: bool) -> str:
+    """The one line a holding reconciliation prints: the intervals split
+    into exact, ambiguous and shrink, each with its rate (R4), and the
+    booked total against the final sizes unless the cause table's total
+    row already said it."""
+    mass = "" if totalled else "%s booked = the final window sizes; " % num(r.booked)
+    return tables.styled("%s checks: %s%s intervals (%s - %s) = exact %s + ambiguous %s + shrink %s"
+                         % (tables.OK_MARK, mass, num(r.intervals), count(r.calls, "call"),
+                            count(r.windows, "window"), _rate(r, r.exact), _rate(r, r.ambiguous),
+                            _rate(r, r.shrink)), tables.GOOD)
+
+
+def footer(view: View, sel: Selection, by: Optional[str] = None) -> List[str]:
+    """The closing lines: for a view that reconciles, one checks line when
+    the reconciliation holds (a pointer when a drill is shown above it) and
+    the reconciliation in full when it fails; for one that does not, every
     other additive call total over the population named."""
     if not view.reconciles:
         return ["%s: %s %s %s" % (name, num(query.total(sel.facts, name)), spec.unit,
@@ -195,7 +232,11 @@ def footer(view: View, sel: Selection) -> List[str]:
                 for name, spec in schema.METRICS.items()
                 if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE
                 and name != view.metric]
+    r = sel.reconciliation
+    if not r.holds:
+        return _reconciliation(r)
     if sel.drill:
-        return ["reconciliation: applies to the %s above, not to this drill: %s"
-                % (count(sel.n_windows, "whole window"), _status(sel.reconciliation.holds))]
-    return _reconciliation(sel.reconciliation)
+        return [tables.styled("%s checks: hold over the %s above; a drill is not reconciled"
+                              % (tables.OK_MARK, count(sel.n_windows, "whole window")), tables.GOOD)]
+    shown = by == schema.CAUSE_DIM or (by is None and schema.CAUSE_DIM in view.tables)
+    return [_checks(r, totalled=shown)]
