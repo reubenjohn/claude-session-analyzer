@@ -69,9 +69,9 @@ python3 -m sa context --where tool=Bash --by head
 python3 -m sa context --where cause=ambiguous --by fact --limit 2
 ```
 
-`--where DIM=VALUE` (project, session, agent, window, cause, tool,
-head, reason) repeats, exact: on the first four it keeps whole
-windows (`window`, a root-relative file name, isolates a main window);
+`--where DIM=VALUE` (project, session, agent, window, start, cause,
+tool, head, reason) repeats, exact: on the first five it keeps whole
+windows (`window=<hex>` isolates one; `--by window` lists them);
 otherwise it drills, named on the headline with the windows hit. `cause=bogus` or `tool=bash` (absent)
 exits 2, naming what is declared or present. A head is a Bash call's
 first command word (`Bash:pytest`) or a file tool's extension
@@ -82,6 +82,11 @@ agent), whatever `--by` shows, never a cause or window row; a pin
 omits what it implies. `--by fact` lists the leaves
 with `file:line  uuid  dimensions`, an ambiguous one's `candidates:`
 under it.
+
+A window is one context window: from a session start, subagent, fork,
+replay or compaction to its file's end or the next compaction. A fork's
+copied context is one `inherited` increment, left out of the total when
+its parent window is kept.
 
 ## Layout
 

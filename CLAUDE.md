@@ -5,48 +5,48 @@ Answers TWO questions about Claude Code sessions: where is my context going
 under `Path.home()/".claude"/"projects"`. Stdlib, Python 3.8.
 TIME/scheduling questions are deferred: design for them, do not add them.
 Standing premise: NO USERS, NO DEPLOYMENTS — breaking changes are free,
-legacy is deleted not accommodated, published numbers move when the old
-one was wrong. Branch: `v2-build`.
+legacy is deleted, published numbers move when the old one was wrong.
 
 ## Build charter (rulings: `references/DECISION_LOG.md`)
 
 Owner directive: an elegant, simple implementation from which powerful
 capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
 
-Package `sa/`, one module per stage (`corpus` read+dedup, `walk`
-attribution, `heads`, `schema` the METRICS table and vocabularies,
+Package `sa/`, one module per stage (`corpus` read+dedup, `windows`
+the cut, `walk` attribution, `heads`, `schema` METRICS and vocabularies,
 `query`, `tables`, `render`, `cli`, `usage` the ported helpers); each
 docstring is its spec. The parser IS the product: probes import it, never copy it.
 
 One data model, `Fact`, specified in `schema.py`: `kind` is `call` or
 `increment`; `metrics`; `dims`; `locator` `file:line:uuid` with `file`
-relative to the corpus root; `evidence` (not a dimension: an ambiguous
-increment's `candidates` locators, a fork's parent ids). Every metric
+relative to the corpus root; `window` its `WindowKey`; `evidence` (not a
+dimension: `candidates`, a fork's parent window and branch call). Every metric
 names its one carrier kind (`spend` -> call,
 `context_delta` -> increment) and is read only from that kind: no
-double-counting. Window dimensions `project`, `session`,
-`agent`, `window` are on both kinds (a main window has no `agent`,
-D-AGENT-DIM; `window`, the root-relative file name, alone isolates one,
-never a default table, D-WINDOW-DIM); `cause`, `tool`, `head`, `reason`
+double-counting. A window is ONE CONTEXT WINDOW (D-CONTEXT-WINDOW): from
+a session start, subagent, fork, replay or a compaction a call follows, to
+its file's end or the next compaction; cut after dedup, never by marking
+records; identity (file, start line). Window dimensions `project`,
+`session`, `agent` (none on a main window), `window` (8 hex of the key:
+display and `--where` only) and `start` are on both kinds; `cause`, `tool`, `head`, `reason`
 on increments only. A head
 is `<tool>:<summary>`: a Bash command's first COMMAND word (past keywords,
 wrappers, builtins) as a basename (`Bash:pytest`), or a file tool's
 extension (`Read:py`); never a path (R5). Unknown names, undeclared
 values and a `--where` value no fact carries exit 2 (`query.narrow`),
-naming what is present. A window IS a file (R2);
-`window_head` and `ambiguous` are rows, never spread, never a lever.
+naming what is present. `window_head` (never split by content) and
+`ambiguous` are rows, never spread, never a lever. A fork's copy is one
+`inherited` increment, counted once (D-INHERITED-ONCE).
 
-CLI: `python3 -m sa -h`. Order: scope (`read:`, `kept:`;
-`--since` 7d unless `all`), answer, tables, one dimmed key, one
-`✓ checks` line. The headline walks `View.levers` (context `tool` then
+CLI: `python3 -m sa -h`. Order: scope (`read:`, `kept:`; `--since` 7d
+unless `all`), answer, tables, one dimmed key, `✓ checks`. Headline walks `View.levers` (context `tool` then
 `head`, spend `agent`) whatever `--by` shows: the top tool's share of the
 total, `within it` its largest head's share of the tool and of the total,
 then a larger head `under tool=`; a `--where` pin omits every default
 table and lever whose facts share one value (a head implies its tool); a
 drill is named on the headline, with the windows it hits.
-`schema.GLOSSARY` drives `sa explain`, `°`, `--help`. Only a default
-table cuts a label past `tables.LABEL_WIDTH` to `…tail`. The
-reconciliation holds by construction (`walk`): MISMATCH is a bug, exit 1.
+`schema.GLOSSARY` drives `sa explain`, `°`, `--help`. The reconciliation
+holds by construction (`walk`): MISMATCH is a bug, exit 1.
 
 ## Non-negotiables
 
@@ -72,8 +72,8 @@ reconciliation holds by construction (`walk`): MISMATCH is a bug, exit 1.
 `sa/usage.py` docstrings carry these (D-USAGE-DOCSTRINGS);
 `tests/test_usage.py` pins the bodies. Any engine-level choice changes
 only via a logged ruling in `references/DECISION_LOG.md` (argument or
-measurement, plus an opus second opinion). The recorded failure mode is the confident in-place
-"improvement" that deletes a measured correction.
+measurement, plus an opus second opinion). The recorded failure mode: a
+confident in-place "improvement" that deletes a measured correction.
 
 - Split `message.id`s are MAX-MERGED field-wise: 80.5% of ids split,
   73% of those disagree on `output_tokens`.
@@ -88,24 +88,23 @@ measurement, plus an opus second opinion). The recorded failure mode is the conf
 - Contributors are token-relevant only (tool_result + user text), one per
   tool_result block; counting 2.1.28x bookkeeping attachments collapses the
   exact rate from 84% to under 1%; their text folds into the remainder.
-- The local figures (batched results, user records inside call spans,
-  shared-tool ambiguity, message.id re-mints, window keys, parentUuid links
-  never crossing files): `python3 -m sa.sweep`, a dated snapshot
-  of this machine's live corpus that `sa/` docstrings cite by date.
+- Local figures (batched results, call spans, shared-tool ambiguity,
+  re-mints, parentUuid links never crossing files, windows and forks):
+  `python3 -m sa.sweep` and `sa.probe_window_model`, dated snapshots of
+  this machine's corpus that `sa/` docstrings cite by date.
 
 ## Clean-room boundary — binds every session and subagent
 
-v1 is frozen at the installed `~/.claude/skills/session-analyzer/` (a
-`v1-legacy` branch is a pending owner step, PUBLISHING_PLAN step 1). The ONLY files you may open
-there:
+v1 is frozen at the installed `~/.claude/skills/session-analyzer/`
+(`v1-legacy` branch: PUBLISHING_PLAN step 1). The ONLY files you may open:
 `references/PURPOSE.md`, `references/ENGINE_CONTRACT.md`,
 `references/glossary.md` (never invent synonyms for its terms), v1's
 own `CLAUDE.md`, `scripts/lib/lib_drill.py`, `scripts/sa_schema.py`,
 `tests/generate_fixtures.py`, and only the usage helpers of
 `scripts/lib/lib_parse.py` (`usage_context`, `max_merge_usage`,
 `usage_spend`, `context_delta`, `usage_cache_tier`). Everything else is OFF
-LIMITS: code, tests, docs, history; v1's most authoritative documents tell a
-reader to build what its tests forbid. Need another file? STOP AND ASK.
+LIMITS: code, tests, docs, history (its docs contradict its tests). Need
+another file? STOP AND ASK.
 
 ## Repo gates
 
@@ -119,7 +118,6 @@ SKILL.md 6,000, this file 7,000); examples = fixture output, synced by
 
 ## Pointers, never copies
 
-- `references/DESIGN_BRIEF.md` §2 (the attribution walk) is the spec.
-- Also in `references/`: `DECISION_LOG.md` (rulings; `_HISTORY.md` the rows
-  as proposed), `PHASE0_MEASUREMENT.md` (the raw transcripts),
-  `PUBLISHING_PLAN.md` (distribution), `DESIGN_COMPETITION.md`.
+`references/`: `DESIGN_BRIEF.md` §2 (the attribution walk, the spec),
+`DECISION_LOG.md` (rulings; `_HISTORY.md` as proposed),
+`PHASE0_MEASUREMENT.md`, `PUBLISHING_PLAN.md`, `DESIGN_COMPETITION.md`.
