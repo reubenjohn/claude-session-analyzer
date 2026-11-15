@@ -52,12 +52,19 @@ def resynced(text: str, home: Path) -> str:
     return MARKER.sub(block, text)
 
 
+def build(home: Path) -> Path:
+    """The fixture corpus under ``home`` at the default root, its projects
+    named as Claude Code encodes ``~/work/app`` and ``~/work/lib``: output
+    run with HOME=home prints ``~`` for both, whatever ``home`` is."""
+    encoded = re.sub(r"[^A-Za-z0-9]", "-", str(home))
+    return fixtures.cli_corpus(home / ".claude", (encoded + "-work-app", encoded + "-work-lib"))
+
+
 def main(argv) -> int:
     check = "--check" in argv
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp).resolve()
-        encoded = re.sub(r"[^A-Za-z0-9]", "-", str(home))
-        fixtures.cli_corpus(home / ".claude", (encoded + "-work-app", encoded + "-work-lib"))
+        build(home)
         drifted = []
         for name in DOCS:
             path = REPO / name
