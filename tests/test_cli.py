@@ -22,13 +22,18 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     (read, read_more, kept), answer = fx.sections(out)[:2]
     first, peak = fx.headline(out), answer[-1]
     # window_head is the largest cause (3,000 of 4,560) but cause is no lever:
-    # the headline walks down the top tool and its top head, as shares of
-    # the total.
+    # it is the starting context, by start; the growth walks down the top
+    # tool and its top head. Every share is of the 4,860 added (the shrink
+    # row out), as in the cause table.
     assert re.search(r"^%s\s+3,000\s" % schema.WINDOW_HEAD, out, re.M)
-    assert first == ("%s: %s %s = the 3 windows' final occupancies summed; top %s=Bash 750"
-                     " (16.4%% of the 4,560 total); within it %s=Bash:pytest 750"
-                     " (100.0%% of Bash, 16.4%% of the total)") % (
-        CONTEXT.metric, format(3 * fx.FINAL_OCCUPANCY, ",d"), fx.unit(CONTEXT.metric), TOOL, HEAD)
+    assert first == ("%s: %s %s = the 3 windows' final occupancies summed; starting context 3,000"
+                     " (61.7%% of the 4,860 added) entered as windows started, not a window size:"
+                     " %s 2,000, %s 1,000; growth 1,860 (38.3%% of the added); top %s=Bash 750"
+                     " (15.4%% of the added); within it %s=Bash:pytest 750"
+                     " (100.0%% of Bash, 15.4%% of the added)") % (
+        CONTEXT.metric, format(3 * fx.FINAL_OCCUPANCY, ",d"), fx.unit(CONTEXT.metric),
+        schema.SESSION_START, schema.FORK, TOOL, HEAD)
+    assert re.search(r"^%s\s+3,000\s+\d+\s+61\.7%%$" % schema.WINDOW_HEAD, out, re.M)  # one base
     assert peak == "single-call peak %s over the 3 whole windows: %s %s at proj-a/sess-0001.jsonl:14" % (
         fx.PEAK, format(fx.FINAL_OCCUPANCY, ",d"), fx.unit(fx.PEAK))
     assert read == "read: %d files modified in the last 7d (default) under %s" % (len(loaded.files), root)
@@ -115,7 +120,7 @@ def test_a_reconciliation_mismatch_is_exit_status_1(tmp_path, monkeypatch, capsy
     first = fx.headline(out)
     assert "final occupanc" not in first  # the headline no longer claims the sum it failed to match
     if not drill:
-        assert " booked over 3 windows (reconciliation MISMATCH below); top " in first
+        assert " booked over 3 windows (reconciliation MISMATCH below); starting context " in first
         assert "%s does not match the final window sizes (below)" % tables.BAD_MARK in out
     monkeypatch.undo()
     assert cli.main(["context", "--root", str(root)] + drill) == 0  # vacuity guard

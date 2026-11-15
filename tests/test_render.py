@@ -6,7 +6,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, query, render, schema, tables
+from sa import cli, headline, query, render, schema, tables
 from sa.schema import Locator
 
 ROWS = [query.Row("a", 60, 2, query.REGULAR), query.Row("b", 30, 1, query.REGULAR),
@@ -19,7 +19,7 @@ TOOL, HEAD = schema.TOOL_DIM, schema.HEAD_DIM
 
 def _top(*args, **kwargs):
     """The lever walk's clauses as the headline reads them, ``; ``-joined."""
-    return "".join("; " + clause for clause in render._top(*args, **kwargs))
+    return "".join("; " + clause for clause in headline._top(*args, **kwargs))
 
 
 def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
@@ -137,7 +137,7 @@ def test_an_equal_head_under_another_tool_is_not_named_as_the_top():
     """Read:py 60 ties Bash:ls 60 within Bash and, booked first, wins the
     head table's stable sort: ``under`` names only a strictly larger head."""
     tie = [_inc(60, 1, "Read", "Read:py"), _inc(60, 2, "Bash", "Bash:ls"), _inc(40, 3, "Bash", "Bash:make")]
-    assert render._largest(query.group(tie, HEAD, fx.DELTA)).value == "Read:py"
+    assert headline._largest(query.group(tie, HEAD, fx.DELTA)).value == "Read:py"
     assert _top(tie, [TOOL, HEAD], fx.DELTA, total=160) == (
         "; top %s=Bash 100 (62.5%% of the 160 total); within it %s=Bash:ls 60"
         " (60.0%% of Bash, 37.5%% of the total)" % (TOOL, HEAD))

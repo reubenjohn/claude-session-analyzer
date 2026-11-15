@@ -27,8 +27,8 @@ read: 4 files modified in the last 7d (default) under ~/.claude/projects
 kept: 3 windows°, 33 increment facts
 
 context_delta: 4,560 context tokens = the 3 windows' final occupancies summed
-  top tool=Bash 750 (16.4% of the 4,560 total)
-  within it head=Bash:pytest 750 (100.0% of Bash, 16.4% of the total)
+  starting context 3,000 (61.7% of the 4,860 added) entered as windows started, not a window size: session_start 2,000, fork 1,000
+  growth 1,860 (38.3% of the added); top tool=Bash 750 (15.4% of the added); within it head=Bash:pytest 750 (100.0% of Bash, 15.4% of the added)
 single-call peak context_tokens over the 3 whole windows: 1,520 context tokens at ~-work-app/sess-0001.jsonl:14
 
 by cause            context_delta  increments  share of 4,860 added
