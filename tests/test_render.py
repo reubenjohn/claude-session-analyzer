@@ -200,6 +200,18 @@ def test_the_ambiguous_note_names_every_declared_reason():
     assert "several" not in note  # negative_remainder and no_contributor have one or none
 
 
+def test_the_glossary_states_the_measured_conditions():
+    """exact needs growth >= the previous call's output, ambiguous covers the
+    negative remainder, and a shrink is not always a compaction (measured:
+    3 of 8 carried no compaction marker)."""
+    meaning = lambda term: schema.GLOSSARY[term].meaning
+    condition = "less than the previous call's output"
+    assert condition in meaning(schema.AMBIGUOUS)
+    assert condition in schema.GLOSSARY[schema.NEGATIVE_REMAINDER].meaning  # the same wording
+    assert "at least the previous call's output" in meaning(schema.EXACT)
+    assert "compaction" in meaning(schema.SHRINK) and "not always" in meaning(schema.SHRINK)
+
+
 def test_a_long_label_keeps_its_tail_behind_an_ellipsis_unless_the_table_is_whole():
     long = "proj/" + "x" * 120 + "/sub.jsonl"
     assert len(long) > tables.LABEL_WIDTH  # vacuity guard

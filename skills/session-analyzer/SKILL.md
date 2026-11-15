@@ -35,9 +35,9 @@ contributor; `reason` says why) and `shrink` (a window that got smaller,
 signed). Default tables: cause, tool,
 head, agent, session, project (`reason` and `window` via `--by`).
 
-**`spend`** sums each call's cost in input-side base-token-equivalents:
-output tokens, uncached input, cache writes (1h at 2.0x, 5m at 1.25x) and
-cache reads at 0.1x. Default tables: project, session, agent; `--by agent`
+**`spend`** sums each call's input-side cost in base-token-equivalents:
+uncached input, cache writes (1h at 2.0x, 5m at 1.25x) and cache reads at
+0.1x; output tokens are excluded, totalled apart at the end. Default tables: project, session, agent; `--by agent`
 answers "which subagent was expensive", its `∅` row being the main
 windows. A note says spend is paid per call: context shares are not cost
 shares.

@@ -243,11 +243,12 @@ GLOSSARY: Dict[str, Term] = {
     USER_TEXT: Term("text typed into the window (by you or a hook)",
                     "usually small: typing rarely fills a window"),
     AMBIGUOUS: Term(
-        "an interval whose tokens more than one contributor (or none) could have put there;"
-        " never spread over them",
+        "an interval not booked to one contributor: more than one entered, none did, or it"
+        " grew by less than the previous call's output; never spread over them",
         "it still names a tool when every candidate came from one; --by fact lists the"
         " candidates", True),
-    SHRINK: Term("a window that got smaller between two calls (a compaction): a negative row",
+    SHRINK: Term("a window that got smaller between two calls (often, not always, a"
+                 " compaction): a negative row",
                  "excluded from every share, always in the checks"),
     MULTI_CONTRIBUTOR: Term("several results or texts entered in one interval",
                             "the tokens are not split between them"),
@@ -258,8 +259,8 @@ GLOSSARY: Dict[str, Term] = {
     RESIDUAL_LABEL: Term("the part of a table's total with no value for its dimension;"
                          " the key says why, per table",
                          "often most of the total: window_head has no tool", True),
-    EXACT: Term("an interval with one contributor: booked to it after subtracting the"
-                " previous call's output",
+    EXACT: Term("an interval with one contributor that grew by at least the previous call's"
+                " output: booked to it after subtracting that output",
                 "exact given that model; bookkeeping attachments fold into the remainder"),
     DRILL: Term("a --where on cause, tool, head or reason: narrows the facts inside the"
                 " windows kept",
