@@ -29,9 +29,9 @@ import hashlib
 from collections import Counter
 from typing import Dict, List, Optional, Tuple
 
-from . import probe_ux, query, schema, usage, walk
+from . import probe_compaction as probe_ux, query, schema, usage, walk
 from .corpus import Corpus, SourceFile, default_root, load, message_id
-from .probe_ux import fmt, is_marker, tally
+from .probe_compaction import fmt, is_marker, tally
 
 
 def idbearing(source: SourceFile):
