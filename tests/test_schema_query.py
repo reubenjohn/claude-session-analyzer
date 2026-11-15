@@ -93,7 +93,7 @@ def test_group_keeps_residual_and_signed_rows_out_of_shares(facts):
 
 
 def test_a_zero_base_leaves_rows_regular_with_no_share(facts):
-    head = next(f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.WINDOW_HEAD)
+    head = next(f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.STARTING_CONTEXT)
     table = query.group([head._replace(metrics={fx.DELTA: 0})], schema.CAUSE_DIM, fx.DELTA)
     (row,) = table.rows
     assert (row.kind, row.mass, table.base, table.share(row.mass)) == (query.REGULAR, 0, 0, None)
@@ -129,12 +129,12 @@ def test_a_refusal_names_the_first_values_present_and_counts_the_rest():
 
 
 def test_select_matches_every_pair_regardless_of_order(facts):
-    where = [(schema.HEAD_DIM, "Bash:pytest"), (schema.CAUSE_DIM, schema.TOOL_RESULT)]
+    where = [(schema.COMMAND_DIM, "Bash:pytest"), (schema.CAUSE_DIM, schema.TOOL_RESULT)]
     hits = query.select(facts, where)
     assert hits and hits == query.select(facts, where[::-1])
-    assert all(f.dims[schema.HEAD_DIM] == "Bash:pytest" for f in hits)
-    assert query.select(facts, [(schema.REASON_DIM, schema.MULTI_CONTRIBUTOR)])
-    assert not query.select(facts, [(schema.HEAD_DIM, "pytest")])  # a head carries its tool
+    assert all(f.dims[schema.COMMAND_DIM] == "Bash:pytest" for f in hits)
+    assert query.select(facts, [(schema.REASON_DIM, schema.SEVERAL)])
+    assert not query.select(facts, [(schema.COMMAND_DIM, "pytest")])  # a head carries its tool
 
 
 def test_relabels_maps_only_dimensions_that_split_the_facts_alike(tmp_path):
@@ -144,8 +144,8 @@ def test_relabels_maps_only_dimensions_that_split_the_facts_alike(tmp_path):
     facts = fx.load_facts(fx.cli_corpus(tmp_path))[1]
     assert query.relabels(facts, schema.SESSION_DIM, schema.PROJECT_DIM, fx.DELTA) == {
         "sess-0001": "proj-a", "sess-0002": "proj-b"}
-    assert query.relabels(facts, schema.TOOL_DIM, schema.HEAD_DIM, fx.DELTA) == {"Bash": "Bash:pytest"}
-    assert query.relabels(facts, schema.AGENT_DIM, schema.SESSION_DIM, fx.DELTA) is None
+    assert query.relabels(facts, schema.TOOL_DIM, schema.COMMAND_DIM, fx.DELTA) == {"Bash": "Bash:pytest"}
+    assert query.relabels(facts, schema.SUBAGENT_DIM, schema.SESSION_DIM, fx.DELTA) is None
     assert query.relabels(facts, schema.CAUSE_DIM, schema.TOOL_DIM, fx.DELTA) is None
     out = fx.run_cli("context", "--root", str(fx.cli_corpus(tmp_path / "cli")))[1]
     assert "\nby %s: the rows above, labelled proj-a, proj-b\n" % schema.PROJECT_DIM in out

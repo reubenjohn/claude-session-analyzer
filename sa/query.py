@@ -31,7 +31,8 @@ def narrow(facts: List[Fact], where: Where, metric: str) -> List[Fact]:
             listed = ", ".join(present[:LISTED]) or "none"
             if len(present) > LISTED:
                 listed += " (+%d more; --by %s lists them all)" % (len(present) - LISTED, dim)
-            raise schema.SchemaError("no facts carry %s=%s; present: %s" % (dim, value, listed))
+            raise schema.SchemaError("no %s carry %s=%s; present: %s"
+                                     % (schema.PLURAL[carrier], dim, value, listed))
         facts = kept
     return facts
 

@@ -1,7 +1,7 @@
 """What a first-time reader meets: the scope line first and the default
 window, the help that teaches the workflow, the glossary behind ``sa
 explain`` and the key, the reading order of the sections, colour only on a
-TTY, and home printed as ``~``. Terms come from ``schema.GLOSSARY``."""
+TTY, and home printed as ``~``. Terms come from ``glossary.GLOSSARY``."""
 import os
 import re
 import time
@@ -9,7 +9,7 @@ import time
 import pytest
 
 import fixtures as fx
-from sa import cli, corpus, render, schema, tables
+from sa import cli, corpus, glossary, render, schema, tables
 
 CONTEXT = cli.VIEWS["context"]
 
@@ -27,13 +27,14 @@ def test_the_first_line_names_the_files_the_default_window_and_the_root(tmp_path
     _age(old, 30)
     n = len(list(root.rglob("*.jsonl")))
     out = fx.run_cli("context", "--root", str(root))[1]
-    assert out.splitlines()[0] == "read: %d files modified in the last %gd (default) under %s" % (
-        n - 1, cli.DEFAULT_DAYS, root)
+    rest = ", 0 lines skipped, 0 duplicate records excluded"  # the one read line
+    assert out.splitlines()[0] == "read: %d files modified in the last %gd (default) under %s%s" % (
+        n - 1, cli.DEFAULT_DAYS, root, rest)
     out = fx.run_cli("context", "--root", str(root), "--since", cli.ALL)[1]
-    assert out.splitlines()[0] == "read: %d files of any age under %s" % (n, root)
+    assert out.splitlines()[0] == "read: %d files of any age under %s%s" % (n, root, rest)
     out = fx.run_cli("context", "--root", str(root), "--since", "%gd" % cli.DEFAULT_DAYS)[1]
-    assert out.splitlines()[0] == "read: %d files modified in the last %gd under %s" % (
-        n - 1, cli.DEFAULT_DAYS, root)
+    assert out.splitlines()[0] == "read: %d files modified in the last %gd under %s%s" % (
+        n - 1, cli.DEFAULT_DAYS, root, rest)
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "every")
     assert code == 2 and not out and cli.ALL in err  # the refusal names the escape hatch
 
@@ -43,7 +44,7 @@ def test_home_prints_as_a_tilde(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("HOME", str(tmp_path))
     assert cli.main(["context", "--root", str(root)]) == 0
     first = capsys.readouterr().out.splitlines()[0]
-    assert first.endswith(" under ~/%s" % root.relative_to(tmp_path).as_posix())
+    assert " under ~/%s, " % root.relative_to(tmp_path).as_posix() in first
     assert str(tmp_path) not in first
     assert tables.tilde(tmp_path.parent) == str(tmp_path.parent)  # vacuity guard: only under home
     assert tables.tilde(tmp_path) == "~"
@@ -54,7 +55,7 @@ def test_sections_read_scope_answer_tables_key_checks(tmp_path):
     sections = fx.sections(fx.run_cli("context", "--root", str(root))[1])
     firsts = [s[0] for s in sections]
     assert firsts[0].startswith("read: ") and sections[0][-1].startswith("kept: ")
-    assert firsts[1].startswith(CONTEXT.metric + ": ")
+    assert firsts[1].startswith(fx.total_line(CONTEXT.metric))
     tables_at = [i for i, line in enumerate(firsts) if line.startswith("by ")]
     assert tables_at == list(range(2, 2 + len(tables_at))) and tables_at  # contiguous, non-empty
     for dim in CONTEXT.tables:  # each printed, or relabelled under the table it repeats
@@ -70,11 +71,11 @@ def test_the_key_prints_each_note_once_and_marks_the_irreducible_terms(tmp_path)
     keyed = fx.key(fx.run_cli("context", "--root", str(root))[1])
     labels = [label for label, _ in keyed]
     assert len(labels) == len(set(labels)) and labels  # vacuity guard: there is a key
-    marked = [t for t, e in schema.GLOSSARY.items() if e.marked]
-    assert schema.WINDOW_HEAD in marked and schema.RESIDUAL_LABEL in marked
+    marked = [t for t, e in glossary.GLOSSARY.items() if e.marked]
+    assert schema.STARTING_CONTEXT in marked and glossary.RESIDUAL_LABEL in marked
     for label in labels:  # every label opens with a marked term, marked
         term = label.split()[0]
-        assert term.endswith(schema.MARKER) and term[:-1] in marked, label
+        assert term.endswith(glossary.MARKER) and term[:-1] in marked, label
 
 
 def test_the_share_column_names_its_base(tmp_path):
@@ -86,8 +87,8 @@ def test_the_share_column_names_its_base(tmp_path):
     assert re.search(r"^by %s\s.*share of [\d,]+ added$" % schema.SESSION_DIM, out, re.M)
     out = fx.run_cli("spend", "--root", str(root), "--by", schema.SESSION_DIM)[1]
     assert re.search(r"^by %s\s.*share of total$" % schema.SESSION_DIM, out, re.M)
-    out = fx.run_cli("spend", "--root", str(root), "--by", schema.AGENT_DIM)[1]
-    assert re.search(r"^by %s\s.*share of [\d,]+ with an %s$" % (schema.AGENT_DIM, schema.AGENT_DIM),
+    out = fx.run_cli("spend", "--root", str(root), "--by", schema.SUBAGENT_DIM)[1]
+    assert re.search(r"^by %s\s.*share of [\d,]+ with an? %s$" % (schema.SUBAGENT_DIM, schema.SUBAGENT_DIM),
                      out, re.M)
 
 
@@ -114,24 +115,24 @@ def test_colour_only_on_a_tty_with_no_color_unset(tmp_path, monkeypatch, capsys)
 def test_every_declared_term_has_a_glossary_entry_with_a_surprise():
     declared = (list(schema.METRICS) + list(schema.KINDS) + list(schema.DIMENSIONS)
                 + list(schema.CAUSES) + list(schema.REASONS)
-                + [schema.RESIDUAL_LABEL, schema.EXACT, schema.DRILL])
+                + [glossary.RESIDUAL_LABEL, glossary.EXACT, glossary.DRILL])
     assert len(declared) > 20  # vacuity guard
-    missing = [t for t in declared if t not in schema.GLOSSARY]
+    missing = [t for t in declared if t not in glossary.GLOSSARY]
     assert not missing, missing
-    for term, entry in schema.GLOSSARY.items():
+    for term, entry in glossary.GLOSSARY.items():
         assert entry.meaning and entry.surprise, term
 
 
 def test_explain_prints_one_term_or_all_and_refuses_an_unknown_one():
-    code, out, err = fx.run_cli("explain", schema.WINDOW_HEAD + schema.MARKER)  # copied with its marker
-    entry = schema.GLOSSARY[schema.WINDOW_HEAD]
+    code, out, err = fx.run_cli("explain", schema.STARTING_CONTEXT + glossary.MARKER)  # copied with its marker
+    entry = glossary.GLOSSARY[schema.STARTING_CONTEXT]
     assert code == 0, err
-    assert out.splitlines() == ["%s: %s" % (tables.marked(schema.WINDOW_HEAD), entry.meaning),
+    assert out.splitlines() == ["%s: %s" % (tables.marked(schema.STARTING_CONTEXT), entry.meaning),
                                 "  surprise: " + entry.surprise]
     code, out, err = fx.run_cli("explain")
-    assert code == 0 and len(out.splitlines()) == 2 * len(schema.GLOSSARY)
+    assert code == 0 and len(out.splitlines()) == 2 * len(glossary.GLOSSARY)
     code, out, err = fx.run_cli("explain", "bogus")
-    assert code == 2 and not out and "unknown term 'bogus'" in err and schema.WINDOW_HEAD in err
+    assert code == 2 and not out and "unknown term 'bogus'" in err and schema.STARTING_CONTEXT in err
 
 
 def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
@@ -145,7 +146,7 @@ def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
     for flag in ("--since", "--where", "--by", "--limit", "--root"):
         assert re.search(r"^  %s " % flag, out, re.M), flag
     assert "sa context --help" in out and "sa explain TERM" in out
-    for term in (t for t, e in schema.GLOSSARY.items() if e.marked):
+    for term in (t for t, e in glossary.GLOSSARY.items() if e.marked):
         assert term in out  # the marked terms are named where the marker is explained
 
 
@@ -154,7 +155,7 @@ def test_view_help_names_each_dimension_with_its_glossary_meaning(view):
     code, out, err = fx.run_cli(view, "-h")
     assert code == 0, err
     for dim in schema.DIMENSIONS:
-        assert re.search(r"^  %s\s+%s$" % (dim, re.escape(schema.GLOSSARY[dim].meaning)), out, re.M), dim
+        assert re.search(r"^  %s\s+%s$" % (dim, re.escape(glossary.GLOSSARY[dim].meaning)), out, re.M), dim
     assert render.FACT in out and cli.ALL in out
 
 
@@ -168,7 +169,8 @@ def test_an_encoded_home_prints_as_a_tilde_and_selects_as_printed(tmp_path, monk
     out = capsys.readouterr().out
     assert encoded in "".join(p.name for p in root.iterdir())  # vacuity guard: the name is encoded
     assert encoded not in out and re.search(r"^~-work\s", out, re.M)
-    assert re.search(r"^single-call peak .* at ~-work/sess-0001\.jsonl:\d+$", out, re.M)
+    leaves = fx.run_cli("context", "--root", str(root), "--by", "fact", "--limit", "1")[1]
+    assert re.search(r"^\s+[\d,]+  ~-work/sess-0001\.jsonl:\d+ ", leaves, re.M)
     assert cli.main(["context", "--root", str(root), "--where", "%s=~-work" % schema.PROJECT_DIM]) == 0
     assert "\nkept where %s=~-work: " % schema.PROJECT_DIM in capsys.readouterr().out
     # A refusal names the values present with home as ~ too.

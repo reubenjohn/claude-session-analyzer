@@ -57,9 +57,9 @@ def inside_spans(loaded: Corpus) -> Tuple[int, int, int]:
 def shared(facts: List[Fact]) -> List[Tuple[int, float]]:
     """multi_contributor intervals, those sharing one tool, those sharing the
     head too; each with its context_delta."""
-    multi = [f for f in facts if f.dims.get(schema.REASON_DIM) == schema.MULTI_CONTRIBUTOR]
+    multi = [f for f in facts if f.dims.get(schema.REASON_DIM) == schema.SEVERAL]
     tool = [f for f in multi if schema.TOOL_DIM in f.dims]
-    head = [f for f in tool if schema.HEAD_DIM in f.dims]
+    head = [f for f in tool if schema.COMMAND_DIM in f.dims]
     return [(len(fs), sum(f.metrics[schema.CONTEXT_DELTA] for f in fs)) for fs in (multi, tool, head)]
 
 

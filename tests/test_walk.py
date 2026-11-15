@@ -69,9 +69,8 @@ def test_a_call_split_across_files_is_one_call_owned_by_the_earlier_file(tmp_pat
     assert query.reconcile(facts).holds
     code, out, err = fx.run_cli("spend", "--root", str(root))
     assert code == 0, err
-    assert ("read: 2 files modified in the last 7d (default) under %s\n"
-            "      0 lines skipped, 1 duplicate record excluded\n"
-            "kept: 1 window°, 1 call fact\n" % root) in out
+    assert ("read: 2 files modified in the last 7d (default) under %s, 0 lines skipped,"
+            " 1 duplicate record excluded\nkept: 1 window°, 1 call\n" % root) in out
     # Merged over both files' constituents: the same metrics as the split within one file.
     (within,) = [f for f in _one_window(tmp_path / "within", [parent, copy]) if f.kind == CALL]
     assert call.metrics == within.metrics
@@ -109,7 +108,7 @@ def test_exact_interval_names_its_contributor_line(tmp_path):
     exact = [f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.TOOL_RESULT]
     first = exact[0]
     assert first.metrics[fx.DELTA] == fx.EXACT_FIRST_DELTA
-    assert (first.dims[schema.TOOL_DIM], first.dims[schema.HEAD_DIM]) == ("Bash", "Bash:pytest")
+    assert (first.dims[schema.TOOL_DIM], first.dims[schema.COMMAND_DIM]) == ("Bash", "Bash:pytest")
     assert first.locator.file == "proj-a/sess-0001.jsonl"  # relative to the root
     with open(root / first.locator.file, encoding="utf-8") as handle:
         line = handle.read().splitlines()[first.locator.line - 1]
@@ -119,14 +118,14 @@ def test_exact_interval_names_its_contributor_line(tmp_path):
 def test_ambiguous_carries_candidate_locators_as_evidence(tmp_path):
     facts = _one_window(tmp_path)
     by_reason = {f.dims[schema.REASON_DIM]: f for f in facts if f.dims.get(schema.REASON_DIM)}
-    multi = by_reason[schema.MULTI_CONTRIBUTOR]
+    multi = by_reason[schema.SEVERAL]
     assert [(c.locator.line, c.locator.uuid, c.dims) for c in multi.evidence[schema.CANDIDATES]] == [
         (4, "uuid-0004", {schema.CAUSE_DIM: schema.USER_TEXT}),
         (5, "uuid-0005", {schema.CAUSE_DIM: schema.TOOL_RESULT, schema.TOOL_DIM: "Read",
-                          schema.HEAD_DIM: "Read:py"})]
+                          schema.COMMAND_DIM: "Read:py"})]
     assert schema.CANDIDATES not in multi.dims
     assert schema.TOOL_DIM not in multi.dims  # a user_text candidate shares no tool
-    empty = by_reason[schema.NO_CONTRIBUTOR]
+    empty = by_reason[schema.UNEXPLAINED]
     assert empty.evidence[schema.CANDIDATES] == []
     assert empty.metrics[fx.DELTA] == 12
 
@@ -141,13 +140,13 @@ def test_a_result_interleaved_with_a_split_call_is_a_second_contributor(tmp_path
     records = fx.interleaved_records()
     facts = _one_window(tmp_path / "interleaved", records)
     (closing,) = [f for f in facts if f.dims.get(schema.REASON_DIM)]
-    assert closing.dims[schema.REASON_DIM] == schema.MULTI_CONTRIBUTOR
+    assert closing.dims[schema.REASON_DIM] == schema.SEVERAL
     assert [c.locator.uuid for c in closing.evidence[schema.CANDIDATES]] == ["uuid-0002", "uuid-0004"]
     assert closing.metrics[fx.DELTA] == fx.EXACT_FIRST_DELTA
     assert not _exact(facts)
     # Vacuity guard: the same call with one constituent and one result is exact.
     (exact,) = _exact(_one_window(tmp_path / "plain", records[:2] + records[4:]))
-    assert (exact.dims[schema.HEAD_DIM], exact.metrics[fx.DELTA]) == ("Read:py", fx.EXACT_FIRST_DELTA)
+    assert (exact.dims[schema.COMMAND_DIM], exact.metrics[fx.DELTA]) == ("Read:py", fx.EXACT_FIRST_DELTA)
 
 
 def test_usage_less_synthetic_record_is_not_a_call(tmp_path):
@@ -184,14 +183,14 @@ def test_fork_context_ref_is_evidence_on_the_window_head(tmp_path):
                 "parentLastUuid": "uuid-0000", "agentId": "agent-fake1"}]
     records += fx.window_records()
     facts = _one_window(tmp_path, records)
-    head = [f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.WINDOW_HEAD]
+    head = [f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.STARTING_CONTEXT]
     assert len(head) == 1
     assert head[0].evidence == {schema.PARENT_SESSION: "sess-0000",
                                 schema.PARENT_LAST_UUID: "uuid-0000"}
-    assert head[0].dims[schema.AGENT_DIM] == "agent-fake1"
+    assert head[0].dims[schema.SUBAGENT_DIM] == "agent-fake1"
     (main_head,) = [f for f in _one_window(tmp_path / "main")
-                    if f.dims.get(schema.CAUSE_DIM) == schema.WINDOW_HEAD]
-    assert schema.AGENT_DIM not in main_head.dims  # a main window is no agent (D-AGENT-DIM)
+                    if f.dims.get(schema.CAUSE_DIM) == schema.STARTING_CONTEXT]
+    assert schema.SUBAGENT_DIM not in main_head.dims  # a main window is no agent (D-AGENT-DIM)
 
 
 READ_A = fx.tool_use("toolu_0001", "Read", file_path="/x/a.py")
@@ -217,9 +216,9 @@ def _after_one_call(tmp_path, uses, between):
 
 
 def _ambiguous(facts):
-    """The one multi_contributor increment, carrying the whole remainder."""
+    """The one several increment, carrying the whole remainder."""
     (closing,) = [f for f in facts if f.dims.get(schema.REASON_DIM)]
-    assert closing.dims[schema.REASON_DIM] == schema.MULTI_CONTRIBUTOR
+    assert closing.dims[schema.REASON_DIM] == schema.SEVERAL
     assert closing.metrics[fx.DELTA] == fx.EXACT_FIRST_DELTA
     assert not _exact(facts)
     return closing
@@ -244,17 +243,17 @@ def test_ambiguous_carries_the_tool_and_head_every_candidate_shares(tmp_path):
         return _ambiguous(facts), query.group(facts, schema.TOOL_DIM, fx.DELTA).rows
 
     same_tool, rows = closing("same-tool", [READ_A, READ_MD], _results("toolu_0001", "toolu_0003"))
-    assert (same_tool.dims[schema.TOOL_DIM], schema.HEAD_DIM in same_tool.dims) == ("Read", False)
+    assert (same_tool.dims[schema.TOOL_DIM], schema.COMMAND_DIM in same_tool.dims) == ("Read", False)
     assert [(r.value, r.mass) for r in rows if r.kind == query.REGULAR] == [("Read", 250)]
     same_head, _ = closing("same-head", [READ_A, READ_B], _results("toolu_0001", "toolu_0002"))
-    assert (same_head.dims[schema.TOOL_DIM], same_head.dims[schema.HEAD_DIM]) == ("Read", "Read:py")
+    assert (same_head.dims[schema.TOOL_DIM], same_head.dims[schema.COMMAND_DIM]) == ("Read", "Read:py")
     other, _ = closing("other", [WRITE_A, WRITE_B], _results("toolu_0005", "toolu_0006"))
-    assert other.dims[schema.HEAD_DIM] == "Write:other"
+    assert other.dims[schema.COMMAND_DIM] == "Write:other"
     mixed, rows = closing("mixed", [READ_A, BASH], _results("toolu_0001", "toolu_0004"))
     with_text, _ = closing("text", [READ_A], _results("toolu_0001") + [fx.user_text("uuid-0009")])
     for f in (mixed, with_text):
-        assert schema.TOOL_DIM not in f.dims and schema.HEAD_DIM not in f.dims
+        assert schema.TOOL_DIM not in f.dims and schema.COMMAND_DIM not in f.dims
         assert len(f.evidence[schema.CANDIDATES]) == 2
     (residual,) = [r for r in rows if r.kind == query.RESIDUAL]
-    assert residual.mass == 1000 + 50 + 250  # window_head + feed_forward + the mixed interval
+    assert residual.mass == 1000 + 50 + 250  # starting_context + replies + the mixed interval
     assert not [r for r in rows if r.kind == query.REGULAR]

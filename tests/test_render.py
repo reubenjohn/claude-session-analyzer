@@ -6,7 +6,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, headline, query, render, schema, tables
+from sa import cli, glossary, headline, query, render, schema, tables
 from sa.schema import Locator
 
 ROWS = [query.Row("a", 60, 2, query.REGULAR), query.Row("b", 30, 1, query.REGULAR),
@@ -14,7 +14,7 @@ ROWS = [query.Row("a", 60, 2, query.REGULAR), query.Row("b", 30, 1, query.REGULA
         query.Row(schema.SHRINK, -7, 1, query.SIGNED)]
 M = fx.DELTA  # the increment metric; its carrier kind names the count column
 DIM = schema.PROJECT_DIM  # declared, with no residual note
-TOOL, HEAD = schema.TOOL_DIM, schema.HEAD_DIM
+TOOL, HEAD = schema.TOOL_DIM, schema.COMMAND_DIM
 
 
 def _top(*args, **kwargs):
@@ -60,10 +60,11 @@ def test_every_dimension_a_view_can_group_with_a_residual_row_has_a_note(tmp_pat
 
 def test_the_mass_column_is_the_metric_and_the_count_column_its_carrier_kind():
     table = query.Table(DIM, ROWS, 100)
-    for name, spec in schema.METRICS.items():  # the unit never heads the mass column
-        header = tables.table(table, name, limit=3, whole=False)[0].split()
-        assert header == ["by", DIM, name, spec.carrier + "s", "share", "of", "100", "with", "a", DIM]
-        assert spec.unit != name and "count" not in header  # vacuity guard: distinguishable
+    for name, spec in schema.METRICS.items():  # the metric as printed heads the mass column
+        header = tables.table(table, name, limit=3, whole=False)[0]
+        assert re.match(r"by %s +%s +%s +share of 100 with a %s$" % (
+            DIM, re.escape(glossary.printed(name)), schema.PLURAL[spec.carrier], DIM), header), header
+        assert "count" not in header
     assert {spec.carrier for spec in schema.METRICS.values()} == set(schema.KINDS)  # both kinds seen
 
 
@@ -75,9 +76,9 @@ def test_a_zero_base_table_truncates_without_a_share():
     facts = [f._replace(metrics={fx.DELTA: 0}) for f in FACTS[:3]]
     assert _top(facts, [TOOL], fx.DELTA, total=0) == ""
     assert _top(facts, [TOOL], fx.DELTA, total=5) == (
-        "; top %s=Bash 0 (0.0%% of the 5 total)" % TOOL)  # vacuity guard
+        "; %s=Bash 0 (0.0%%)" % TOOL)  # vacuity guard
     assert _top(facts, [TOOL, HEAD], fx.DELTA, total=5).endswith(
-        "; within it %s=Bash:cat 0 (- of Bash, 0.0%% of the total)" % HEAD)  # no share of a 0 row
+        "; %s=Bash:cat 0 (- of Bash, 0.0%%)" % HEAD)  # no share of a 0 row
 
 
 def _inc(mass, line, tool=None, head=None, cause=schema.TOOL_RESULT):
@@ -96,24 +97,23 @@ FACTS = [_inc(60, 1, "Bash", "Bash:cat"), _inc(30, 2, "Bash", "Bash:ls"),
 def test_headline_top_row_shares_the_total_it_is_given_never_the_table_base():
     """The tool table's share column is over its base, 100 (the total less
     the residual and signed rows); the headline says the row's share of the
-    headline total, and names that total."""
+    headline total, which the total line names once."""
     assert query.group(FACTS, TOOL, fx.DELTA).base == 100 != query.total(FACTS, fx.DELTA) == 98
     assert _top(FACTS, [TOOL], fx.DELTA, total=98) == (
-        "; top %s=Bash 90 (91.8%% of the 98 total)" % TOOL)
+        "; %s=Bash 90 (91.8%%)" % TOOL)
     assert _top(FACTS, [TOOL], fx.DELTA, total=100) == (
-        "; top %s=Bash 90 (90.0%% of the 100 total)" % TOOL)
+        "; %s=Bash 90 (90.0%%)" % TOOL)
     assert _top(FACTS[3:], [TOOL], fx.DELTA, total=98) == ""  # no regular row
     assert _top(FACTS, [], fx.DELTA, total=98) == ""          # every lever pinned
 
 
 def test_the_headline_refines_the_top_row_and_names_both_bases():
     """The head within the top tool Bash is Bash:cat, 60 of Bash's 90 and
-    of the 98 total: both bases are named, since a share of the total
-    beside ``within it`` would read as a share of Bash. Here it is also
-    the top head overall, so nothing follows."""
+    of the 98 total: both shares print, the first naming Bash, since a
+    lone share would read as a share of Bash. Here it is also the top
+    head overall, so nothing follows."""
     assert _top(FACTS, [TOOL, HEAD], fx.DELTA, total=98) == (
-        "; top %s=Bash 90 (91.8%% of the 98 total); within it %s=Bash:cat 60"
-        " (66.7%% of Bash, 61.2%% of the total)" % (TOOL, HEAD))
+        "; %s=Bash 90 (91.8%%); %s=Bash:cat 60 (66.7%% of Bash, 61.2%%)" % (TOOL, HEAD))
 
 
 def test_a_top_row_under_another_lead_follows_the_refinement_naming_what_it_lies_under():
@@ -123,10 +123,9 @@ def test_a_top_row_under_another_lead_follows_the_refinement_naming_what_it_lies
     other = [_inc(60, 1, "Bash", "Bash:ls"), _inc(40, 2, "Bash", "Bash:make"),
              _inc(70, 3, "Read", "Read:py")]
     assert _top(other, [HEAD], fx.DELTA, total=170) == (
-        "; top %s=Read:py 70 (41.2%% of the 170 total)" % HEAD)  # the top head on its own
+        "; %s=Read:py 70 (41.2%%)" % HEAD)  # the top head on its own
     assert _top(other, [TOOL, HEAD], fx.DELTA, total=170) == (
-        "; top %s=Bash 100 (58.8%% of the 170 total); within it %s=Bash:ls 60"
-        " (60.0%% of Bash, 35.3%% of the total); top %s=Read:py 70 (41.2%% of the total)"
+        "; %s=Bash 100 (58.8%%); %s=Bash:ls 60 (60.0%% of Bash, 35.3%%); %s=Read:py 70 (41.2%%)"
         " under %s=Read" % (TOOL, HEAD, HEAD, TOOL))
     assert "under" not in _top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
     with pytest.raises(ValueError):  # Bash lies under two heads: the levers must nest
@@ -139,11 +138,10 @@ def test_an_equal_head_under_another_tool_is_not_named_as_the_top():
     tie = [_inc(60, 1, "Read", "Read:py"), _inc(60, 2, "Bash", "Bash:ls"), _inc(40, 3, "Bash", "Bash:make")]
     assert headline._largest(query.group(tie, HEAD, fx.DELTA)).value == "Read:py"
     assert _top(tie, [TOOL, HEAD], fx.DELTA, total=160) == (
-        "; top %s=Bash 100 (62.5%% of the 160 total); within it %s=Bash:ls 60"
-        " (60.0%% of Bash, 37.5%% of the total)" % (TOOL, HEAD))
+        "; %s=Bash 100 (62.5%%); %s=Bash:ls 60 (60.0%% of Bash, 37.5%%)" % (TOOL, HEAD))
     larger = [tie[0]._replace(metrics={fx.DELTA: 61})] + tie[1:]  # vacuity guard
     assert _top(larger, [TOOL, HEAD], fx.DELTA, total=161).endswith(
-        "; top %s=Read:py 61 (37.9%% of the total) under %s=Read" % (HEAD, TOOL))
+        "; %s=Read:py 61 (37.9%%) under %s=Read" % (HEAD, TOOL))
 
 
 def test_a_top_tool_with_no_head_still_names_the_top_head_under_its_tool():
@@ -152,16 +150,15 @@ def test_a_top_tool_with_no_head_still_names_the_top_head_under_its_tool():
     the tool clause stands alone."""
     headless = [_inc(90, 1, "Agent"), _inc(60, 2, "Bash", "Bash:cat")]
     assert _top(headless, [TOOL, HEAD], fx.DELTA, total=150) == (
-        "; top %s=Agent 90 (60.0%% of the 150 total); top %s=Bash:cat 60 (40.0%% of the total)"
-        " under %s=Bash" % (TOOL, HEAD, TOOL))
-    assert _top(headless[:1], [TOOL, HEAD], fx.DELTA, total=90) == (
-        "; top %s=Agent 90 (100.0%% of the 90 total)" % TOOL)
-    assert "within it" in _top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
+        "; %s=Agent 90 (60.0%%); %s=Bash:cat 60 (40.0%%) under %s=Bash" % (TOOL, HEAD, TOOL))
+    assert _top(headless[:1], [TOOL, HEAD], fx.DELTA, total=90) == "; %s=Agent 90 (100.0%%)" % TOOL
+    assert "%s=" % HEAD in _top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
 
 
-def test_limit_never_hides_a_row_whose_note_prints_under_the_table(tmp_path):
-    """``--limit 1`` on the cause table keeps window_head and ambiguous,
-    each with its note; the folded line counts only the other rows."""
+def test_the_cause_table_prints_whole_whatever_the_limit(tmp_path):
+    """D-PLAIN-TERMS: ``--limit 1`` folds the tool table but never the cause
+    table, whose starting_context and ambiguous rows keep their notes; the
+    folded line counts only the rows it hides."""
     root = fx.cli_corpus(tmp_path)
 
     def rows(*args):
@@ -169,14 +166,17 @@ def test_limit_never_hides_a_row_whose_note_prints_under_the_table(tmp_path):
         return out, [l.split() for l in out.splitlines() if l.endswith("%")]
 
     full = rows()[1]
-    others = [r for r in full if r[0] not in tables.UNSPLITTABLE]
-    assert [r[0] for r in full].index(schema.AMBIGUOUS) >= 1 and len(others) > 1  # vacuity guard
+    assert len(full) > 2  # vacuity guard: a limit of 1 would fold it
     out, shown = rows("--limit", "1")
-    assert [r[0] for r in shown] == [schema.WINDOW_HEAD, schema.AMBIGUOUS, "+%d" % len(others)]
-    assert shown[-1][3:5] == [tables.num(sum(int(r[1].replace(",", "")) for r in others)),
-                              tables.num(sum(int(r[2]) for r in others))]
+    assert shown == full and "more row" not in out
     for value, note in tables.UNSPLITTABLE.items():
         assert (tables.marked(value), note) in fx.key(out)
+    grouped = query.Table(DIM, ROWS, 100)
+    folded = [l.split() for l in tables.table(grouped, M, limit=1, whole=False)[1:]]
+    regular = [r for r in ROWS if r.kind == query.REGULAR]
+    assert folded[1][:3] == ["+%d" % (len(regular) - 1), "more", "rows"]
+    assert folded[1][3:5] == [tables.num(sum(r.mass for r in regular[1:])),
+                              tables.num(sum(r.count for r in regular[1:]))]
 
 
 def test_a_row_named_like_a_cause_folds_and_gets_no_note_outside_the_cause_table():
@@ -194,21 +194,22 @@ def test_a_row_named_like_a_cause_folds_and_gets_no_note_outside_the_cause_table
     assert tables.notes(query.Table(DIM, rows, 80)) == []
 
 
-def test_the_ambiguous_note_names_every_declared_reason():
-    note = tables.UNSPLITTABLE[schema.AMBIGUOUS]
-    assert len(schema.REASONS) > 1 and all(reason in note for reason in schema.REASONS)
-    assert "several" not in note  # negative_remainder and no_contributor have one or none
+def test_the_ambiguous_entry_names_every_declared_reason_and_the_key_none():
+    """D-PLAIN-TERMS: the key prints one clause; ``sa explain`` the reasons."""
+    meaning, note = glossary.GLOSSARY[schema.AMBIGUOUS].meaning, tables.UNSPLITTABLE[schema.AMBIGUOUS]
+    assert len(schema.REASONS) > 1 and all(reason in meaning for reason in schema.REASONS)
+    assert not any(reason in note for reason in schema.REASONS) and note in glossary.brief(schema.AMBIGUOUS)
 
 
 def test_the_glossary_states_the_measured_conditions():
     """exact needs growth >= the previous call's output, ambiguous covers the
     negative remainder, and a shrink is not always a compaction (measured:
     3 of 8 carried no compaction marker)."""
-    meaning = lambda term: schema.GLOSSARY[term].meaning
-    condition = "less than the previous call's output"
+    meaning = lambda term: glossary.GLOSSARY[term].meaning
+    condition = "less than the previous call's reply"
     assert condition in meaning(schema.AMBIGUOUS)
-    assert condition in schema.GLOSSARY[schema.NEGATIVE_REMAINDER].meaning  # the same wording
-    assert "at least the previous call's output" in meaning(schema.EXACT)
+    assert condition in glossary.GLOSSARY[schema.LESS_THAN_REPLY].meaning  # the same wording
+    assert "at least the previous call's reply" in meaning(glossary.EXACT)
     assert "compaction" in meaning(schema.SHRINK) and "not always" in meaning(schema.SHRINK)
 
 

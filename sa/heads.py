@@ -1,6 +1,6 @@
-"""The ``head`` dimension: ``<tool>:<summary>``, a low-cardinality summary of
-a tool call's input that carries its tool so a table over heads needs no
-second column. Ruled (DECISION_LOG R5, R5-BASENAME, R5-BUILTINS): a head is
+"""The ``command`` dimension (a head, before D-PLAIN-TERMS):
+``<tool>:<summary>``, a low-cardinality summary of a tool call's input
+that carries its tool so a table over heads needs no second column. Ruled (DECISION_LOG R5, R5-BASENAME, R5-BUILTINS): a head is
 never a full command line and never a file path. For Bash the summary is
 the basename of the first COMMAND word (a path-shaped word is classed by
 its basename, so ``/usr/bin/env`` is a wrapper), the first ``shlex`` token (quotes

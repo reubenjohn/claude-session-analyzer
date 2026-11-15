@@ -16,8 +16,8 @@ join index spans every record so a tool_result whose tool_use was replayed
 still resolves to its tool. A window's first call books its head: for a
 fork or replayed window whose parent is in the forest, ``inherited`` (the
 parent window's occupancy at the branch call, one increment, its evidence
-the parent window and that call) and ``window_head``, the remainder; for
-any other window, ``window_head`` alone (D-FORK-INHERITED, D-NO-START-SPLIT).
+the parent window and that call) and ``starting_context``, the remainder; for
+any other window, ``starting_context`` alone (D-FORK-INHERITED, D-NO-START-SPLIT).
 
 Every figure below marked "local sweep 2026-10-01T11:50Z" is a line of
 ``python3 -m sa.sweep`` run at that minute over this machine's live
@@ -64,7 +64,7 @@ class Contributor(NamedTuple):
     @property
     def dims(self) -> dict:
         """What an exact increment books for it: the dimensions that are set."""
-        named = {schema.CAUSE_DIM: self.cause, schema.TOOL_DIM: self.tool, schema.HEAD_DIM: self.head}
+        named = {schema.CAUSE_DIM: self.cause, schema.TOOL_DIM: self.tool, schema.COMMAND_DIM: self.head}
         return {dim: value for dim, value in named.items() if value is not None}
 
 
@@ -102,11 +102,11 @@ def shared_dims(found: List[Contributor]) -> dict:
     answerable by tool. A user_text candidate or a tool_result whose tool_use
     did not resolve has no tool, so it unsets both; the head ``other`` is a
     value, not an absence. Local sweep 2026-10-01T11:50Z: 203 of 375
-    multi_contributor intervals (1,567,663 of 2,284,391 context tokens)
+    ``several`` intervals (1,567,663 of 2,284,391 context tokens)
     share one tool, and 104 of them (937,714 tokens) share the head as
     well."""
     out = {}
-    for dim in (schema.TOOL_DIM, schema.HEAD_DIM):
+    for dim in (schema.TOOL_DIM, schema.COMMAND_DIM):
         values = {c.dims.get(dim) for c in found}
         if len(values) != 1 or None in values:
             return out
@@ -149,11 +149,11 @@ def walk(source: SourceFile, usages: Usages, cut: Optional[List[Window]] = None,
     # record and first live record disagree on either key).
     named = {schema.PROJECT_DIM: source.project,
              schema.SESSION_DIM: first_value(live, "sessionId"),
-             schema.AGENT_DIM: first_value(live, "agentId")}  # None: a main window
+             schema.SUBAGENT_DIM: first_value(live, "agentId")}  # None: a main window
     named = {k: v for k, v in named.items() if v is not None}
     for k, win in enumerate(windows_module.cut(source, usages) if cut is None else cut):
         dims = dict(named)
-        dims.update({schema.WINDOW_DIM: schema.window_value(win.key), schema.START_DIM: win.start})
+        dims.update({schema.WINDOW_DIM: schema.window_value(win.key), schema.STARTED_BY_DIM: win.start})
         yield from _window(source, live, uses, win, dims, inherit if k == 0 else None)
 
 
@@ -177,9 +177,9 @@ def _window(source: SourceFile, live: List[Record], uses: ToolUses, win: Window,
         fed_forward = previous.usage["output_tokens"]
         if delta < fed_forward:
             yield increment(delta, current.record, cause=schema.AMBIGUOUS,
-                            reason=schema.NEGATIVE_REMAINDER)
+                            reason=schema.LESS_THAN_REPLY)
             return
-        yield increment(fed_forward, previous.record, cause=schema.FEED_FORWARD)
+        yield increment(fed_forward, previous.record, cause=schema.REPLIES)
         remainder = delta - fed_forward
         found = list(contributors(live[previous.first + 1:current.first], uses))
         if len(found) == 1:
@@ -187,7 +187,7 @@ def _window(source: SourceFile, live: List[Record], uses: ToolUses, win: Window,
             return
         yield increment(
             remainder, current.record, cause=schema.AMBIGUOUS,
-            reason=schema.MULTI_CONTRIBUTOR if found else schema.NO_CONTRIBUTOR,
+            reason=schema.SEVERAL if found else schema.UNEXPLAINED,
             evidence={schema.CANDIDATES: [Candidate(locator(c.record), c.dims) for c in found]},
             **shared_dims(found))
 
@@ -204,7 +204,7 @@ def _window(source: SourceFile, live: List[Record], uses: ToolUses, win: Window,
                     schema.PARENT_WINDOW: inherit.parent, schema.BRANCH_CALL: inherit.branch})
             first = win.start != schema.COMPACTION
             yield increment(head, call.record, evidence=fork_evidence(source.records) if first else None,
-                            cause=schema.WINDOW_HEAD)
+                            cause=schema.STARTING_CONTEXT)
         else:
             yield from interval(previous, call)
         previous = call

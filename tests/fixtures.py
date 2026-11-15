@@ -6,11 +6,12 @@ arithmetic is written out so a test can assert exact figures rather than
 re-derive them.
 """
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 
-from sa import corpus as corpus_module, schema, tables as tables_module, walk
+from sa import corpus as corpus_module, glossary, schema, tables as tables_module, walk
 
 SESSION = "sess-0001"
 FORK_PARENT = "sess-0000"
@@ -41,7 +42,17 @@ def unit(metric):
 
 def count_column(metric):
     """The count column's name: what the metric's carrier kind is called."""
-    return schema.metric(metric).carrier + "s"
+    return schema.PLURAL[schema.metric(metric).carrier]
+
+
+def printed(metric):
+    """The metric as the output names it: the mass column and the total."""
+    return glossary.printed(metric)
+
+
+def total_line(metric):
+    """The prefix of the headline's total line."""
+    return "%s: " % printed(metric)
 
 
 def usage(context, output, cache_write_1h=0, cache_write_5m=0):
@@ -89,13 +100,13 @@ def stamped(records, start):
 
 
 # Occupancy, output and the increments each interval books:
-#   head        1000                         -> window_head 1000
-#   1 result    1000 -> 1300, out_prev 50    -> feed_forward 50, tool_result 250
-#   2 contrib.  1300 -> 1500, out_prev 20    -> feed_forward 20, ambiguous 180
+#   head        1000                         -> starting_context 1000
+#   1 result    1000 -> 1300, out_prev 50    -> replies 50, tool_result 250
+#   2 contrib.  1300 -> 1500, out_prev 20    -> replies 20, ambiguous 180
 #   1 result    1500 -> 1400, out_prev 10    -> shrink -100
 #   1 result    1400 -> 1410, out_prev 30    -> ambiguous 10 (negative remainder)
-#   1 text      1410 -> 1500, out_prev 5     -> feed_forward 5, user_text 85
-#   attachment  1500 -> 1520, out_prev 8     -> feed_forward 8, ambiguous 12 (no contributor)
+#   1 text      1410 -> 1500, out_prev 5     -> replies 5, user_text 85
+#   attachment  1500 -> 1520, out_prev 8     -> replies 8, ambiguous 12 (no contributor)
 # Sum 1000+50+250+20+180-100+10+5+85+8+12 = 1520 = final occupancy.
 FINAL_OCCUPANCY = 1520
 EXACT_FIRST_DELTA = 250
@@ -231,15 +242,18 @@ def headline(out):
 
 
 def peaks(out):
-    return [line for line in sections(out)[1] if line.startswith("single-call peak ")]
+    return [line for line in sections(out)[1] if line.startswith(PEAK_LINE)]
+
+
+PEAK_LINE = "largest call "
 
 
 def key(out):
     """The key's entries as (label, text): the one place notes print."""
     keyed = [s for s in sections(out) if s[0].startswith("key (")]
     assert len(keyed) <= 1
-    width = tables_module.KEY_WIDTH
-    return [(line[2:2 + width].rstrip(), line[3 + width:]) for line in (keyed[0][1:] if keyed else [])]
+    entry = re.compile(r"^  (%s%s by \S+|\S+) +(.*)$" % (glossary.RESIDUAL_LABEL, glossary.MARKER))
+    return [entry.match(line).groups() for line in (keyed[0][1:] if keyed else [])]
 
 
 def marker(uuid):

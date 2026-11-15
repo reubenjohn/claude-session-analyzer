@@ -6,7 +6,9 @@ import re
 import subprocess
 import sys
 
+import fixtures as fx
 from fixtures import REPO
+from sa import schema, tables
 
 SCRIPT = REPO / "scripts" / "resync_examples.py"
 # D-OUTPUT-CAP: the default `context --since 7d` output at ux-pass HEAD (decc4fe),
@@ -37,8 +39,9 @@ def test_the_default_output_stays_within_its_baseline(tmp_path):
     home = tmp_path.resolve()
     resync.build(home)
     out = resync.run(home, "context --since 7d")
-    assert out.startswith("read: ") and "\ncontext_delta: " in out  # vacuity guard: the headline
-    assert "starting context " in out and "; top tool=" in out       # both of its lines
+    assert out.startswith("read: ") and "\n" + fx.total_line(fx.DELTA) in out  # vacuity guard: the headline
+    assert "\n  %s " % tables.marked(schema.STARTING_CONTEXT) in out            # both of its lines
+    assert "\n  growth " in out and ": %s=" % schema.TOOL_DIM in out
     assert str(home) not in out and resync.re.sub(r"[^A-Za-z0-9]", "-", str(home)) not in out  # pinned
     assert len(out.splitlines()) <= CAP_LINES, out
     assert len(out) <= CAP_CHARS, out

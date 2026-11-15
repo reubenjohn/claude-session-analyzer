@@ -12,14 +12,14 @@ never a zero headline); ``--since`` selects FILES by modification time
 before reading, 7 days unless given (``all`` reads every file), so dedup
 runs over the selected files only, and a day count that keeps no file is a
 legitimate empty population; ``--where`` selects facts after dedup. A
-``--where`` on a window dimension (project, session, agent, window, start)
-keeps whole windows; any other dimension is a drill, and the reconciliation and
+``--where`` pin on a window dimension (project, session, subagent, window,
+started_by) keeps whole windows; any other dimension is a drill, and the reconciliation and
 the single-call peak then apply to the whole-window population they are
 printed for. What ``query`` refuses (an unknown name, an undeclared value,
 an open-vocabulary value no fact carries) is exit status 2 with its
 message; nothing is checked twice.
 
-``sa explain [TERM]`` prints the glossary (``schema.GLOSSARY``); an unknown
+``sa explain [TERM]`` prints the glossary (``glossary.GLOSSARY``); an unknown
 term is exit status 2. Colour only when stdout is a TTY and ``NO_COLOR`` is
 unset or empty; a progress line goes to stderr only when it is a TTY.
 """
@@ -29,24 +29,24 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from . import corpus, query, render, schema, tables, walk
+from . import corpus, glossary, query, render, schema, tables, walk
 from .render import View
 
 DEFAULT_DAYS = 7.0
+DEFAULT_LIMIT = 5  # D-PLAIN-TERMS: never more verbose than pre-A1
 ALL = "all"
 
-SPEND_NOTE = ("spend is paid per call; context shares are not cost shares. What put"
-              " the tokens there is answered by `sa context` (--by tool, --by head).")
+SPEND_NOTE = "paid per call, so no context share is a cost share; what filled it: sa context"
 
 # ``window`` is one row per context window: a drill target (--by, --where), never a default table.
 VIEWS = {"context": View(metric=schema.CONTEXT_DELTA,
-                         tables=(schema.CAUSE_DIM, schema.TOOL_DIM, schema.HEAD_DIM,
-                                 schema.AGENT_DIM, schema.SESSION_DIM, schema.PROJECT_DIM),
-                         levers=(schema.TOOL_DIM, schema.HEAD_DIM),
-                         reconciles=True, notes=(), starts=schema.START_DIM),
+                         tables=(schema.CAUSE_DIM, schema.TOOL_DIM, schema.COMMAND_DIM,
+                                 schema.SUBAGENT_DIM, schema.SESSION_DIM, schema.PROJECT_DIM),
+                         levers=(schema.TOOL_DIM, schema.COMMAND_DIM),
+                         reconciles=True, notes=(), starts=schema.STARTED_BY_DIM),
          "spend": View(metric=schema.SPEND,
-                       tables=(schema.PROJECT_DIM, schema.SESSION_DIM, schema.AGENT_DIM),
-                       levers=(schema.AGENT_DIM,),
+                       tables=(schema.PROJECT_DIM, schema.SESSION_DIM, schema.SUBAGENT_DIM),
+                       levers=(schema.SUBAGENT_DIM,),
                        reconciles=False, notes=(SPEND_NOTE,))}
 
 
@@ -85,33 +85,34 @@ def _rows(text: str) -> int:
     return int(text)
 
 
-QUESTIONS = {"context": "what filled your context windows: by cause, tool, command, agent,"
+QUESTIONS = {"context": "what filled your context windows: by cause, tool, command, subagent,"
                        " session, project",
-             "spend": "what the calls cost, by project, session, agent (never dollars)"}
+             "spend": "what the calls cost, by project, session, subagent (never dollars)"}
 
 TOP_HELP = """\
 Where did my Claude Code context go, and what did it cost? Reads the
 transcripts under ~/.claude/projects, the last 7 days unless --since.
 
-Each table splits one total by one dimension (a cause, a tool, a command);
-the row %(residual)s is the part with no value for it. Narrow with
---where DIM=VALUE (any row label), then show one table whole with --by DIM:
+Subcommands: context, spend, explain. Each table splits one total by one
+dimension (a cause, a tool, a command); the row %(residual)s is the part with
+no value for it. Pin a row with --where DIM=VALUE (any row label), then
+show one table whole with --by DIM:
 
-  sa context                                 the overview
-  sa context --where tool=Bash               narrow to one row
-  sa context --where tool=Bash --by head     that row, by command
+  sa context                                   the overview
+  sa context --where tool=Bash                 pin one row
+  sa context --where tool=Bash --by command    that row, by command
 
 Flags (sa context --help or sa spend --help for all):
   --since 30d|all       files modified in the last N days (default 7d)
-  --where DIM=VALUE     keep one value; repeatable
+  --where DIM=VALUE     pin one value; repeatable
   --by DIM|fact         one table with whole labels, or the largest facts
-  --limit N             rows per table (default 10)
+  --limit N             rows per table (default %(limit)d; causes print whole)
   --root DIR            transcript root (default ~/.claude/projects)
 
 Marked %(marker)s in the output: %(marked)s.
 sa explain TERM says what any term means.""" % {
-    "residual": schema.RESIDUAL_LABEL, "marker": schema.MARKER,
-    "marked": ", ".join(t for t, e in schema.GLOSSARY.items() if e.marked)}
+    "residual": glossary.RESIDUAL_LABEL, "marker": glossary.MARKER, "limit": DEFAULT_LIMIT,
+    "marked": ", ".join(t for t, e in glossary.GLOSSARY.items() if e.marked)}
 
 
 def _dimensions_help() -> str:
@@ -119,13 +120,14 @@ def _dimensions_help() -> str:
     ``--where`` split by."""
     width = max(map(len, schema.DIMENSIONS))
     return "dimensions (--where DIM=VALUE, --by DIM):\n" + "\n".join(
-        "  %-*s  %s" % (width, d, schema.GLOSSARY[d].meaning) for d in schema.DIMENSIONS)
+        "  %-*s  %s" % (width, d, glossary.GLOSSARY[d].meaning) for d in schema.DIMENSIONS)
 
 
 def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
     raw = argparse.RawDescriptionHelpFormatter
     parser = argparse.ArgumentParser(prog="sa", description=TOP_HELP, formatter_class=raw)
-    views = parser.add_subparsers(dest="view", metavar="|".join(list(VIEWS) + ["explain"]))
+    views = parser.add_subparsers(dest="view", title="subcommands",
+                                  metavar="|".join(list(VIEWS) + ["explain"]))
     views.required = True
     for name, view in VIEWS.items():
         sub = views.add_parser(name, help=QUESTIONS[name], description=QUESTIONS[name] + ".",
@@ -136,10 +138,12 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
                          help="select files modified within the last N days, before dedup"
                               " (default: 7d; all: every file)")
         sub.add_argument("--where", action="append", default=[], type=_pair,
-                         metavar="DIM=VALUE", help="keep facts with that value; repeatable")
+                         metavar="DIM=VALUE", help="pin that value; repeatable")
         sub.add_argument("--by", type=_by, metavar="DIM|" + render.FACT,
                          help="one dimension's table, or '%s' for leaf facts" % render.FACT)
-        sub.add_argument("--limit", type=_rows, default=10, help="rows per table (at least 1)")
+        sub.add_argument("--limit", type=_rows, default=DEFAULT_LIMIT,
+                         help="rows per table, at least 1 (default %d); the cause table, the"
+                              " ∅ and signed rows always print" % DEFAULT_LIMIT)
     explain = views.add_parser("explain", help="what a term in the output means",
                                description="What a term in the output means, and why its"
                                            " number might surprise you.")
@@ -149,11 +153,11 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
 
 def explain(term: Optional[str]) -> List[str]:
     """One glossary entry, or every one, each with why it might surprise."""
-    terms = [term.rstrip(schema.MARKER)] if term else list(schema.GLOSSARY)
+    terms = [glossary.key_of(term)] if term else list(glossary.GLOSSARY)
     lines = []
     for name in terms:
-        entry = schema.explain(name)
-        lines += ["%s: %s" % (tables.marked(name), entry.meaning),
+        entry = glossary.explain(name)
+        lines += ["%s: %s" % (glossary.marked(name), entry.meaning),
                   "  surprise: " + entry.surprise]
     return lines
 

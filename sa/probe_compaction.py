@@ -148,11 +148,11 @@ def segments(source: SourceFile) -> List[SourceFile]:
 
 
 def rates(rec: query.Reconciliation) -> str:
-    growth = rec.final_occupancy - rec.by_cause[schema.WINDOW_HEAD]
+    growth = rec.final_occupancy - rec.by_cause[schema.STARTING_CONTEXT]
     return ("%s windows, %s calls, %s intervals; context total %s; growth %s; window_head %s (%s); "
             "exact %s (%s), ambiguous %s (%s), shrink %s (%s, %s tokens); holds %s"
             % (fmt(rec.windows), fmt(rec.calls), fmt(rec.intervals), fmt(rec.final_occupancy), fmt(growth),
-               fmt(rec.by_cause[schema.WINDOW_HEAD]), pct(rec.by_cause[schema.WINDOW_HEAD], rec.final_occupancy),
+               fmt(rec.by_cause[schema.STARTING_CONTEXT]), pct(rec.by_cause[schema.STARTING_CONTEXT], rec.final_occupancy),
                fmt(rec.exact), pct(rec.exact, rec.intervals), fmt(rec.ambiguous),
                pct(rec.ambiguous, rec.intervals), fmt(rec.shrink), pct(rec.shrink, rec.intervals),
                fmt(rec.by_cause[schema.SHRINK]), rec.holds))

@@ -154,7 +154,7 @@ def per_window(facts: List[schema.Fact]) -> Tuple[Counter, Dict[str, int], Dict[
             peak[w] = max(peak.get(w, 0), occ)
         else:
             booked[w] += f.metrics[schema.CONTEXT_DELTA]
-            heads[w] += f.dims[schema.CAUSE_DIM] == schema.WINDOW_HEAD
+            heads[w] += f.dims[schema.CAUSE_DIM] == schema.STARTING_CONTEXT
     fails = Counter(booked[w] == last[w] for w in last)
     return Counter({"telescopes": fails[True], "fails": fails[False],
                     "one window_head": sum(heads[w] == 1 for w in last)}), peak, last
@@ -191,7 +191,7 @@ def split(loaded: Corpus, facts: List[schema.Fact]) -> List[str]:
         top = max(segs, key=lambda w: peak_segs[w])
         peak_where["pre-compaction" if top == segs[0] else "later segment"] += 1
         peak_max += peak_files[name] == peak_segs[top]
-    heads = [f for f in seg_facts if f.dims.get(schema.CAUSE_DIM) == schema.WINDOW_HEAD]
+    heads = [f for f in seg_facts if f.dims.get(schema.CAUSE_DIM) == schema.STARTING_CONTEXT]
     keys = Counter(window_key(f) for f in heads)
     spend = (query.total(facts, schema.SPEND), query.total(seg_facts, schema.SPEND))
     return [

@@ -7,7 +7,7 @@ import re
 import time
 
 import fixtures as fx
-from sa import corpus, query, render, schema, walk
+from sa import corpus, glossary, query, render, schema, walk
 from sa.schema import CALL, INCREMENT, WindowKey
 
 CAUSE = schema.CAUSE_DIM
@@ -51,7 +51,7 @@ def test_each_window_carries_one_declared_start_and_its_hashed_key(tmp_path):
     loaded, facts = _facts(tmp_path)
     starts = {}
     for f in facts:
-        starts.setdefault(f.window, set()).add(f.dims[schema.START_DIM])
+        starts.setdefault(f.window, set()).add(f.dims[schema.STARTED_BY_DIM])
         assert f.dims[schema.WINDOW_DIM] == schema.window_value(f.window)
     assert starts == {WindowKey(*k): {v} for k, v in fx.W_STARTS.items()}
     assert set(schema.STARTS) <= set(fx.W_STARTS.values())  # the corpus carries every start
@@ -62,7 +62,7 @@ def test_the_population_line_counts_the_unpriced_compactions(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
     assert "\n      2 compactions unpriced: 1 started a window, 1 ended their file\n" in out
-    assert "\nkept: %d windows%s, " % (len(fx.W_FINALS), schema.MARKER) in out
+    assert "\nkept: %d windows%s, " % (len(fx.W_FINALS), glossary.MARKER) in out
     code, out, err = fx.run_cli("context", "--root", str(fx.cli_corpus(tmp_path / "plain")))
     assert code == 0, err
     assert "compaction" not in sections_text(out, 0)  # none read: no line
@@ -127,7 +127,7 @@ def test_the_cli_states_inherited_once_on_the_headline_and_the_footer(tmp_path):
     label, mass = render.INHERITED_LABEL, format(sum(fx.W_INHERITED.values()), ",d")
     code, out, err = fx.run_cli("context", "--root", str(root), "--limit", "1")
     assert code == 0, err
-    assert fx.headline(out).split(";")[0].endswith("summed less %s %s" % (mass, label))
+    assert fx.headline(out).split(";")[0].endswith("summed less %s %s (%% of this total)" % (mass, label))
     assert re.search(r"^%s: %s .* in 2 windows" % (re.escape(label), mass), out, re.M)  # --limit 1
     assert not re.search(r"^%s\s+[\d,]+\s" % schema.INHERITED, out, re.M)  # not a row: never in a share
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "=".join(_pin(fx.W_FORK)))
@@ -157,10 +157,10 @@ def test_a_pinned_fork_shows_its_copy_as_the_parent_breakdown_by_tool(tmp_path):
 def test_a_window_value_selects_and_an_unknown_one_exits_2_naming_those_present(tmp_path):
     root = fx.window_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=0000zzzz" % schema.WINDOW_DIM)
-    assert code == 2 and not out and "no facts carry window=0000zzzz; present: " in err
+    assert code == 2 and not out and "no %s carry window=0000zzzz; present: " % schema.PLURAL[INCREMENT] in err
     assert fx.window_value(fx.W_PARENT, 8) in err
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "=".join(_pin(fx.W_PARENT, 8)))
-    assert code == 0 and "\nkept where %s: 1 window%s, " % ("=".join(_pin(fx.W_PARENT, 8)), schema.MARKER) in out
+    assert code == 0 and "\nkept where %s: 1 window%s, " % ("=".join(_pin(fx.W_PARENT, 8)), glossary.MARKER) in out
 
 
 def test_window_keys_are_the_same_whatever_the_since_window(tmp_path):
@@ -204,7 +204,7 @@ def test_no_peak_is_summed_across_the_segments_of_one_file(tmp_path):
                                 "--where", "%s=sess-0101" % schema.SESSION_DIM)
     assert code == 0, err
     (peak,) = fx.peaks(out)
-    assert " %s %s at " % (format(fx.W_FINALS[(fx.W_FORK, 1)], ",d"), fx.unit(fx.PEAK)) in peak
+    assert " %s %s (of " % (format(fx.W_FINALS[(fx.W_FORK, 1)], ",d"), fx.unit(fx.PEAK)) in peak
 
 
 def test_segmenting_leaves_the_duplicate_count_unchanged(tmp_path):

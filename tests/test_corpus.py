@@ -89,7 +89,7 @@ def test_replayed_records_count_once_and_sibling_forks_twice(tmp_path):
 def test_the_longest_running_copy_owns_a_replayed_prefix_whatever_its_filename(tmp_path):
     """A partial replay plus continuation: the continuation starts at the same
     moment and runs later, so it owns the shared prefix; the original's
-    remaining tail becomes a window of its own, booking window_head at its
+    remaining tail becomes a window of its own, booking starting_context at its
     first live call."""
     original = fx.stamped(fx.window_records(), 0)
     continuation = fx.stamped(fx.window_records()[:5], 0) + fx.stamped(
@@ -104,7 +104,7 @@ def test_the_longest_running_copy_owns_a_replayed_prefix_whatever_its_filename(t
         by_file = {s.path.stem: [r.duplicate for r in s.records] for s in loaded.files}
         assert by_file[names[0]] == [True] * 5 + [False] * 9
         assert by_file[names[1]] == [False] * 14
-        heads = [f for f in facts if f.dims.get(schema.CAUSE_DIM) in (schema.WINDOW_HEAD, schema.INHERITED)]
+        heads = [f for f in facts if f.dims.get(schema.CAUSE_DIM) in (schema.STARTING_CONTEXT, schema.INHERITED)]
         assert sorted(f.metrics[fx.DELTA] for f in heads) == [200, 1000, 1300]  # 1,500 = 1,300 inherited + 200
         results.append(query.reconcile(facts).by_cause)
     assert results[0] == results[1]
@@ -126,5 +126,5 @@ def test_a_tool_result_keeps_its_tool_when_its_tool_use_was_replayed(tmp_path):
     assert walk.tool_uses(source.live) == {}
     (exact,) = [f for f in facts if f.locator.file == source.name
                 and f.dims.get(schema.CAUSE_DIM) in schema.EXACT_CAUSES]
-    assert (exact.dims[schema.TOOL_DIM], exact.dims[schema.HEAD_DIM], exact.metrics[fx.DELTA]) == (
+    assert (exact.dims[schema.TOOL_DIM], exact.dims[schema.COMMAND_DIM], exact.metrics[fx.DELTA]) == (
         "Bash", "Bash:pytest", fx.EXACT_FIRST_DELTA)

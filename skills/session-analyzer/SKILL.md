@@ -13,101 +13,101 @@ cd "${CLAUDE_PLUGIN_ROOT}" && python3 -m sa context   # where did my context go
 cd "${CLAUDE_PLUGIN_ROOT}" && python3 -m sa spend     # what did it cost
 ```
 
-Narrow, then drill:
+Pin, then drill:
 
 | Flag | Meaning |
 |---|---|
 | `--since 30d` | files modified within the last N days (default 7d; `all` reads every file) |
-| `--where project=` / `session=` / `agent=` / `window=` / `start=` | project as printed (`~-work-app`), sessionId, agentId, a window's hex (`--by window`) or what began it; keeps whole windows |
-| `--where DIM=VALUE` | repeatable, exact; dims: project, session, agent, window, start, cause, tool, head, reason |
+| `--where project=` / `session=` / `subagent=` / `window=` / `started_by=` | project as printed (`~-work-app`), sessionId, agentId, a window's hex (`--by window`) or what began it; keeps whole windows |
+| `--where DIM=VALUE` | a pin, repeatable, exact; dims: project, session, subagent, window, started_by, cause, tool, command, reason |
 | `--by DIM` | one dimension's table |
 | `--by fact` | leaf facts: `<metric>  file:line  uuid  dimensions`, evidence indented |
-| `--limit N` | rows per table; the rest fold into `+k more rows` |
+| `--limit N` | rows per table (5); the rest fold into `+k more rows`, never the cause table, `∅` or signed rows |
 
 ## What each command answers
 
-**`context`** books every change of context-window occupancy as an
-*increment* with one `cause`: `window_head` (the first call's occupancy,
-less what a fork or replay `inherited`), `feed_forward` (the previous turn's
-own output),
-`tool_result`, `user_text`, `ambiguous` (not attributable to one
-contributor; `reason` says why) and `shrink` (a window that got smaller,
-signed). Default tables: cause, tool,
-head, agent, session, project (`reason` and `window` via `--by`).
+**`context`** books every change of a window's context (a *change*;
+the metric prints as `context tokens`) with one `cause`:
+`starting_context` (the first call's context, less what a fork or replay
+`inherited`), `replies` (Claude's replies, tool-call inputs included),
+`tool_result`, `user_text`, `ambiguous` (no one contributor; `reason`:
+`several`, `less_than_reply`, `unexplained`) and `shrink` (a window that
+got smaller, signed). Default tables: cause, tool, command, subagent,
+session, project (`reason` and `window` via `--by`).
 
-**`spend`** sums each call's input-side cost in base-token-equivalents:
-uncached input, cache writes (1h at 2.0x, 5m at 1.25x) and cache reads at
-0.1x; output tokens are excluded, totalled apart at the end. Default tables: project, session, agent; `--by agent`
-answers "which subagent was expensive", its `∅` row being the main
-windows. Context shares are not cost shares.
+**`spend`** sums each call's price-weighted input tokens: uncached
+input, cache writes (1h at 2.0x, 5m at 1.25x) and cache reads at 0.1x;
+output tokens are excluded, totalled apart at the end. Default tables:
+project, session, subagent; `--by subagent` answers "which subagent was
+expensive", its `∅` row being the main windows. Context shares are not
+cost shares.
 
-Whatever `--by` shows, the `context` headline states one total, then
-two lines: the starting context by `start` (what entered as windows
-started, never a window size), then the growth: the top tool, `within it`
-its largest head (`100.0% of Bash, 15.4% of the added`), then a larger
-head under another tool. Shares are of the mass added, shrink out.
-`spend` names the top agent. Never a cause or a window row. A `--where`
-pin omits the default tables and levers it implies (a head its tool, a
-window its agent, session, project). A drill's headline names its pins and
-counts the windows its facts come from (`… in 1 of 2 windows`). `single-call peak
-context_tokens` under it is the fullest call over the N whole windows,
-even under a drill.
+Whatever `--by` shows, the `context` headline states one total (`% of
+this total`, or of the N added: shrink out), then two lines:
+`starting_context` by `started_by` (what entered as windows started,
+never a window size), then `growth`: the top tool, its largest command
+(`100.0% of Bash, 15.4%`), then a larger command under another tool.
+`spend` names the largest subagent. Never a cause or a window row. A
+`--where` pin omits the default tables and levers it implies (a command
+its tool, a window its subagent, session, project). A drill's headline
+names its pins and the windows hit (`… in 1 of 2 windows`). `largest call N tokens (of W windows), window=<hex>` under
+it is the fullest call, even under a drill.
 
 ## The drill: headline -> `--by` -> `--where` -> `--by fact`
 
 ```bash
 python3 -m sa context
 python3 -m sa context --by cause
-python3 -m sa context --where tool=Bash --by head
+python3 -m sa context --where tool=Bash --by command
 python3 -m sa context --where cause=ambiguous --by fact --limit 2
 ```
 
 `--by fact` prints the heaviest leaves with their locator, e.g.
-`81,989  <project>/<session-id>.jsonl:76  <uuid>  project=… session=… cause=ambiguous reason=multi_contributor`
+`81,989  <project>/<session-id>.jsonl:76  <uuid>  project=… session=… cause=ambiguous reason=several`
 and under an ambiguous one
 `candidates:`, then one line per contributor:
-`<file>:<line> <uuid>  cause=tool_result tool=Read head=Read:py`. The row
-carries a tool only when all candidates share it. A `head` is a Bash
-call's first command word (past keywords, wrappers and builtins) as a basename (`Bash:pytest`),
+`<file>:<line> <uuid>  cause=tool_result tool=Read command=Read:py`. The row
+carries a tool only when all candidates share it. A `command` is a Bash
+call's first command word as a basename (`Bash:pytest`),
 or a file tool's extension (`Read:py`); never a path.
 Exit 2, naming what is declared or present: `spend --where cause=...`
 (calls carry only window dims), `cause=bogus` (undeclared),
-`tool=bash` (no fact carries it).
+`tool=bash` (no change carries it).
 
 ## Reading the output
 
-Sections, in order: scope, answer, tables, key, checks. The scope is
-`read:` (files, the `--since` window, the root, then lines skipped and
+The scope is
+`read:` (files, the `--since` window, the root, lines skipped and
 duplicates excluded: corpus-wide) and `kept where <window pins>:`
-(windows and the view's carrier facts); a window is one context window:
+(windows and the view's `changes` or `calls`); a window is one context window:
 a compaction a call follows starts one (`N compactions unpriced`). Quote both with a figure: a
-number without its population is no finding. Table columns: the metric,
-its carrier's count (`increments`, `calls`) and `share of <base>`, which
-names its base (`total`, `N added`, `N with a tool`). Tables end with the
+number without its population is no finding. Table columns: the metric
+(`context tokens`, `spend`), its count (`changes`, `calls`) and `share
+of <base>`, naming its base (`total`, `N added`, `N with a tool`). Tables end with the
 residual row `∅` (facts lacking the grouped dimension) and any `(signed)`
 rows; neither has a share. A default table cuts a label over 40 chars
 to `…tail`; `--by` prints it whole. One dimmed
-`key` says what each `∅` and unsplittable row holds; a `°` term is in
-`python3 -m sa explain TERM`, with why its number may surprise.
+`key` says in one clause what each `∅` and unsplittable row holds; a `°`
+term is in full in `python3 -m sa explain TERM`.
 
 Unnarrowed, the `context` cause table ends with `= total N  ✓ matches
 the final window sizes`, and the last line is this run's attribution
-quality over the intervals (calls minus windows):
+quality over the gaps between calls (calls minus windows), each split
+into one or more changes:
 
 <!-- example: context | ✓ checks -->
 ```
-✓ checks: 18 intervals (21 calls - 3 windows) = exact 6 (33.3%) + ambiguous 9 (50.0%) + shrink 3 (16.7%)
+✓ checks: 18 gaps between calls (21 calls - 3 windows) = exact 6 (33.3%) + ambiguous 9 (50.0%) + shrink 3 (16.7%)
 ```
 
 It holds by construction: a failure prints the reconciliation in full
 with `MISMATCH`, a bug in this tool, exit 1. A drill's checks line names
 the N whole windows it applies to. `inherited (counted in parent)`
 follows when a kept parent window already counts a fork's copy.
-`spend` ends with the output and cache-write totals.
 
 ## Refusals
 
-No dollars (rates differ per model and tier); no estimated attribution
+No dollars (rates differ per model); no estimated attribution
 (one `ambiguous` row, never a spread); no summed peaks (`context_tokens`
 is a high-water mark).
 

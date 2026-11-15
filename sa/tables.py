@@ -8,18 +8,22 @@ import re
 from pathlib import Path
 from typing import Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
-from . import heads, query, schema
+from . import glossary, heads, query, schema
 from .schema import Fact
 
-RESIDUAL_LABEL = schema.RESIDUAL_LABEL  # the row for facts that lack the grouped dimension
+RESIDUAL_LABEL = glossary.RESIDUAL_LABEL  # the row for facts that lack the grouped dimension
 LABEL_WIDTH = 40      # a default table keeps a longer label's tail behind "…"; --by prints it whole
 
 # Cause rows whose mass is not splittable by content: each prints its
-# glossary meaning in the key. Neither can lead the headline: ``cause`` is
-# no view's lever.
-UNSPLITTABLE = {schema.WINDOW_HEAD: schema.GLOSSARY[schema.WINDOW_HEAD].meaning,
-                schema.AMBIGUOUS: "%s (by reason: %s)" % (schema.GLOSSARY[schema.AMBIGUOUS].meaning,
-                                                          ", ".join(schema.REASONS))}
+# glossary clause in the key, the full text in ``sa explain``. Neither can
+# lead the headline: ``cause`` is no view's lever.
+UNSPLITTABLE = {c: glossary.brief(c) for c in (schema.STARTING_CONTEXT, schema.AMBIGUOUS)}
+# A table's title, where its dimension's name alone does not explain it.
+TITLES = {schema.COMMAND_DIM: "command / file type"}
+
+
+def title(dim: str) -> str:
+    return "by " + TITLES.get(dim, dim)
 
 BOLD, DIM, GOOD, BAD = "1", "2", "32", "31"  # ANSI SGR codes
 OK_MARK, BAD_MARK = "✓", "✗"
@@ -72,27 +76,19 @@ def home_text(text: str) -> str:
     return re.sub(re.escape(str(Path.home())) + r"(?![A-Za-z0-9])", "~", text)
 
 
-def marked(term: str) -> str:
-    """The term with the explain marker when the glossary marks it."""
-    entry = schema.GLOSSARY.get(term)
-    return term + schema.MARKER if entry and entry.marked else term
-
-
-KEY_WIDTH = 14
+marked = glossary.marked
 TOTAL_LABEL = "= total"  # the row a whole-window cause table closes with
 
 
-def key_entry(label: str, text: str) -> str:
-    return "  %-*s %s" % (KEY_WIDTH, label, text)
-
-
 def key(entries: List[Tuple[str, str]]) -> List[str]:
-    """The one key under the tables, dimmed: each note once, by label."""
+    """The one key under the tables, dimmed: each note once, by label, one
+    clause each (the full text is ``sa explain``'s)."""
     if not entries:
         return []
     seen = list(dict.fromkeys(entries))
+    width = max(len(label) for label, _ in seen)
     return [styled(line, DIM) for line in
-            ["key (%s: sa explain TERM)" % schema.MARKER] + [key_entry(*e) for e in seen]]
+            ["key (%s: sa explain TERM)" % glossary.MARKER] + ["  %-*s %s" % (width, *e) for e in seen]]
 
 Case = Tuple[str, Callable[[dict], bool]]  # a reading of a residual fact, and the dims it holds for
 
@@ -103,21 +99,20 @@ def _cause(cause: str) -> Callable[[dict], bool]:
 
 # Printed under a table that shows the residual row: what the row means,
 # then the cases that some fact in it satisfies, read from their dimensions
-# so a drill (``--where tool=Bash --by head``) names no case it cannot hold.
+# so a drill (``--where tool=Bash --by command``) names no case it cannot
+# hold. An ambiguous change is residual when its candidates share no one
+# tool (by tool) or no one command (by command); a tool_result, when its
+# tool_use did not resolve (by tool) or its tool has no command (by command).
 RESIDUAL_NOTES: Dict[str, Tuple[str, List[Case]]] = {
-    schema.AGENT_DIM: ("main windows (no subagent)", []),
+    schema.SUBAGENT_DIM: ("main windows", []),
     schema.TOOL_DIM: ("no tool", [(c, _cause(c)) for c in (
-        schema.WINDOW_HEAD, schema.FEED_FORWARD, schema.USER_TEXT)] + [
-        (schema.INHERITED, _cause(schema.INHERITED)),
-        ("%s whose candidates share no one tool" % schema.AMBIGUOUS, _cause(schema.AMBIGUOUS)),
-        ("a %s whose tool_use did not resolve" % schema.TOOL_RESULT, _cause(schema.TOOL_RESULT))]),
-    schema.HEAD_DIM: ("no head", [
+        schema.STARTING_CONTEXT, schema.REPLIES, schema.USER_TEXT, schema.INHERITED,
+        schema.AMBIGUOUS)] + [("an unresolved %s" % schema.TOOL_RESULT, _cause(schema.TOOL_RESULT))]),
+    schema.COMMAND_DIM: ("no command", [
         ("no tool", lambda dims: schema.TOOL_DIM not in dims),
-        ("a %s of a tool with no head (any but %s)"
-         % (schema.TOOL_RESULT, ", ".join(sorted(heads.EXTRACTORS))),
+        ("a tool other than %s" % "/".join(sorted(heads.EXTRACTORS)),
          lambda dims: schema.TOOL_DIM in dims and _cause(schema.TOOL_RESULT)(dims)),
-        ("%s whose candidates share a tool but no head" % schema.AMBIGUOUS,
-         lambda dims: schema.TOOL_DIM in dims and _cause(schema.AMBIGUOUS)(dims))]),
+        (schema.AMBIGUOUS, lambda dims: schema.TOOL_DIM in dims and _cause(schema.AMBIGUOUS)(dims))]),
     schema.REASON_DIM: ("not %s" % schema.AMBIGUOUS, [  # shrink is the signed row, never residual
         (c, _cause(c)) for c in schema.CAUSES if c not in (schema.AMBIGUOUS, schema.SHRINK)]),
 }
@@ -146,9 +141,9 @@ def notes(grouped: query.Table) -> List[Tuple[str, str]]:
 
 
 def share_header(grouped: query.Table) -> str:
-    """The share column names its base: the total, the tokens added (the
-    signed row's mass taken out), or those with a value (the residual row's
-    too; the signed row is never a share)."""
+    """The share column's header, naming its base after the column: the
+    total, the tokens added (the signed row's mass taken out), or those with
+    a value (the residual row's too; the signed row is never a share)."""
     if not grouped.base:
         return "share"
     kinds = {r.kind for r in grouped.rows}
@@ -200,39 +195,41 @@ def cut(label: str) -> str:
 def table(grouped: query.Table, metric: str, limit: int, whole: bool,
           total: Optional[str] = None) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
-    still adds up, then the residual and signed rows. Those, and a regular
-    cause row whose note prints under the table (``UNSPLITTABLE``), are never
-    hidden.
+    still adds up, then the residual and signed rows. Those, and every row
+    of the cause table, are never hidden.
     A label is cut to ``LABEL_WIDTH`` unless ``whole``, which an asked-for
     (``--by``) table is, so its labels can be copied into ``--where``.
-    The mass column is named for the metric (its unit is stated once, on the
-    headline), the count column for what it counts, the metric's carrier
-    kind. A table with no base (no regular mass) prints ``share`` alone;
-    the share column names its base (``share_header``). ``total``, when
-    given, closes the table with a row of every row's sum and that text in
-    the share column. What the rows mean is the key's (``notes``)."""
-    title = "by " + grouped.dim
-    noted = UNSPLITTABLE if grouped.dim == schema.CAUSE_DIM else {}
+    The mass column is named for the metric as printed (its unit is stated
+    once, on the headline), the count column for what it counts, the
+    metric's carrier kind. The share column is as wide as a share; its
+    header names the base after it (``share_header``), and a table with no
+    base prints ``share`` alone. ``total``, when given, closes the table
+    with a row of every row's sum and that text in the share column. What
+    the rows mean is the key's (``notes``)."""
+    heading = title(grouped.dim)
     regular = [r for r in grouped.rows if r.kind == query.REGULAR]
-    shown = regular[:limit] + [r for r in regular[limit:] if r.value in noted]
-    hidden = [r for r in regular[limit:] if r.value not in noted]
+    if grouped.dim == schema.CAUSE_DIM:
+        limit = len(regular)
+    shown, hidden = regular[:limit], regular[limit:]
     if hidden:
         shown.append(query.Row("+" + count(len(hidden), "more row"), sum(r.mass for r in hidden),
                                sum(r.count for r in hidden), query.REGULAR))
     shown += [r for r in grouped.rows if r.kind != query.REGULAR]
     labels = [_label(r, whole) for r in shown]
-    width = max(len(label) for label in labels + [title])
-    counts = schema.metric(metric).carrier + "s"
-    share = share_header(grouped)
-    lines = [styled("%-*s  %16s  %s  %s" % (width, title, metric, counts, share), BOLD)]
+    width = max(len(label) for label in labels + [heading])
+    sums = (num(sum(r.mass for r in grouped.rows)), num(sum(r.count for r in grouped.rows)))
+    name, counts = glossary.printed(metric), schema.PLURAL[schema.metric(metric).carrier]
+    mw = max([len(name), len(sums[0])] + [len(num(r.mass)) for r in shown])
+    cw = max([len(counts), len(sums[1])] + [len(num(r.count)) for r in shown])
+    lines = [styled("%-*s  %*s  %*s  %s" % (width, heading, mw, name, cw, counts,
+                                            share_header(grouped).rjust(6)), BOLD)]
     for label, r in zip(labels, shown):
-        lines.append("%-*s  %16s  %*s  %*s" % (
-            width, label, num(r.mass), len(counts), num(r.count), len(share),
+        lines.append("%-*s  %*s  %*s  %6s" % (
+            width, label, mw, num(r.mass), cw, num(r.count),
             pct(grouped.share(r.mass) if r.kind == query.REGULAR else None)))
     if total is not None:
-        lines.append(styled("%-*s  %16s  %*s  %s" % (
-            width, TOTAL_LABEL, num(sum(r.mass for r in grouped.rows)), len(counts),
-            num(sum(r.count for r in grouped.rows)), total), BOLD))
+        lines.append(styled("%-*s  %*s  %*s  %s" % (width, TOTAL_LABEL, mw, sums[0], cw, sums[1], total),
+                            BOLD))
     return lines
 
 
@@ -240,19 +237,19 @@ def relabelled(grouped: query.Table, labels: Dict[str, str], dim: str) -> str:
     """The one line a table that repeats ``grouped`` row for row prints in
     its place, under it: its labels for the regular rows, in their order,
     each cut as a default table's."""
-    return "by %s: the rows above, labelled %s" % (
-        dim, ", ".join(cut(home(labels[r.value])) for r in grouped.rows if r.kind == query.REGULAR))
+    return "%s: the rows above, labelled %s" % (
+        title(dim), ", ".join(cut(home(labels[r.value])) for r in grouped.rows if r.kind == query.REGULAR))
 
 
 def leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:
     """The ``limit`` largest facts, each with its dimensions and, indented
     under it, its evidence: the candidate contributors of an ambiguous
-    increment, the parent of a fork's window head, the parent window and
+    increment, the parent of a fork's starting context, the parent window and
     branch call of an inherited increment."""
     spec = schema.metric(metric)
     largest = sorted((f for f in facts if f.kind == spec.carrier),
                      key=lambda f: -abs(f.metrics[metric]))[:limit]  # a shrink is as large as its |mass|
-    lines = ["%16s  file:line  uuid  dimensions" % metric]  # the metric, as in the tables
+    lines = ["%16s  file:line  uuid  dimensions" % glossary.printed(metric)]  # as in the tables
     for f in largest:
         lines.append("%16s  %s  %s  %s" % (num(f.metrics[metric]), at(f.locator),
                                            uuid(f.locator), tags(f.dims)))

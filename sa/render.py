@@ -4,7 +4,7 @@ checks. The tables are grouped here from the selection's facts; its total
 and reconciliation come with it, so nothing here decides the exit status."""
 from typing import List, NamedTuple, Optional, Tuple
 
-from . import headline, query, schema, tables, windows
+from . import glossary, headline, query, schema, tables, windows
 from .corpus import Corpus
 from .query import Selection
 from .headline import INHERITED_LABEL
@@ -69,9 +69,9 @@ def _total(view: View, sel: Selection) -> Optional[str]:
 
 
 def population(view: View, sel: Selection, loaded: Corpus, since_default: bool = False) -> List[str]:
-    """The scope, first: the read (the files its ``--since`` kept, named
-    with that window and the root, then what the read skipped or excluded,
-    corpus-wide) and what the window pins kept: the windows (the files with
+    """The scope, first: the read, one line (the files its ``--since``
+    kept, named with that window and the root, then what the read skipped
+    or excluded, corpus-wide) and what the window pins kept: the windows (the files with
     a call; a compaction a call follows starts another) and the facts
     the view's metric is read from, its carrier's. The compactions read
     print as one line when there are any: every one is unpriced. A drill pin
@@ -83,14 +83,15 @@ def population(view: View, sel: Selection, loaded: Corpus, since_default: bool =
     compacted = ["      %s unpriced: %s started a window, %s ended their file"
                  % (count(sum(marks.values()), "compaction"), num(marks["started"]), num(marks["ended"]))
                  ] if marks else []
-    return ["read: %s %s under %s" % (count(len(loaded.files), "file"), since, tables.tilde(loaded.root)),
-            "      %s skipped, %s excluded" % (count(loaded.skipped_lines, "line"),
-                                              count(loaded.duplicate_records, "duplicate record"))
+    plural = schema.PLURAL[carrier]
+    return ["read: %s %s under %s, %s skipped, %s excluded"
+            % (count(len(loaded.files), "file"), since, tables.tilde(loaded.root),
+               count(loaded.skipped_lines, "line"), count(loaded.duplicate_records, "duplicate record"))
             ] + compacted + [
             "kept%s: %s, %s"
             % (headline.pins(sel.window_where), count(sel.n_windows, tables.marked(_window), _window + "s"
-                                              + schema.MARKER),
-               count(sum(f.kind == carrier for f in sel.window_facts), carrier + " fact"))]
+                                              + glossary.MARKER),
+               count(sum(f.kind == carrier for f in sel.window_facts), plural[:-1], plural))]
 
 
 def _status(holds: bool) -> str:
@@ -105,11 +106,17 @@ def _reconciliation(r: query.Reconciliation) -> List[str]:
         "%s reconciliation over %s: %s = %s; final occupancy %s: %s"
         % (tables.BAD_MARK, count(r.windows, "window"), terms, num(r.booked),
            num(r.final_occupancy), _status(r.mass_holds)),
-        "%s intervals %s (= %s - %s): exact %s + ambiguous %s [%s] + shrink %s: %s"
-        % (tables.BAD_MARK, num(r.intervals), count(r.calls, "call"), count(r.windows, "window"),
+        "%s %s (= %s - %s): exact %s + ambiguous %s [%s] + shrink %s: %s"
+        % (tables.BAD_MARK, gaps(r.intervals), count(r.calls, "call"), count(r.windows, "window"),
            _rate(r, r.exact), _rate(r, r.ambiguous), reasons or "none", _rate(r, r.shrink),
            _status(r.count_holds)),
         "it holds by construction (walk.py), so a mismatch is a bug in this tool"]]
+
+
+def gaps(n: int) -> str:
+    """The reconciliation's unit: one gap between two calls of a window, so
+    a window of N calls has N - 1; a change is one booked part of a gap."""
+    return count(n, "gap between calls", "gaps between calls")
 
 
 def _rate(r: query.Reconciliation, n: int) -> str:
@@ -118,13 +125,14 @@ def _rate(r: query.Reconciliation, n: int) -> str:
 
 def _checks(r: query.Reconciliation, totalled: bool, scope: str = "") -> str:
     """The one line a holding reconciliation prints, a drill and ``--by
-    fact`` included: the intervals split into exact, ambiguous and shrink,
+    fact`` included: the gaps between calls (one fewer than a window's calls; a
+    change is one booked part of a gap) split into exact, ambiguous and shrink,
     each with its rate (R4), and the booked total against the final sizes
     unless a cause table's total row already said it. ``scope`` names the
     whole windows a drill sits in."""
     mass = "" if totalled else "%s booked = the final window sizes; " % num(r.booked)
-    return tables.styled("%s checks%s: %s%s intervals (%s - %s) = exact %s + ambiguous %s + shrink %s"
-                         % (tables.OK_MARK, scope, mass, num(r.intervals), count(r.calls, "call"),
+    return tables.styled("%s checks%s: %s%s (%s - %s) = exact %s + ambiguous %s + shrink %s"
+                         % (tables.OK_MARK, scope, mass, gaps(r.intervals), count(r.calls, "call"),
                             count(r.windows, "window"), _rate(r, r.exact), _rate(r, r.ambiguous),
                             _rate(r, r.shrink)), tables.GOOD)
 

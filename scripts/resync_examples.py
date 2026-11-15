@@ -5,7 +5,7 @@ A marker line ``<!-- example: ARGS -->`` or ``<!-- example: ARGS | PREFIX -->``
 sits right above a fenced block; the block becomes the output of
 ``python3 -m sa ARGS`` (from the first line starting with PREFIX through the
 next blank line, when PREFIX is given). The corpus is
-``tests/fixtures.cli_corpus`` under a throwaway HOME at the default root,
+``tests/fixtures.cli_corpus`` under a fixed throwaway HOME at the default root,
 its projects named as Claude Code encodes a directory under home, so the
 output shows ``~`` as a real run does and holds nothing private.
 
@@ -14,9 +14,9 @@ output shows ``~`` as a real run does and holds nothing private.
 """
 import os
 import re
+import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -24,6 +24,10 @@ sys.path.insert(0, str(REPO / "tests"))
 sys.path.insert(0, str(REPO))
 import fixtures  # noqa: E402
 
+# A fixed throwaway HOME, removed before and after: a window's value hashes
+# its root-relative file, whose project name encodes HOME, so a random temp
+# directory would print a different `window=` on every run.
+HOME = Path("/tmp/sa-resync-examples")
 DOCS = ("README.md", "skills/session-analyzer/SKILL.md")
 MARKER = re.compile(r"^(?P<marker><!-- example: (?P<args>[^|]+?)(?: \| (?P<prefix>.+?))? -->\n)"
                     r"```\n.*?^```\n", re.M | re.S)
@@ -62,8 +66,9 @@ def build(home: Path) -> Path:
 
 def main(argv) -> int:
     check = "--check" in argv
-    with tempfile.TemporaryDirectory() as tmp:
-        home = Path(tmp).resolve()
+    shutil.rmtree(str(HOME), ignore_errors=True)
+    try:
+        home = HOME
         build(home)
         drifted = []
         for name in DOCS:
@@ -74,6 +79,8 @@ def main(argv) -> int:
                 drifted.append(name)
                 if not check:
                     path.write_text(new, encoding="utf-8")
+    finally:
+        shutil.rmtree(str(HOME), ignore_errors=True)
     for name in drifted:
         print("%s %s" % ("drifted:" if check else "resynced:", name))
     return 1 if check and drifted else 0
