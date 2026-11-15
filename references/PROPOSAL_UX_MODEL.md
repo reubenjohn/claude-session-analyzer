@@ -179,3 +179,45 @@ growth            42.0M (65%)  by tool → head: top tool=Bash …, within it he
    unlock the two-line headline. 2. `inherited` (3B), small. 3. Item 4
    closes with 1B. 4. Re-run the probe and pin its figures in docstrings
    by date, as `sa.sweep`'s are.
+
+## Second opinion
+
+Re-run `UX PROBE 2026-11-15T08:08Z` (594 files, 580 windows): every
+figure reproduces up to corpus growth (9 markers, 5/4 split, 8 shrinks
+-764,300, 10 forks, 98.15%, 13/8 shape groups; both `holds` True).
+Verdicts:
+
+- **1B, cut at markers: AGREE on the numbers, PREFER a simpler A+.** No
+  double count, no estimate: every term is a recorded usage. But the same
+  totals come without re-keying windows: at an interval holding a live
+  marker, book two exact increments instead of one shrink, a signed
+  `compaction` row (-occ prev) and a `window_head` (+occ next). Net sum =
+  today's delta, so the reconciliation, R2, D-WINDOW-DIM and
+  `query.reconcile`'s file key stay untouched; gross (total minus signed
+  rows) = 1B's total exactly (net + sum of pre-compaction occupancy,
+  1,054,365). 1B adds only a per-segment `--where window=`; rule on A+
+  first. Either way the gross figure is mass that entered, not an
+  occupancy: never label it a window size (it is not a summed peak, but
+  reads like one), and each compaction head re-counts the system prompt.
+- **Spend line "N compactions unpriced": AGREE.** 0 compact-sourced
+  `api-request` records shows absence, so name the marker count as the
+  population.
+- **2, `trigger`: AGREE, one change.** Exact, constant per window, no
+  spread. But `resume` is a guess: the probe itself labels the case
+  "resume/branch" and `/branch` writes a replayed main file. Name the value
+  by the record (`replayed`), not by an intent no field states.
+- **3B, split the fork head: AGREE.** inherited = the parent call's
+  max-merged occupancy, head - inherited = remainder: an exact subtraction,
+  never re-spread. Caveat: "booked through the branch call == occupancy,
+  10 of 10" holds by telescoping, so it is construction, not evidence;
+  the drill by reference must include the parent's signed rows (or stay
+  in its segment) once compaction lands. The inherited-negative-remainder
+  check (6 of 10) correctly rules out a feed-forward split.
+- **3C rejected: AGREE.** 1.70%, named.
+- **4, no content split: AGREE.** Characters and a varying cache
+  boundary are estimates; the non-negotiable forbids them.
+- **5, two-line headline: AGREE.** Shares stay off signed rows; the
+  `compaction` row (A+) or the 3 residual shrinks (1B) sit in the footer.
+- **6 ruling table: AGREE under 1B; under A+ only P2 (a second signed
+  cause) and the schema rows change.** No measured correction in
+  `sa/usage.py` is touched by any option.
