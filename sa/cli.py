@@ -102,10 +102,10 @@ show one table whole with --by DIM:
   sa context --where tool=Bash                 pin one row
   sa context --where tool=Bash --by command    that row, by command
 
-Flags (sa context --help or sa spend --help for all):
+Flags (all: sa context --help, sa spend --help):
   --since 30d|all       files modified in the last N days (default 7d)
   --where DIM=VALUE     pin one value; repeatable
-  --by DIM|fact         one table with whole labels, or the largest facts
+  --by DIM|fact         one table whole; fact: individual changes, one per row
   --limit N             rows per table (default %(limit)d; causes print whole)
   --root DIR            transcript root (default ~/.claude/projects)
 
@@ -133,17 +133,18 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
         sub = views.add_parser(name, help=QUESTIONS[name], description=QUESTIONS[name] + ".",
                                epilog=_dimensions_help(), formatter_class=raw)
         sub.add_argument("--root", type=_directory, default=str(corpus.default_root()),
-                         help="corpus root, an existing directory (default: ~/.claude/projects)")
+                         help="transcript root (default: ~/.claude/projects)")
         sub.add_argument("--since", type=_days, metavar="Nd|all",
-                         help="select files modified within the last N days, before dedup"
-                              " (default: 7d; all: every file)")
+                         help="files modified in the last N days, before dedup (default 7d;"
+                              " all: any age)")
         sub.add_argument("--where", action="append", default=[], type=_pair,
-                         metavar="DIM=VALUE", help="pin that value; repeatable")
+                         metavar="DIM=VALUE", help="pin a value; repeatable")
         sub.add_argument("--by", type=_by, metavar="DIM|" + render.FACT,
-                         help="one dimension's table, or '%s' for leaf facts" % render.FACT)
+                         help="a dimension's table, or '%s': individual %s, one per row,"
+                              " with locators" % (render.FACT, schema.PLURAL[schema.metric(view.metric).carrier]))
         sub.add_argument("--limit", type=_rows, default=DEFAULT_LIMIT,
-                         help="rows per table, at least 1 (default %d); the cause table, the"
-                              " ∅ and signed rows always print" % DEFAULT_LIMIT)
+                         help="rows per table (default %d); the cause table, ∅ and"
+                              " rows that can be negative (shrink) always show" % DEFAULT_LIMIT)
     explain = views.add_parser("explain", help="what a term in the output means",
                                description="What a term in the output means, and why its"
                                            " number might surprise you.")
