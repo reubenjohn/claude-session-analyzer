@@ -189,7 +189,12 @@ def tags(dims: dict) -> str:
 def _label(row: query.Row, whole: bool) -> str:
     label = RESIDUAL_LABEL if row.kind == query.RESIDUAL else (
         home(row.value) + (" (signed)" if row.kind == query.SIGNED else ""))
-    return label if whole or len(label) <= LABEL_WIDTH else "…" + label[1 - LABEL_WIDTH:]
+    return label if whole else cut(label)
+
+
+def cut(label: str) -> str:
+    """A default table's label: one over ``LABEL_WIDTH`` keeps its tail."""
+    return label if len(label) <= LABEL_WIDTH else "…" + label[1 - LABEL_WIDTH:]
 
 
 def table(grouped: query.Table, metric: str, limit: int, whole: bool,
@@ -230,6 +235,13 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
             num(sum(r.count for r in grouped.rows)), total), BOLD))
     return lines
 
+
+def relabelled(grouped: query.Table, labels: Dict[str, str], dim: str) -> str:
+    """The one line a table that repeats ``grouped`` row for row prints in
+    its place, under it: its labels for the regular rows, in their order,
+    each cut as a default table's."""
+    return "by %s: the rows above, labelled %s" % (
+        dim, ", ".join(cut(home(labels[r.value])) for r in grouped.rows if r.kind == query.REGULAR))
 
 
 def leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:

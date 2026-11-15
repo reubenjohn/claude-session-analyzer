@@ -40,10 +40,14 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
         body = leaves(sel.facts, view.metric, limit) + [""]
     else:
         dims = [by] if by else headline.open_dims(sel, view.tables, spec.carrier)
-        body = []
+        body, above = [], None
         for dim in dims:
             grouped = query.group(sel.facts, dim, view.metric)
-            if grouped.rows:
+            labels = above and query.relabels(sel.facts, above.dim, dim, view.metric)
+            if labels and len(labels) <= limit:  # the table would repeat the one above
+                body.insert(-1, tables.relabelled(above, labels, dim))
+            elif grouped.rows:
+                above = grouped
                 total = _total(view, sel) if dim == schema.CAUSE_DIM else None
                 totalled = totalled or total is not None
                 body += table(grouped, view.metric, limit, whole=bool(by), total=total) + [""]

@@ -151,7 +151,9 @@ def test_an_asked_for_table_prints_its_labels_whole_so_they_copy_into_where(tmp_
     ``--where`` selects."""
     project = "-home-me-workspace-" + "x" * 40
     assert len(project) > tables.LABEL_WIDTH  # vacuity guard
-    root = fx.corpus(tmp_path, {project + "/sess-0001.jsonl": fx.window_records()})
+    root = fx.corpus(tmp_path, {project + "/sess-0001.jsonl": fx.window_records(),  # two sessions:
+                                project + "/sess-0002.jsonl":  # the project table is no relabel
+                                fx.window_records("b-", session="sess-0002")})
     cut = "…" + project[1 - tables.LABEL_WIDTH:]
     for by, label in (([], cut), (["--by", schema.PROJECT_DIM], project)):
         code, out, err = fx.run_cli("context", "--root", str(root), *by)
@@ -161,7 +163,7 @@ def test_an_asked_for_table_prints_its_labels_whole_so_they_copy_into_where(tmp_
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (schema.PROJECT_DIM, project))
     assert code == 0, err
-    assert "\nkept where %s=%s: 1 window°, " % (schema.PROJECT_DIM, project) in out
+    assert "\nkept where %s=%s: 2 windows°, " % (schema.PROJECT_DIM, project) in out
 
 
 def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):

@@ -145,6 +145,20 @@ def group(facts: List[Fact], dim: str, metric: str) -> Table:
     return Table(dim, rows, total(facts, metric) - sum(mass[k] for k in other), tuple(residual))
 
 
+def relabels(facts: List[Fact], a: str, b: str, metric: str) -> Optional[Dict[str, str]]:
+    """``b``'s value for each of ``a``'s when the two split the carrier
+    facts into the same groups (shrink aside: its own row in both; the
+    residual only into the residual), so ``b``'s table would repeat ``a``'s
+    row for row under other labels; None when they split them otherwise."""
+    carrier = schema.metric(metric).carrier
+    pairs = {(f.dims.get(a), f.dims.get(b)) for f in facts
+             if f.kind == carrier and f.dims.get(schema.CAUSE_DIM) != schema.SHRINK}
+    if (len({x for x, _ in pairs}) != len(pairs) or len({y for _, y in pairs}) != len(pairs)
+            or any((x is None) != (y is None) for x, y in pairs)):
+        return None
+    return {x: y for x, y in pairs if x is not None}
+
+
 def largest(facts: Iterable[Fact], metric: str) -> Optional[Fact]:
     """The fact carrying the largest value of ``metric``: the only honest
     report of a peak is the single call where it happened."""
