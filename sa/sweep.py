@@ -8,9 +8,10 @@ text, no ids, no paths.
 """
 import datetime
 from bisect import bisect_left, bisect_right
+from collections import Counter
 from typing import Dict, List, Tuple
 
-from . import query, schema, usage, walk
+from . import query, schema, usage, walk, windows
 from .corpus import Corpus, Record, default_root, load, message_id
 from .schema import Fact
 
@@ -99,11 +100,52 @@ def cross_file_parents(loaded: Corpus) -> Tuple[int, int]:
     return crossing, linked
 
 
+def cut(loaded: Corpus) -> Dict[str, List[windows.Window]]:
+    """Every file's windows, as ``walk.forest`` cuts them."""
+    return {source.name: windows.cut(source, loaded.usages) for source in loaded.files}
+
+
+def starts(cuts: Dict[str, List[windows.Window]]) -> Tuple[int, ...]:
+    """Windows by what began them, in ``schema.STARTS`` order."""
+    found = Counter(w.start for found in cuts.values() for w in found)
+    return tuple(found[start] for start in schema.STARTS)
+
+
+def compacting(loaded: Corpus) -> Tuple[int, int, int, int]:
+    """Compaction markers that end their file (starting no window), all
+    live markers, and the api-request records whose querySource is a
+    compaction's (the summarising call), of all api-request records."""
+    marks = windows.compactions(loaded)
+    requests = [r for s in loaded.files for r in s.records if r.data.get("type") == "api-request"]
+    summarising = sum("compact" in str(r.data.get("querySource")) for r in requests)
+    return marks["ended"], sum(marks.values()), summarising, len(requests)
+
+
+def continuations(loaded: Corpus) -> Tuple[int, int]:
+    """Files holding a replayed record after a live one (a copy that is not
+    a prefix: a window that would span files), and all files."""
+    def continues(source) -> bool:
+        flags = [r.duplicate for r in source.records if r.data.get("uuid") or message_id(r.data)]
+        return False in flags and any(flags[flags.index(False):])
+    return sum(continues(s) for s in loaded.files), len(loaded.files)
+
+
+def fork_heads(loaded: Corpus, cuts: Dict[str, List[windows.Window]]) -> Tuple[int, str, str]:
+    """Windows that inherit (a fork or replay whose parent call was read),
+    and the least and greatest ratio of their first call's occupancy to
+    the inherited occupancy."""
+    found = windows.inherits(loaded, cuts)
+    ratios = [usage.usage_context(cuts[name][0].calls[0].usage) / inherit.mass
+              for name, inherit in found.items() if inherit.mass]
+    return len(found), "%.3f" % min(ratios or [0]), "%.3f" % max(ratios or [0])
+
+
 def report(loaded: Corpus) -> List[str]:
     """Every count as one line, each beside the population it was taken over."""
     facts = walk.forest(loaded)
     rec = query.reconcile(facts)
     (multi, multi_mass), (tool, tool_mass), (head, head_mass) = shared(facts)
+    cuts = cut(loaded)
     lines = [
         ("%s files, %s windows, %s calls, %s intervals",
          (len(loaded.files), rec.windows, rec.calls, rec.intervals)),
@@ -117,8 +159,15 @@ def report(loaded: Corpus) -> List[str]:
         ("first-record vs live-record window-key disagreements: %s of %s files with a live record",
          key_disagreements(loaded)),
         ("parentUuid links naming a uuid in another file: %s of %s", cross_file_parents(loaded)),
+        ("windows by start: " + ", ".join("%s %%s" % s for s in schema.STARTS), starts(cuts)),
+        ("compaction markers ending their file: %s of %s; compaction api-requests: %s of %s",
+         compacting(loaded)),
+        ("files replaying another after a live record: %s of %s", continuations(loaded)),
+        ("inheriting windows: %s; first call / inherited occupancy: min %s, max %s",
+         fork_heads(loaded, cuts)),
     ]
-    return [text % tuple(format(int(round(c)), ",d") for c in counts) for text, counts in lines]
+    return [text % tuple(c if isinstance(c, str) else format(int(round(c)), ",d") for c in counts)
+            for text, counts in lines]
 
 
 if __name__ == "__main__":

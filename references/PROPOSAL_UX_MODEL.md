@@ -7,6 +7,7 @@ here is built. Every figure is one run of `python3 -m sa.probe_ux`
 with a call), 23,556 calls, 22,979 intervals. A snapshot, not reproducible
 elsewhere; the small populations (9 markers, 10 forks) are named beside
 each figure and should be re-measured before any figure is quoted in code.
+The probe was folded into `python3 -m sa.sweep`, which measures with the engine.
 
 ## 1. Compaction (items 4, 5)
 

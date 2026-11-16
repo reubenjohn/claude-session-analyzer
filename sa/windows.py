@@ -5,10 +5,10 @@ compaction marker and fills until its file ends or the next compaction.
 It is cut AFTER forest dedup, from each file's live records, and never by
 marking a record duplicate, so ``Corpus.duplicate_records`` is the same
 cut or uncut. A marker cuts only when a call follows it in its file: a
-marker that ends its file starts none (live sweep 2026-11-15, ``python3 -m
-sa.probe_window_model``: 4 of 9). No window spans files (same run: 0 of
-605 files continue another), so a file holds one or more windows and stays
-the unit of reading, dedup and locators.
+marker that ends its file starts none (``python3 -m sa.sweep``, LOCAL
+SWEEP 2026-11-16T00:53Z: 4 of 9). No window spans files (same run: 0 of
+618 files replay another after a live record), so a file holds one or
+more windows and stays the unit of reading, dedup and locators.
 
 Identity is ``schema.WindowKey`` (file, line of the start record: the
 file's first record, or the marker), independent of dedup and
@@ -18,8 +18,8 @@ a run of calls; ``walk`` books each window's increments.
 A fork or replayed window copied its parent's context: ``inherits`` finds,
 per file, the parent's branch call (the ``fork-context-ref``'s
 ``parentLastUuid``, else the last replayed record before the first live
-call) and its occupancy (D-FORK-INHERITED; same run: the fork's head is
-1.006 to 1.034 times it, 10 of 10). Nothing is re-minted: the inherited
+call) and its occupancy (D-FORK-INHERITED; same run: the first call of
+each of 10 inheriting windows is 1.006 to 1.034 times it). Nothing is re-minted: the inherited
 breakdown is the parent window's facts up to that call (``query.through``).
 """
 from collections import Counter
@@ -131,7 +131,7 @@ def cut(source: SourceFile, usages: Usages) -> List[Window]:
 def compactions(loaded: Corpus) -> Counter:
     """Live markers by outcome: ``started`` a window (a call follows) or
     ``ended`` their file. Every one is unpriced: the summarising call is
-    absent (same run: 0 of 23,662 api-request records)."""
+    absent (same run: 0 of 24,261 api-request records)."""
     out = Counter()
     for source in loaded.files:
         found = calls(source.live, loaded.usages)

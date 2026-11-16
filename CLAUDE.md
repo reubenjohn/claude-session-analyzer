@@ -91,8 +91,8 @@ confident in-place "improvement" that deletes a measured correction.
   tool_result block; counting 2.1.28x bookkeeping attachments drops the
   exact rate from 84% to <1%; their text folds into the remainder.
 - Local figures (batched results, call spans, shared-tool ambiguity,
-  re-mints, parentUuid links never cross files, windows, forks): dated
-  snapshots by `python3 -m sa.sweep`, `sa.probe_window_model`.
+  re-mints, parentUuid links never cross files, windows, compactions,
+  forks): a dated snapshot by `python3 -m sa.sweep`.
 
 ## Clean-room boundary — binds every session and subagent
 

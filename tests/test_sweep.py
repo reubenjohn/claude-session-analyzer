@@ -14,7 +14,7 @@ def test_counts_over_the_cli_corpus(tmp_path):
     assert sweep.key_disagreements(loaded) == (0, 4)
     assert sweep.cross_file_parents(loaded) == (0, 0)
     lines = sweep.report(loaded)
-    assert lines[0] == "4 files, 3 windows, 21 calls, 18 intervals" and len(lines) == 7
+    assert lines[0] == "4 files, 3 windows, 21 calls, 18 intervals" and len(lines) == 11
 
 
 def test_each_zero_count_is_non_zero_on_the_corpus_built_for_it(tmp_path):
@@ -35,3 +35,25 @@ def test_each_zero_count_is_non_zero_on_the_corpus_built_for_it(tmp_path):
     linked = [dict(r, parentUuid=p) for r, p in zip(fx.window_records(), parents)]
     loaded, _ = fx.load_facts(fx.corpus(tmp_path / "linked", {"proj-a/sess-0001.jsonl": linked}))
     assert sweep.cross_file_parents(loaded) == (1, 14)
+
+
+def test_window_counts_over_the_window_corpus(tmp_path):
+    loaded, _ = fx.load_facts(fx.window_corpus(tmp_path))
+    cuts = sweep.cut(loaded)
+    assert dict(zip(schema.STARTS, sweep.starts(cuts))) == {
+        start: list(fx.W_STARTS.values()).count(start) for start in schema.STARTS}
+    assert sweep.compacting(loaded) == (1, 2, 0, 0)  # E's marker ends its file
+    assert sweep.continuations(loaded) == (0, 5)
+    assert sweep.fork_heads(loaded, cuts) == (2, "%.3f" % (1400 / 1300), "%.3f" % (1650 / 1500))
+
+
+def test_the_zero_window_counts_are_non_zero_on_a_corpus_built_for_them(tmp_path):
+    """A file that replays its parent after a live record of its own, and a
+    compaction's api-request record."""
+    parent = fx.stamped(fx.window_records(), 0)
+    own = fx.stamped([fx.assistant("c-uuid-0001", "c-msg-0001", fx.usage(500, 0))], 30)
+    request = {"type": "api-request", "querySource": "compact"}
+    loaded, _ = fx.load_facts(fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": parent,
+                                                   "proj-a/sess-0002.jsonl": own + parent[:1] + [request]}))
+    assert sweep.continuations(loaded) == (1, 2)
+    assert sweep.compacting(loaded)[2:] == (1, 1)

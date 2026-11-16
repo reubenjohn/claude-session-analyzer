@@ -53,7 +53,7 @@ once, `--limit 5`, the cause table whole). Cold-reader check passed twice
   scope, while the cause table splits them.
 - `subagent` is both a dimension and a `started_by` value.
 - No CLI filter shows a parent's breakdown up to a branch call except a
-  pinned fork; `sa/probe_window_model.py` still measures the file-keyed model.
+  pinned fork.
 - Fixture corpus is thin (one head at 100%); fixture output now sits well
   under D-OUTPUT-CAP (lowering it is an owner ruling).
 - Size headroom: SKILL.md 6,000/6,000, CLAUDE.md ~6,970/7,000,
