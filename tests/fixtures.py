@@ -51,7 +51,9 @@ def printed(metric):
 
 
 def total_line(metric):
-    """The prefix of the headline's total line."""
+    """The prefix of the headline's total line: a per-call metric's is the average's."""
+    if schema.metric(metric).aggregation == schema.PER_CALL:
+        return AVERAGE
     return "%s: " % glossary.marked(metric)
 
 
@@ -207,6 +209,7 @@ def average(out):
 
 
 AVERAGE = glossary.marked(glossary.AVERAGE).replace("_", " ") + " "
+LEAF = re.compile(r"\s+(-?[\d,]+\s+){1,2}\S+:\d+\s")  # a --by fact line: its figures, then its locator
 
 
 def key(out):

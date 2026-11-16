@@ -8,7 +8,8 @@ from . import checks, glossary, headline, query, schema, style, tables, windows
 from .corpus import Corpus
 from .query import Selection
 from .schema import Fact
-from .tables import count, leaves, num, table
+from .leaves import leaves
+from .tables import count, num, table
 
 FACT = "fact"  # the ``--by`` that prints the leaves, not a table
 KEPT = "in view"  # the population line: the windows the time filter and pins kept
@@ -35,17 +36,16 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
     tables a pin left open (``--by`` one dimension's table with its labels
     whole, or the leaves for ``fact``), one key for every note they call
     for, and the checks. The cause table of a whole-window view closes with
-    its total against the windows' final sizes."""
+    its total, the average, against the calls' mean size."""
     spec = schema.metric(view.metric)
     notes = {glossary.printed(view.metric): n for n in view.notes}  # a view's own clause for a term
-    totalled = False  # whether a cause table printed its total row
     if by == FACT:
-        body = leaves(sel.facts, view.metric, limit) + [""]
+        body = leaves(sel.facts, view.metric, limit, sel.calls) + [""]
     else:
         dims = [by] if by else headline.open_dims(sel, view.tables, spec.carrier)
         body, above, repeats = [], None, []
         for dim in dims:
-            grouped = query.group(sel.facts, dim, view.metric)
+            grouped = query.group(sel.facts, dim, view.metric, sel.calls)
             if dim in schema.ORDERED:  # bands read fullest first, not by mass
                 order = schema.ORDERED[dim]
                 grouped = grouped._replace(rows=sorted(grouped.rows, key=lambda r: (
@@ -61,7 +61,6 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
             elif grouped.rows:
                 above, repeats = grouped, []
                 total = _total(view, sel) if dim == schema.CAUSE_DIM else None
-                totalled = totalled or total is not None
                 counts = window_counts(sel, dim)
                 body += table(grouped, view.metric, limit, whole=bool(by), total=total, names=names,
                               counts=counts) + ([WHOLE_WINDOWS] if counts and sel.drill else []) + [""]
@@ -69,7 +68,7 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
              for line in population(view, sel, loaded, since_default, forest)]
     above = (scope + [""] + headline.headline(view, sel, forest, names) + next_step(view, sel, by, names)
              + [""] + body)
-    lines, terms = tables.footnote(above + checks.footer(view, sel, totalled))
+    lines, terms = tables.footnote(above + checks.footer(view, sel))
     keyed = tables.key([(t, notes.get(t) or glossary.brief(glossary.key_of(t))) for t in terms])
     return lines[:len(above)] + keyed + ([""] if keyed else []) + lines[len(above):]
 
@@ -91,22 +90,25 @@ def subagent_names(loaded_types: Dict[str, str], facts: Iterable[Fact]) -> Dict[
 def window_counts(sel: Selection, dim: str) -> Optional[tables.Counts]:
     """A ``peak`` table's count columns: per band, the windows the view's
     facts come from and the calls they hold (a window has one band, so
-    each adds up); None for any other table, which counts its carrier."""
+    each adds up), then those calls' own average size (``tables.AVG_CALL``,
+    a mean: never summed); None for any other table, which counts its
+    carrier."""
     if dim != schema.PEAK_DIM:
         return None
     shown = {f.window for f in sel.facts}
-    per: Dict[str, Tuple[set, int]] = {}
+    per: Dict[str, Tuple[set, List[Fact]]] = {}
     for f in sel.window_facts:
         if f.window in shown:
-            keys, calls = per.get(f.dims[dim], (set(), 0))
+            keys, calls = per.setdefault(f.dims[dim], (set(), []))
             keys.add(f.window)
-            per[f.dims[dim]] = (keys, calls + (f.kind == schema.CALL))
+            calls += [f] if f.kind == schema.CALL else []
     return [("windows", {v: len(k) for v, (k, _) in per.items()}),
-            (schema.PLURAL[schema.CALL], {v: n for v, (_, n) in per.items()})]
+            (schema.PLURAL[schema.CALL], {v: len(c) for v, (_, c) in per.items()}),
+            (tables.AVG_CALL, {v: query.mean(c, schema.CONTEXT_TOKENS)[0] for v, (_, c) in per.items()})]
 
 
 # Under a drill, a band's counts are still of whole windows: those with a change the pins kept.
-WHOLE_WINDOWS = "windows, calls: whole windows with a matching change, and all their calls"
+WHOLE_WINDOWS = "windows, calls, avg call: whole windows with a matching change, and all their calls"
 NEXT = "→ next: add "
 
 
@@ -126,7 +128,8 @@ def next_step(view: View, sel: Selection, by: Optional[str],
         top = next(v for v in schema.ORDERED[dim] if v in present)  # the fullest band
         return [style.tag("%s--where %s=%s" % (NEXT, dim, top), style.HINT)]
     for dim in headline.open_dims(sel, view.levers, carrier):
-        top = next((r for r in query.group(sel.facts, dim, view.metric).rows if r.kind == query.REGULAR), None)
+        top = next((r for r in query.group(sel.facts, dim, view.metric, sel.calls).rows
+                    if r.kind == query.REGULAR), None)
         if top is not None:
             pin = "%s=%s" % (dim, tables.value(dim, top.value, names))
             text = "%s--where %s" % (NEXT, "'%s'" % pin if " " in pin else pin)
@@ -140,18 +143,19 @@ def tools(view: View, sel: Selection) -> List[str]:
     tool."""
     if schema.TOOL_DIM not in schema.KIND_DIMENSIONS[schema.metric(view.metric).carrier]:
         return []
-    return [r.value for r in query.group(sel.facts, schema.TOOL_DIM, view.metric).rows
+    return [r.value for r in query.group(sel.facts, schema.TOOL_DIM, view.metric, sel.calls).rows
             if r.kind == query.REGULAR]
 
 
 def _total(view: View, sel: Selection) -> Optional[str]:
-    """The cause table's closing text: the booked total against the final
-    sizes, for a whole-window view that reconciles; no drill has one."""
+    """The cause table's closing text: its rows, the average, against the
+    calls' mean size (the held identity, per window), for a whole-window
+    view that reconciles; no drill has one."""
     if not view.reconciles or sel.drill:
         return None
-    if sel.reconciliation.mass_holds:
-        return "%s = final window sizes%s" % (tables.OK_MARK, headline.less(sel))
-    return "%s does not match the final window sizes (below)" % tables.BAD_MARK
+    if sel.reconciliation.held_holds:
+        return "%s = mean call size" % tables.OK_MARK
+    return "%s does not match the mean call size (below)" % tables.BAD_MARK
 
 
 # Why a fork in view inherited nothing (``query.orphan_forks``), and what follows; singular, plural.

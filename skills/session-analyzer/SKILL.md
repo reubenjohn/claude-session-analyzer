@@ -5,10 +5,9 @@ description: Measures whether context is hurting a Claude Code model (context ro
 
 # session-analyzer
 
-Two questions, two commands, from the JSONL transcripts under
-`~/.claude/projects`: were inference free, is context hurting the model
-(every call reasons over its whole window), what fills it, how to fix
-it; and what did it cost.
+Two questions from the JSONL transcripts under `~/.claude/projects`:
+is context hurting the model (every call reasons over its whole
+window), what fills it, how to fix it; and what did it cost.
 
 ```bash
 cd "${CLAUDE_PLUGIN_ROOT}" && python3 -m sa context   # is context a problem, what fills it
@@ -20,7 +19,7 @@ Pin, then drill:
 | Flag | Meaning |
 |---|---|
 | `--since 30d` | files modified in the last N days (default 7d; `all`: every file) |
-| `--where project=` / `session=` / `subagent=` / `window=` / `started_by=` / `peak=` | project as printed (`~-work-app`), sessionId, subagent as printed or its id, a window's hex (`--by window`), what began it, or the band of its largest call (`0-50K`, `50-100K`, `100-200K`, `200K+`); keeps whole windows |
+| `--where project=` / `session=` / `subagent=` / `window=` / `started_by=` / `peak=` | as printed (a subagent: or its id; a window: its hex, `--by window`; peak: `0-50K` .. `200K+`, the band of its largest call); keeps whole windows |
 | `--where DIM=VALUE` | a pin, repeatable, exact; also cause, tool, command, reason (a drill) |
 | `--by DIM` | one dimension's table |
 | `--by fact` | one change (spend: call) per row: `<metric>  file:line  uuid  dims`, evidence under |
@@ -28,32 +27,33 @@ Pin, then drill:
 
 ## What each command answers
 
-**`context`** books every change of a window's context (a *change*;
-the metric prints as `context tokens`) with one `cause`:
+**`context`** books every change of a window's context (a *change*)
+with one `cause`, and prints it per call (`avg per call`): its tokens
+times the calls that held it, over the calls in view, so a table's rows
+add up to the average context per call. Causes:
 `starting_context` (what a window held at its first call; a fork's
 copy is `inherited` apart), `replies` (Claude's replies, tool-call inputs included),
 `tool_result`, `user_text`, `ambiguous` (no one contributor; `reason`:
 `several`, `less_than_reply`, `unexplained`) and `shrink` (a window that
 got smaller, signed). Default tables: cause, tool, command, subagent,
-peak (with windows and calls), session, project.
+peak (with windows, calls, each band's avg call), session, project.
 
 **`spend`** sums each call's price-weighted input tokens: uncached
 input, cache writes (1h 2.0x, 5m 1.25x), cache reads 0.1x; output
 apart. Default tables: project, session, subagent (`unassigned`: the
 main windows). Context shares are not cost shares.
 
-Whatever `--by` shows, the `context` headline states one total, then a
-block (shares of the mass added, shrink out): the starting context as a
-sum by `started_by` (what was there at window start, never a window
-size), then `growth`: the top tool `→` its largest command, then a
-larger `top command`. `spend` names the largest subagent. A
-`--where` pin omits the default tables and levers it implies (a command
-its tool, a window its subagent, session, project). A drill's headline
-names its pins and the windows hit (`… in 1 of 2 windows`); then
-`average context per call* N tokens, over C calls in W windows`: what a
-call held, over the whole windows in view, never summed. A fork whose
-parent (or branch call) is missing counts its copy as its own; the scope
-says how many, and why.
+Whatever `--by` shows, the `context` headline opens with `average
+context per call* N tokens, over C calls in W windows` (what a call
+held; never summed, never "added per call"), then a block in the same
+unit (shares of the average before shrink): the starting context by
+`started_by`, then `growth`: the top tool `→` its largest command, then
+a larger `top command`. `spend` names the largest subagent. A `--where`
+pin omits the default tables and levers it implies (a command its tool,
+a window its subagent, session, project). A drill keeps the calls of the
+windows in view and names its changes (`, from 3 changes where
+tool=Bash in 2 of them`). A fork missing its parent (or
+branch call) counts its copy as its own; the scope says so.
 
 ## The path: is it a problem -> what -> where -> what to fix
 
@@ -64,15 +64,14 @@ python3 -m sa context --where peak=200K+ --by session    # where
 python3 -m sa context --where peak=200K+ --where command=Bash:cat --by fact  # file:line
 ```
 
-`--by fact` prints the heaviest leaves, e.g.
-`81,989  <project>/<session-id>.jsonl:76  <uuid>  project=… cause=ambiguous reason=several`,
+`--by fact` prints the heaviest leaves, its part of the average then its
+raw tokens, e.g. `1,204  81,989  <project>/<id>.jsonl:76  <uuid>  … cause=ambiguous`,
 an ambiguous one's `candidates:` under it, one `<file>:<line> <uuid>  dims`
 each; it carries a tool only when all candidates share it. A `command` is a Bash
 call's first command word as a basename (`Bash:pytest`),
 or a file tool's extension (`Read:py`); never a path.
-Exit 2, naming what is declared or present: `spend --where cause=...`
-(calls carry only window dims), `cause=bogus` (undeclared),
-`tool=bash` (no change carries it).
+Exit 2 names what is declared or present (`cause=bogus`, `tool=bash`,
+`spend --where cause=`: calls carry only window dims).
 
 ## Reading the output
 
@@ -81,26 +80,24 @@ The scope is
 corpus-wide) and `in view where <window pins>:` (windows, `changes` or
 `calls`); a compaction a call follows starts a window (`N compactions
 unpriced`). Quote both with a figure. Table columns: the metric
-(`context tokens`, `spend`), its count (`changes`, `calls`) and `share
+(`avg per call`, `spend`), its count (`changes`, `calls`) and `share
 of <base>`, naming its base. Tables end with `unassigned*` (facts
 lacking the grouped dimension) and any `(signed)` rows; neither has a
 share. A default table cuts a label over 40 chars to `…tail`; `--by`
 prints it whole. A `*` term is explained in one clause below the tables,
 in full by `python3 -m sa explain TERM`.
 
-Unnarrowed, the `context` cause table ends with `= total N  ✓ = final
-window sizes`, and the last line is this run's attribution
-quality over the gaps between calls (calls minus windows), each split
-into one or more changes:
+Unnarrowed, the `context` cause table ends with `= average N  ✓ = mean
+call size`; the last line checks the per-call and summed identities and
+gives this run's attribution quality over the gaps between calls:
 
 <!-- example: context | ✓ checks -->
 ```
-✓ checks: 254,860 added - 300 shrink = 254,560; 18 gaps between calls (21 calls - 3 windows): 6 to one source (33.3%), 9 ambiguous (50.0%), 3 shrank (16.7%)
+✓ checks: 1,778,890 held by calls (each change x the calls that held it) = the calls' sizes summed; 254,860 added - 300 shrink = 254,560 = the final window sizes; 18 gaps between calls (21 calls - 3 windows): 6 to one source (33.3% of gaps), 9 ambiguous (50.0% of gaps), 3 shrank (16.7% of gaps)
 ```
 
 A failure prints `MISMATCH` in full, a bug in this tool, exit 1. A
-drill's checks line names the whole windows it applies to. `inherited (counted in parent)`
-follows when a kept parent window already counts a fork's copy.
+drill's checks line names the whole windows it applies to.
 
 ## Refusals
 

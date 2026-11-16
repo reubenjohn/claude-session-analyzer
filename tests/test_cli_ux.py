@@ -85,12 +85,16 @@ def test_the_key_prints_each_note_once_and_names_the_command_for_its_first_term(
 
 
 def test_the_share_column_names_its_base(tmp_path):
-    """The total when every row has a value; the tokens added when shrink is
-    taken out; those with a value when the residual row is too."""
+    """The total (per call, the average) when every row has a value; per
+    call, the average before shrink when shrink is taken out; those with a
+    value when the residual row is too."""
     root = fx.cli_corpus(tmp_path)
     out = fx.run_cli("context", "--root", str(root), "--where", "%s=proj-a" % schema.PROJECT_DIM,
                      "--by", schema.SESSION_DIM)[1]
-    assert re.search(r"^by %s\s.*share of [\d,]+ added$" % schema.SESSION_DIM, out, re.M)
+    assert re.search(r"^by %s\s.*share of [\d,]+ before shrink$" % schema.SESSION_DIM, out, re.M)
+    out = fx.run_cli("context", "--root", str(root), "--where", "%s=Bash" % schema.TOOL_DIM,
+                     "--by", schema.SESSION_DIM)[1]
+    assert re.search(r"^by %s\s.*share of average$" % schema.SESSION_DIM, out, re.M)
     out = fx.run_cli("spend", "--root", str(root), "--by", schema.SESSION_DIM)[1]
     assert re.search(r"^by %s\s.*share of total$" % schema.SESSION_DIM, out, re.M)
     out = fx.run_cli("spend", "--root", str(root), "--by", schema.SUBAGENT_DIM)[1]
@@ -167,7 +171,7 @@ def test_an_encoded_home_prints_as_a_tilde_and_selects_as_printed(tmp_path, monk
     assert encoded in "".join(p.name for p in root.iterdir())  # vacuity guard: the name is encoded
     assert encoded not in out and re.search(r"^~-work\s", out, re.M)
     leaves = fx.run_cli("context", "--root", str(root), "--by", "fact", "--limit", "1")[1]
-    assert re.search(r"^\s+[\d,]+  ~-work/sess-0001\.jsonl:\d+ ", leaves, re.M)
+    assert re.search(r"^\s+[\d,]+\s+[\d,]+  ~-work/sess-0001\.jsonl:\d+ ", leaves, re.M)
     assert cli.main(["context", "--root", str(root), "--where", "%s=~-work" % schema.PROJECT_DIM]) == 0
     assert "\nin view where %s=~-work: " % schema.PROJECT_DIM in capsys.readouterr().out
     # A refusal names the values present with home as ~ too.

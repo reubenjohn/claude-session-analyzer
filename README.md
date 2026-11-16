@@ -26,21 +26,20 @@ python3 -m sa context --where peak=200K+ --by session       # which sessions
 python3 -m sa context --where peak=200K+ --where command=Bash:cat --by fact  # file:line
 ```
 
-<!-- example: context | context tokens -->
+<!-- example: context | average context per call -->
 ```
-context tokens: 254,560 across 3 windows
-  starting context*  253,000  99.3%  = session starts 252,000 + forks 1,000
-  growth               1,860   0.7%  from Bash 750 → Bash:pytest 750
 average context per call* 84,709 tokens, over 21 calls in 3 windows
+  starting context*  84,333  99.5%  = session starts 84,000 + forks 333
+  growth                433   0.5%  from Bash 214 → Bash:pytest 214
 → next: add --where peak=200K+
 ```
 
 <!-- example: context | by peak -->
 ```
-by peak          context tokens  windows  calls  share of 254,860 added
-200K+                   251,620        1      7   98.7%
-0-50K                     3,240        2     14    1.3%
-shrink (signed)            -300        -      -       -
+by peak          avg per call  windows  calls  avg call  share of 84,766 before shrink
+200K+                  83,811        1      7   251,376   98.9%
+0-50K                     955        2     14     1,376    1.1%
+shrink (signed)           -57        -      -         -       -
 by session, project: the rows above, labelled sess-0002 / ~-work-lib, sess-0001 / ~-work-app
 ```
 

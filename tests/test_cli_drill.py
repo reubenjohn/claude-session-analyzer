@@ -17,11 +17,12 @@ def test_shrink_is_selectable_and_its_leaves_are_listed(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root), "--where",
                                 "%s=%s" % (CAUSE, schema.SHRINK), "--by", "fact")
     assert code == 0, err
-    leaves = [l for l in out.splitlines() if re.match(r"\s+-?[\d,]+\s+\S+:\d+\s", l)]
+    leaves = [l for l in out.splitlines() if fx.LEAF.match(l)]
     assert len(leaves) == 3 and all("%s=%s" % (CAUSE, schema.SHRINK) in l for l in leaves)
-    assert all(l.split()[0] == "-100" for l in leaves)
-    assert fx.headline(out).startswith("%s-300 over 3 changes where %s=%s in 3 windows" % (
-        fx.total_line(CONTEXT.metric), CAUSE, schema.SHRINK))
+    assert all(l.split()[1] == "-100" for l in leaves)  # its raw tokens, beside its part per call
+    assert all(l.split()[0].startswith("-") for l in leaves)
+    assert fx.headline(out).startswith("%s-57 %s, over 21 calls in 3 windows, from 3 changes where %s=%s in 3" % (
+        fx.total_line(CONTEXT.metric), fx.unit(CONTEXT.metric), CAUSE, schema.SHRINK))
 
 
 def test_a_drill_prints_a_table_that_has_only_a_residual_row(tmp_path):
@@ -30,7 +31,7 @@ def test_a_drill_prints_a_table_that_has_only_a_residual_row(tmp_path):
                           "%s=%s" % (CAUSE, schema.STARTING_CONTEXT), "--by", TOOL)
     assert code == 0, err
     assert re.search(r"^by %s\s" % TOOL, out, re.M)
-    assert re.search(r"^%s\s+%s\s+3\s+-  no tool: %s$" % (re.escape(tables.RESIDUAL_ROW), format(253000, ",d"),
+    assert re.search(r"^%s\s+%s\s+3\s+-  no tool: %s$" % (re.escape(tables.RESIDUAL_ROW), "84,333",
                                                           schema.STARTING_CONTEXT), out, re.M)  # all it holds
     assert "; largest" not in fx.headline(out)
     assert re.search(r"^by %s\s.*\s+%s\s+share$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
@@ -42,12 +43,12 @@ def test_a_drill_prints_the_whole_window_checks_with_their_mass(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root), "--where",
                           "%s=%s" % (CAUSE, schema.TOOL_RESULT))
     assert code == 0, err
-    assert fx.headline(out).startswith("%s%s over 3 changes where %s=%s in 3 windows" % (
-        fx.total_line(CONTEXT.metric), format(3 * fx.EXACT_FIRST_DELTA, ",d"), CAUSE, schema.TOOL_RESULT))
+    assert fx.headline(out).startswith("%s214 %s, over 21 calls in 3 windows, from 3 changes where %s=%s in 3" % (
+        fx.total_line(CONTEXT.metric), fx.unit(CONTEXT.metric), CAUSE, schema.TOOL_RESULT))
     last = out.splitlines()[-1]
-    assert last.startswith("%s checks over the 3 whole windows (a drill is not reconciled): 254,860 added"
-                           " - 300 %s = %s = the final window sizes; " % (
-                               tables.OK_MARK, glossary.marked(schema.SHRINK), "254,560"))
+    assert last.startswith("%s checks over the 3 whole windows (a drill is not reconciled): " % tables.OK_MARK)
+    assert "; 254,860 added - 300 %s = %s = the final window sizes; " % (
+        glossary.marked(schema.SHRINK), "254,560") in last
     assert " %d gaps between calls (" % (3 * fx.INTERVALS) in last
     assert tables.TOTAL_LABEL not in out  # no total row on a drill
     whole = fx.run_cli("context", "--root", str(root))[1]
@@ -59,8 +60,8 @@ def test_by_fact_prints_the_checks_with_their_mass(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", "fact", "--limit", "1")
     assert code == 0, err
     last = out.splitlines()[-1]
-    assert last.startswith("%s checks: 254,860 added - 300 %s = %s = the final window sizes; " % (
-        tables.OK_MARK, glossary.marked(schema.SHRINK), "254,560"))
+    assert last.startswith("%s checks: " % tables.OK_MARK) and "; 254,860 added - 300 %s = %s = the final window sizes; " % (
+        glossary.marked(schema.SHRINK), "254,560") in last
     assert " %d gaps between calls (" % (3 * fx.INTERVALS) in last
 
 
@@ -76,14 +77,13 @@ def test_a_drill_headline_counts_the_windows_its_facts_come_from(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (CAUSE, schema.USER_TEXT))
     assert code == 0, err
-    assert fx.headline(out).endswith(" over 1 change where %s=%s in 1 of 2 windows"
-                                        % (CAUSE, schema.USER_TEXT))  # no lever: no lead
+    assert fx.headline(out).endswith(", over 9 calls in 2 windows, from 1 change where %s=%s in 1 of them"
+                                     % (CAUSE, schema.USER_TEXT))  # no lever: no lead
     assert "checks over the 2 whole windows (a drill is not reconciled)" in out
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (CAUSE, schema.TOOL_RESULT))
     assert code == 0, err
-    assert fx.headline(out).endswith(" over 2 changes where %s=%s in 2 windows"
-                                        % (CAUSE, schema.TOOL_RESULT))
+    assert fx.headline(out).endswith(", from 2 changes where %s=%s in 2 of them" % (CAUSE, schema.TOOL_RESULT))
     assert query.values(query.select(facts, [(CAUSE, schema.TOOL_RESULT)]), TOOL, CONTEXT.metric
                         ) == ["Bash"]  # the one tool every drilled fact shares leads nothing
 
@@ -95,11 +95,14 @@ def test_a_drill_reports_the_average_over_the_whole_windows_it_names(tmp_path):
     assert not [f for f in query.select(facts, drill) if fx.PEAK in f.metrics]  # a drill keeps no call
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=%s" % drill[0])
     assert code == 0, err
-    headline, (average,) = fx.headline(out), fx.average(out)
-    assert " over 3 changes where %s=%s in 3 windows" % drill[0] in headline
+    (average,) = fx.average(out)
     mean, calls = query.mean(facts, fx.PEAK)
     assert calls == 21 and mean > fx.FINAL_OCCUPANCY  # vacuity guard: every call of the 3 windows
-    assert average == "%s%s %s, over %d calls in 3 windows" % (fx.AVERAGE, tables.num(mean), fx.unit(fx.PEAK), calls)
+    # D-PER-CALL: the drilled changes, each times the calls that held it, over every call in view
+    held = sum(f.metrics[fx.HELD] for f in query.select(facts, drill))
+    assert 0 < held / calls < mean
+    assert average == "%s%s %s, over %d calls in 3 windows, from 3 changes where %s=%s in 3 of them" % (
+        fx.AVERAGE, tables.num(held / calls), fx.unit(CONTEXT.metric), calls, *drill[0])
 
 
 def test_a_main_window_is_selected_by_its_window_value_alone(tmp_path):
@@ -117,13 +120,13 @@ def test_a_main_window_is_selected_by_its_window_value_alone(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (schema.WINDOW_DIM, main))
     assert code == 0, err
-    assert fx.headline(out).startswith("%s%s across 1 window; " % (
-        fx.total_line(CONTEXT.metric), format(fx.FINAL_OCCUPANCY, ",d")))
+    mean = tables.num(query.mean(query.select(facts, [(schema.WINDOW_DIM, main)]), fx.PEAK)[0])
+    assert fx.headline(out).startswith("%s%s %s, over 7 calls in 1 window; " % (
+        fx.total_line(CONTEXT.metric), mean, fx.unit(CONTEXT.metric)))
     assert "\nin view where %s=%s: 1 window*, 11 changes*\n" % (schema.WINDOW_DIM, main) in out
-    assert re.search(r"^%s\s+%s\s.*%s = final window sizes$" % (
-        tables.TOTAL_LABEL, format(fx.FINAL_OCCUPANCY, ",d"), tables.OK_MARK), out, re.M)
-    assert out.splitlines()[-1].startswith("%s checks: 1,620 added - 100 shrink = 1,520; 6 gaps between"
-                                           " calls (7 calls - 1 window): " % tables.OK_MARK)
+    assert re.search(r"^%s\s+%s\s.*%s = mean call size$" % (tables.TOTAL_LABEL, mean, tables.OK_MARK), out, re.M)
+    assert "; 1,620 added - 100 shrink = %s = the final window sizes; 6 gaps between calls (7 calls - 1 window): " % (
+        format(fx.FINAL_OCCUPANCY, ",d")) in out.splitlines()[-1]
     for view in cli.VIEWS:
         assert schema.WINDOW_DIM not in cli.VIEWS[view].tables
         code, out, err = fx.run_cli(view, "--root", str(root), "--by", schema.WINDOW_DIM)
@@ -171,8 +174,8 @@ def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
         " 0 duplicates excluded" % root,
         "in view where %s: 2 windows*, 22 changes*" % window]
     assert drill not in "".join(population)
-    assert fx.headline(out).startswith("%s%s over 2 changes where %s in 2 windows" % (
-        fx.total_line(CONTEXT.metric), format(2 * fx.EXACT_FIRST_DELTA, ",d"), drill))
+    assert fx.headline(out).startswith("%s214 %s, over 14 calls in 2 windows, from 2 changes where %s in 2 of them" % (
+        fx.total_line(CONTEXT.metric), fx.unit(CONTEXT.metric), drill))
     assert window not in fx.headline(out)  # a window pin narrows no headline count
 
 
@@ -181,8 +184,9 @@ def test_by_fact_lists_leaves_with_their_dimensions_and_evidence(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", "fact",
                           "--where", "%s=%s" % (CAUSE, schema.TOOL_RESULT), "--limit", "2")
     assert code == 0, err
-    assert re.search(r"^\s+%s  file:line  uuid  dimensions$" % fx.printed(CONTEXT.metric), out, re.M)
-    leaves = [l for l in out.splitlines() if re.match(r"\s+[\d,]+\s+\S+:\d+\s", l)]
+    assert re.search(r"^\s+%s\s+%s  file:line  uuid  dimensions$" % (
+        fx.printed(CONTEXT.metric), fx.printed(fx.DELTA)), out, re.M)  # its part of the average, its raw tokens
+    leaves = [l for l in out.splitlines() if fx.LEAF.match(l)]
     assert len(leaves) == 2 and all("%s=%s" % (CAUSE, schema.TOOL_RESULT) in l for l in leaves)
     assert re.search(r"\sproj-a/sess-0001\.jsonl:2\s+uuid-0002\s", out)
 
@@ -196,7 +200,7 @@ def test_by_fact_lists_leaves_with_their_dimensions_and_evidence(tmp_path):
                      % (schema.CANDIDATES, CAUSE, schema.USER_TEXT, CAUSE, schema.TOOL_RESULT,
                         TOOL, HEAD), out, re.M)
     assert out.count("%s:" % schema.CANDIDATES) == 1
-    (leaf,) = [l for l in out.splitlines() if re.match(r"\s+[\d,]+\s+\S+:\d+\s", l)]
+    (leaf,) = [l for l in out.splitlines() if fx.LEAF.match(l)]
     assert "%s=" % TOOL not in leaf  # the candidates share no tool
 
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", "fact", "--where",
@@ -207,7 +211,7 @@ def test_by_fact_lists_leaves_with_their_dimensions_and_evidence(tmp_path):
     code, out, err = fx.run_cli("spend", "--root", str(root), "--by", "fact", "--limit", "1",
                           "--where", "%s=agent-fake1" % schema.SUBAGENT_DIM)
     assert code == 0, err
-    (leaf,) = [l for l in out.splitlines() if re.match(r"\s+[\d,]+\s+\S+:\d+\s", l)]
+    (leaf,) = [l for l in out.splitlines() if fx.LEAF.match(l)]
     name = "proj-a/sess-0001/subagents/agent-fake1.jsonl"
     assert leaf.split()[1].startswith(name + ":")  # the locator names the file; a file can hold
     assert all("%s=" % dim in leaf for dim in schema.WINDOW_DIMENSIONS)  # several windows, so tagged

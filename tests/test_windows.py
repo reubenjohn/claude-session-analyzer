@@ -123,18 +123,20 @@ def test_the_inherited_breakdown_is_the_parent_window_through_the_branch_call(tm
         assert part[-1].kind == INCREMENT and query.through(facts, parent, inc.locator) == []  # guard
 
 
-def test_the_cli_states_inherited_once_on_the_total_row_and_the_footer(tmp_path):
+def test_the_cli_counts_inherited_once_per_fork_call_as_its_own_row(tmp_path):
+    """D-PER-CALL: a fork's calls held the copy, so under the average it
+    is a row, its parent kept or not; the sum's checks count it in its window."""
     root = fx.window_corpus(tmp_path)
-    label, mass = checks.INHERITED_LABEL, format(sum(fx.W_INHERITED.values()), ",d")
+    facts = fx.load_facts(root)[1]
+    calls = sum(f.kind == schema.CALL for f in facts)
+    held = sum(f.metrics[fx.HELD] for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED)
+    assert held > sum(fx.W_INHERITED.values()) > 0  # vacuity guard: held by more than one call
     code, out, err = fx.run_cli("context", "--root", str(root), "--limit", "1")
     assert code == 0, err
-    assert re.search(r"^%s .* final window sizes less %s %s$" % (tables.TOTAL_LABEL, mass, re.escape(label)),
-                     out, re.M)
-    assert re.search(r"^%s: %s .* in 2 windows" % (re.escape(label), mass), out, re.M)  # --limit 1
-    assert not re.search(r"^%s\s+[\d,]+\s" % schema.INHERITED, out, re.M)  # not a row: never in a share
+    assert re.search(r"^%s\s+%s\s+2\s+\d" % (schema.INHERITED, tables.num(held / calls)), out, re.M)
+    assert "counted in parent" not in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "=".join(_pin(fx.W_FORK)))
-    assert code == 0, err
-    assert label not in out  # the parent is out of scope: counted in full, as a row
+    assert code == 0, err  # one window: every call of it held the copy, so per call it is the copy
     assert re.search(r"^%s\s+1,500\s+1\s" % schema.INHERITED, out, re.M)
     assert fx.headline(out).split("; ")[1].endswith(" + %s 1,500" % schema.INHERITED)  # its own term
 

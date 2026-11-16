@@ -6,7 +6,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, glossary, headline, query, render, residual, schema, tables
+from sa import cli, glossary, headline, leaves, query, render, residual, schema, tables
 from sa.schema import Locator
 
 ROWS = [query.Row("a", 60, 2, query.REGULAR), query.Row("b", 30, 1, query.REGULAR),
@@ -41,7 +41,9 @@ def test_every_dimension_a_view_can_group_with_a_residual_row_has_a_note(tmp_pat
     subagent's, so each dimension that can lack a value does so here, and
     every fact in a residual row is read by a case of the row's note."""
     facts = fx.load_facts(fx.every_corpus(tmp_path))[1]
-    grouped = [query.group(facts, dim, view.metric) for view in cli.VIEWS.values()
+    calls = sum(f.kind == schema.CALL for f in facts)
+    grouped = [query.group(facts, dim, view.metric, calls if schema.metric(view.metric).aggregation
+                           == schema.PER_CALL else None) for view in cli.VIEWS.values()
                for dim in schema.KIND_DIMENSIONS[schema.metric(view.metric).carrier]]
     with_residual = {t.dim for t in grouped if t.residual}
     assert schema.REASON_DIM in with_residual and len(with_residual) > 1  # vacuity guard
@@ -213,9 +215,9 @@ def test_leaves_are_ordered_by_magnitude_so_a_large_shrink_is_not_hidden_by_limi
                            Locator("f", line, "u-%d" % line))
     exact, shrink = leaf(schema.USER_TEXT, 100, 1), leaf(schema.SHRINK, -500, 2)
     assert abs(shrink.metrics[fx.DELTA]) > exact.metrics[fx.DELTA]  # the shrink is the larger
-    lines = tables.leaves([exact, shrink], fx.DELTA, limit=1)
+    lines = leaves.leaves([exact, shrink], fx.DELTA, limit=1)
     assert len(lines) == 2 and lines[1].split()[:3] == ["-500", "f:2", "u-2"]
-    both = tables.leaves([exact, shrink], fx.DELTA, limit=2)
+    both = leaves.leaves([exact, shrink], fx.DELTA, limit=2)
     assert [l.split()[0] for l in both[1:]] == ["-500", "100"]
 
 
@@ -223,7 +225,7 @@ def test_a_leaf_without_a_uuid_prints_a_dash_in_the_uuid_column():
     """A bookkeeping record carries no uuid; its locator still has a line."""
     with_uuid = FACTS[0]._replace(locator=Locator("f", 1, "u-1"), evidence={
         schema.CANDIDATES: [schema.Candidate(Locator("f", 2, None), {})]})
-    lines = tables.leaves([with_uuid, FACTS[1]], fx.DELTA, limit=2)
+    lines = leaves.leaves([with_uuid, FACTS[1]], fx.DELTA, limit=2)
     assert lines[1].split()[:3] == ["60", "f:1", "u-1"]  # vacuity guard: a uuid prints
     assert lines[2].split() == [schema.CANDIDATES + ":"]
     assert lines[3].split()[:2] == ["f:2", "-"]           # the candidate without one

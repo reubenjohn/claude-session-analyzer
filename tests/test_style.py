@@ -6,7 +6,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, render, style
+from sa import cli, render, style, tables
 
 ESC = "\033["
 
@@ -96,7 +96,7 @@ def test_rows_a_table_never_hides_are_never_dimmed_nor_heated(tmp_path):
     heated = re.compile(r"\033\[(%s)[;m]" % "|".join((style.RED, style.YELLOW, style.GREEN)))
     assert all(line.startswith(italic) and faint not in line and not heated.search(line)
                for line in kept)
-    total = [line for line in out if style.plain(line).startswith("= total")]
+    total = [line for line in out if style.plain(line).startswith(tables.TOTAL_LABEL)]
     assert total and not heated.search(total[0])  # vacuity guard, then the total row
 
 

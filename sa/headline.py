@@ -1,8 +1,8 @@
-"""The answer, under the scope: the total and how it was taken, then the
-starting context by what started each window and the growth walked down
-the view's levers (D-HEADLINE-TWO-LINES), then the average context per
-call (D-MEAN-CONTEXT). A
-``--where`` pin omits every lever whose facts all share one value."""
+"""The answer, under the scope: the total and how it was taken (for
+context, the average context per call, D-PER-CALL), then the starting
+context by what started each window and the growth walked down the view's
+levers (D-HEADLINE-TWO-LINES), each in the total's unit. A ``--where`` pin
+omits every lever whose facts all share one value."""
 from typing import Dict, List, Optional, Tuple
 
 from . import glossary, query, schema, style, tables
@@ -34,33 +34,54 @@ def headline(view, sel: Selection, forest: List[Fact] = (), names: Names = None)
     of every table's; the checks line says what was added and what shrank.
     A pinned window that inherited shows each copy's breakdown in its
     parent (``copied``)."""
-    spec, name = schema.metric(view.metric), glossary.printed(view.metric)
-    line = "%s: %s" % (name, num(sel.total)) + ("" if spec.unit == name else " " + spec.unit)
-    if not view.reconciles or sel.drill:
-        line += " " + over(sel, spec.carrier)
-    else:
-        line += " across " + count(sel.n_windows, schema.WINDOW_DIM) + (
-            "" if sel.reconciliation.mass_holds else " (reconciliation MISMATCH below)")
+    spec = schema.metric(view.metric)
+    per_call = spec.aggregation == schema.PER_CALL
+    line = level(sel, spec) if per_call else _total_line(view, sel, spec)
     carried = [f for f in sel.facts if f.kind == spec.carrier]
     added = sel.total - query.total([f for f in carried if f.dims.get(schema.CAUSE_DIM) == schema.SHRINK],
-                                    view.metric)
+                                    view.metric, sel.calls)
     levers = open_dims(sel, view.levers, spec.carrier)
     starting = [f for f in carried if f.dims.get(schema.CAUSE_DIM) in STARTING] if view.starts else []
-    mass = query.total(starting, view.metric)
+    mass = query.total(starting, view.metric, sel.calls)
     rows, extra = [], []  # the block's (what, tokens, where from), and the lines under its first
     if starting and added:
         rows.append((glossary.printed(schema.STARTING_CONTEXT).replace("_", " "), mass,
-                     _sum(view, starting)))
+                     _sum(view, starting, sel.calls)))
         extra = copied(sel, forest)
-        top, path = _path(sel.facts, levers, view.metric, names)
+        top, path = _path(sel.facts, levers, view.metric, names, sel.calls)
         if added - mass:
             rows.append((glossary.GROWTH, added - mass, "from %s %s" % (_name(top, levers, names), num(top.mass))
                          + path if top else ""))
     else:
-        top, path = _path(sel.facts, levers, view.metric, names)
+        top, path = _path(sel.facts, levers, view.metric, names, sel.calls)
         if top is not None and added:
             rows.append(("largest " + levers[0], top.mass, _name(top, levers, names) + path))
-    return [style.tag(line, style.HEADLINE)] + _block(rows, added, extra) + _average(sel)
+    return [style.tag(line, style.HEADLINE)] + _block(rows, added, extra) + ([] if per_call else _average(sel))
+
+
+def level(sel: Selection, spec: schema.Metric) -> str:
+    """``average context per call* N tokens, over C calls in W windows``:
+    the calls of the whole windows in view, a drill's too, whose matching
+    changes it then names with the windows they come from (D-PER-CALL)."""
+    line = "%s %s %s, over %s in %s" % (
+        glossary.printed(glossary.AVERAGE).replace("_", " "), num(sel.total), spec.unit,
+        count(sel.calls, "call"), count(sel.n_windows, "window"))
+    if sel.drill:
+        changes = sum(f.kind == spec.carrier for f in sel.facts)
+        line += ", from %s%s in %s of them" % (count(changes, schema.PLURAL[spec.carrier][:-1],
+                                                     schema.PLURAL[spec.carrier]),
+                                               pins(sel.drill), num(query.window_count(sel.facts)))
+    return line + ("" if sel.reconciliation.holds else " (reconciliation MISMATCH below)")
+
+
+def _total_line(view, sel: Selection, spec: schema.Metric) -> str:
+    """A summed view's total and the population it is over."""
+    name = glossary.printed(view.metric)
+    line = "%s: %s" % (name, num(sel.total)) + ("" if spec.unit == name else " " + spec.unit)
+    if not view.reconciles or sel.drill:
+        return line + " " + over(sel, spec.carrier)
+    return line + " across " + count(sel.n_windows, schema.WINDOW_DIM) + (
+        "" if sel.reconciliation.mass_holds else " (reconciliation MISMATCH below)")
 
 
 def _name(row: query.Row, levers: List[str], names: Names) -> str:
@@ -92,16 +113,16 @@ def _block(rows: List[Tuple[str, float, str]], added: float, extra: List[str]) -
 SUM = "= "  # a starting context line's sum
 
 
-def _sum(view, starting: List[Fact]) -> str:
+def _sum(view, starting: List[Fact], calls: Optional[int] = None) -> str:
     """The starting context as a sum that adds up to it: each start that
     began, largest first, ``+ N more starts`` past ``TERMS``, and
     ``inherited`` on its own, as in the cause table; nothing when there is
     one term."""
     inherited_mass = query.total([f for f in starting if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED],
-                                 view.metric)
+                                 view.metric, calls)
     own = [f for f in starting if f.dims.get(schema.CAUSE_DIM) != schema.INHERITED]
     terms = [(START_LABELS.get(r.value, r.value), r.mass) for r in
-             query.group(own, view.starts, view.metric).rows if r.kind == query.REGULAR]
+             query.group(own, view.starts, view.metric, calls).rows if r.kind == query.REGULAR]
     if len(terms) > TERMS:
         rest = terms[TERMS - 1:]
         terms = terms[:TERMS - 1] + [("%d more starts" % len(rest), sum(m for _, m in rest))]
@@ -121,36 +142,27 @@ START_LABELS = {schema.SESSION_START: "session starts", schema.SUBAGENT_START: "
 def copied(sel: Selection, forest: List[Fact]) -> List[str]:
     """Under a ``--where window=`` pin, each inherited increment counted
     here, as its parent window's exact breakdown by tool through the branch
-    call, signed rows included, found by reference (D-FORK-INHERITED)."""
+    call, signed rows included, found by reference (D-FORK-INHERITED); per
+    call, each part held by the fork's calls as the copy was."""
     if schema.WINDOW_DIM not in dict(sel.window_where):
         return []
     lines = []
     for f in sel.facts:
         if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED:
             key, call = f.evidence[schema.PARENT_WINDOW], f.evidence[schema.BRANCH_CALL]
+            delta = f.metrics[schema.CONTEXT_DELTA]
+            scale = f.metrics[schema.CONTEXT_HELD] / delta / max(sel.calls, 1) if (
+                sel.calls is not None and delta) else 1
             rows = query.group(query.through(forest, key, call), schema.TOOL_DIM, schema.CONTEXT_DELTA).rows
             lines.append("  %s %s copied from %s=%s through %s, by tool: %s" % (
-                schema.INHERITED, num(f.metrics[schema.CONTEXT_DELTA]), schema.WINDOW_DIM,
+                schema.INHERITED, num(delta * scale), schema.WINDOW_DIM,
                 schema.window_value(key), at(call), ", ".join(
-                    "%s %s" % (tables.RESIDUAL_LABEL if r.kind == query.RESIDUAL else r.value, num(r.mass))
-                    for r in rows)))
+                    "%s %s" % (tables.RESIDUAL_LABEL if r.kind == query.RESIDUAL else r.value,
+                               num(r.mass * scale)) for r in rows)))
     return lines
 
 
 STARTING = (schema.STARTING_CONTEXT, schema.INHERITED)  # the causes that enter as a window starts
-
-
-def inherited(sel: Selection) -> float:
-    return sum(f.metrics[schema.CONTEXT_DELTA] for f in sel.inherited)
-
-
-def less(sel: Selection) -> str:
-    """What the total leaves out of the final sizes it is stated against:
-    the inherited mass its parent windows already count (D-INHERITED-ONCE)."""
-    return " less %s %s" % (num(inherited(sel)), INHERITED_LABEL) if sel.inherited else ""
-
-
-INHERITED_LABEL = "%s (counted in parent)" % schema.INHERITED
 
 
 def over(sel: Selection, carrier: str) -> str:
@@ -176,7 +188,7 @@ def _largest(table: query.Table) -> Optional[query.Row]:
 
 
 def _path(facts: List[Fact], levers: List[str], metric: str,
-          names: Names = None) -> Tuple[Optional[query.Row], str]:
+          names: Names = None, calls: Optional[int] = None) -> Tuple[Optional[query.Row], str]:
     """The first lever's largest row, and the walk from it: each next lever
     refines the row before, ``→`` the largest row within it; when a row of
     that lever elsewhere is strictly larger, ``; top <lever>`` names it,
@@ -185,15 +197,15 @@ def _path(facts: List[Fact], levers: List[str], metric: str,
     then ends the walk. The shares are the tables'."""
     if not levers:
         return None, ""
-    top = _largest(query.group(facts, levers[0], metric))
+    top = _largest(query.group(facts, levers[0], metric, calls))
     if top is None:
         return None, ""
     lead, text = query.select(facts, [(levers[0], top.value)]), ""
     for dim in levers[1:]:
-        within = _largest(query.group(lead, dim, metric))
+        within = _largest(query.group(lead, dim, metric, calls))
         if within is not None:
             text += " → %s %s" % (tables.value(dim, within.value, names), num(within.mass))
-        overall = _largest(query.group(facts, dim, metric))
+        overall = _largest(query.group(facts, dim, metric, calls))
         if overall is not None and overall.mass > (within.mass if within else 0):
             text += "; top %s %s %s" % (dim, tables.value(dim, overall.value, names), num(overall.mass))
         if within is None:

@@ -20,38 +20,37 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
     (read, kept, orphan), answer = fx.sections(out)[:2]
-    first, (average,) = fx.headline(out), fx.average(out)
-    # starting_context is the largest cause (253,000 of 254,560) but cause is no
-    # lever: it is the starting context, by started_by; the growth walks down
-    # the top tool and its top command. Every share is of the 254,860 added
-    # (the shrink row out), as in the cause table, which the checks state.
-    assert re.search(r"^%s\s+253,000\s" % schema.STARTING_CONTEXT, out, re.M)
-    assert first == ("%s%s across 3 windows; starting context%s 253,000 99.3%% = %s 252,000 + %s 1,000;"
-                     " growth 1,860 0.7%% from Bash 750 → Bash:pytest 750") % (
-        fx.total_line(CONTEXT.metric), format(3 * fx.FINAL_OCCUPANCY + 250000, ",d"), glossary.MARKER,
-        headline.START_LABELS[schema.SESSION_START], headline.START_LABELS[schema.FORK])
-    assert out.splitlines()[-1].startswith("%s checks: 254,860 added - 300 %s = 254,560; " % (
-        tables.OK_MARK, schema.SHRINK))  # the shares' base, and what shrank
-    assert fx.unit(CONTEXT.metric) == fx.printed(CONTEXT.metric)  # so the total line states it once
-    assert re.search(r"^%s\s+253,000\s+\d+\s+99\.3%%$" % schema.STARTING_CONTEXT, out, re.M)  # one base
+    first = fx.headline(out)
+    # D-PER-CALL: every figure is what the average call held. starting_context
+    # is the largest cause but cause is no lever: it is the starting context,
+    # by started_by; the growth walks down the top tool and its top command.
+    # Every share is of the 84,766 held before shrink, as in the cause table.
     windows = {f.window for f in facts}
     held = [f.metrics[fx.PEAK] for f in facts if f.kind == schema.CALL]  # what each call held
-    assert len(windows) == 3 and average == "%s%s %s, over %d calls in 3 windows" % (
-        fx.AVERAGE, tables.num(sum(held) / len(held)), fx.unit(fx.PEAK), len(held))
+    assert len(windows) == 3 and tables.num(sum(held) / len(held)) == "84,709"
+    assert re.search(r"^%s\s+84,333\s" % schema.STARTING_CONTEXT, out, re.M)
+    assert first == ("%s84,709 %s, over %d calls in 3 windows; starting context%s 84,333 99.5%% = %s 84,000"
+                     " + %s 333; growth 433 0.5%% from Bash 214 → Bash:pytest 214") % (
+        fx.total_line(CONTEXT.metric), fx.unit(CONTEXT.metric), len(held), glossary.MARKER,
+        headline.START_LABELS[schema.SESSION_START], headline.START_LABELS[schema.FORK])
+    assert fx.average(out) == [answer[0]]  # the level is the first line, not a line of its own
+    assert re.search(r"^%s\s+84,333\s+\d+\s+99\.5%%$" % schema.STARTING_CONTEXT, out, re.M)  # one base
     assert read == ("read: %d files modified in the last 7d (default) under %s, 0 lines skipped,"
                     " 0 duplicates excluded" % (len(loaded.files), root))
     assert kept == "in view: 3 windows%s, %d %s%s" % (
         glossary.MARKER, sum(f.kind == INCREMENT for f in facts), schema.PLURAL[INCREMENT], glossary.MARKER)
     assert orphan == " " * len("in view: ") + "1 fork whose parent is missing: its copy counts as its own"
     assert out.count(str(root)) == 1  # locators are root-relative
-    # The cause table closes with its total against the final sizes; the
-    # intervals collapse to one checks line, last.
-    assert re.search(r"^%s\s+%s\s+%d\s+%s = final window sizes$" % (
-        tables.TOTAL_LABEL, format(3 * fx.FINAL_OCCUPANCY + 250000, ",d"), sum(f.kind == INCREMENT for f in facts),
-        tables.OK_MARK), out, re.M)
-    assert out.splitlines()[-1] == ("%s checks: 254,860 added - 300 shrink = 254,560; 18 gaps between calls"
-                                    " (21 calls - 3 windows): 6 to one source (33.3%%), 9 ambiguous (50.0%%),"
-                                    " 3 shrank (16.7%%)" % tables.OK_MARK)
+    # The cause table closes with its rows' sum, the average, against the
+    # mean call; the summed total and the gaps collapse to one checks line, last.
+    assert re.search(r"^%s\s+84,709\s+%d\s+%s = mean call size$" % (
+        tables.TOTAL_LABEL, sum(f.kind == INCREMENT for f in facts), tables.OK_MARK), out, re.M)
+    assert out.splitlines()[-1] == (
+        "%s checks: %s held by calls (each change x the calls that held it) = the calls' sizes summed;"
+        " 254,860 added - 300 shrink = %s = the final window sizes; 18 gaps between calls"
+        " (21 calls - 3 windows): 6 to one source (33.3%% of gaps), 9 ambiguous (50.0%% of gaps),"
+        " 3 shrank (16.7%% of gaps)" % (tables.OK_MARK, tables.num(sum(held)),
+                                        format(3 * fx.FINAL_OCCUPANCY + 250000, ",d")))
     assert "reconciliation" not in out and "MISMATCH" not in out  # full detail only on failure
     titles = [line.split(":")[0].split("  ")[0] for line in out.splitlines() if line.startswith("by ")]
     for dim in CONTEXT.tables:  # a table, or a line its rows share with the tables repeating it
@@ -63,8 +62,8 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
         assert re.search(r"^by %s\s" % dim, fx.run_cli("context", "--root", str(root), "--by", dim)[1], re.M)
     assert (glossary.printed(schema.STARTING_CONTEXT), tables.UNSPLITTABLE[schema.STARTING_CONTEXT]) in fx.key(out)
     assert re.search(r"^%s\*?\s" % schema.AMBIGUOUS, out, re.M)
-    assert re.search(r"^%s \(signed\)\s+-300\s" % schema.SHRINK, out, re.M)
-    assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+ added$"
+    assert re.search(r"^%s \(signed\)\s+-57\s" % schema.SHRINK, out, re.M)
+    assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+ before shrink$"
                      % (CAUSE, fx.printed(CONTEXT.metric), fx.count_column(CONTEXT.metric)), out, re.M)
 
 
@@ -128,13 +127,13 @@ def test_a_reconciliation_mismatch_is_exit_status_1(tmp_path, monkeypatch, capsy
     assert out.splitlines()[-1] == "it holds by construction (walk.py), so a mismatch is a bug in this tool"
     first = fx.headline(out)
     assert "final size" not in first  # the headline never claims the sum it failed to match
+    assert first.split(";")[0].endswith(" (reconciliation MISMATCH below)")
     if not drill:
-        assert " across 3 windows (reconciliation MISMATCH below)" in first
-        assert "%s does not match the final window sizes (below)" % tables.BAD_MARK in out
+        assert "%s does not match the mean call size (below)" % tables.BAD_MARK in out
     monkeypatch.undo()
     assert cli.main(["context", "--root", str(root)] + drill) == 0  # vacuity guard
     out = capsys.readouterr().out
-    assert ("across 3 windows; " in fx.headline(out)) == (not drill)
+    assert "MISMATCH" not in fx.headline(out)
     assert ": MISMATCH" not in out and tables.OK_MARK + " checks" in out
 
 

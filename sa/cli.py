@@ -40,7 +40,7 @@ PROG = glossary.PROG
 SPEND_NOTE = "paid per call, so no context share is a cost share; what filled it: %s context" % PROG
 
 # ``window`` is one row per context window: a drill target (--by, --where), never a default table.
-VIEWS = {"context": View(metric=schema.CONTEXT_DELTA,
+VIEWS = {"context": View(metric=schema.CONTEXT_HELD,
                          tables=(schema.CAUSE_DIM, schema.TOOL_DIM, schema.COMMAND_DIM,
                                  schema.SUBAGENT_DIM, schema.PEAK_DIM, schema.SESSION_DIM,
                                  schema.PROJECT_DIM),

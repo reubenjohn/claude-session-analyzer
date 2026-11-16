@@ -6,7 +6,7 @@ which ``style`` paints only when the CLI asks for it, so every test
 compares plain text."""
 import re
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import glossary, query, residual, schema, style
 from .schema import Fact
@@ -61,7 +61,8 @@ def home_text(text: str) -> str:
 
 
 marked = glossary.marked
-TOTAL_LABEL = "= total"  # the row a whole-window cause table closes with
+TOTAL_LABEL = "= average"  # the row a whole-window cause table closes with: its rows add up to it
+AVG_CALL = "avg call"  # a count column that is a mean (a band's own call size): never summed
 
 
 def key(entries: List[Tuple[str, str]]) -> List[str]:
@@ -109,17 +110,18 @@ def footnote(lines: List[str]) -> Tuple[List[str], List[str]]:
     return lines, [term for _, _, term in sorted(found)]
 
 
-def share_header(grouped: query.Table) -> str:
+def share_header(grouped: query.Table, per_call: bool = False) -> str:
     """The share column's header, naming its base after the column: the
-    total, the tokens added (the signed row's mass taken out), or those with
-    a value (the residual row's too; the signed row is never a share)."""
+    total (per call, the average), the tokens added (per call, the average
+    before shrink: the signed row's mass taken out), or those with a value
+    (the residual row's too; the signed row is never a share)."""
     if not grouped.base:
         return "share"
     kinds = {r.kind for r in grouped.rows}
     if kinds == {query.REGULAR}:
-        return "share of total"
+        return "share of average" if per_call else "share of total"
     if query.RESIDUAL not in kinds:  # the signed row alone: the tokens added
-        return "share of %s added" % num(grouped.base)
+        return "share of %s %s" % (num(grouped.base), "before shrink" if per_call else "added")
     return "share of %s (all but %s)" % (num(grouped.base), RESIDUAL_LABEL)
 
 
@@ -201,19 +203,23 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
     width = max(len(label) for label in labels + [heading])
     columns = counts or [(schema.PLURAL[schema.metric(metric).carrier], None)]
 
-    def cell(per: Optional[Dict[str, int]], i: int, r: query.Row) -> str:
+    def cell(name: str, per: Optional[Dict[str, float]], i: int, r: query.Row) -> str:
         if per is None or r.kind != query.REGULAR:
             return "-" if per else num(r.count)
-        return num(sum(per.get(h.value, 0) for h in hidden) if i == values else per.get(r.value, 0))
-    cells = [[name] + [cell(per, i, r) for i, r in enumerate(shown)]
-             + [num(sum(per.values()) if per else sum(r.count for r in grouped.rows))] for name, per in columns]
+        if i == values:  # the rest: a mean is never summed
+            return "-" if name == AVG_CALL else num(sum(per.get(h.value, 0) for h in hidden))
+        return num(per.get(r.value, 0))
+    cells = [[name] + [cell(name, per, i, r) for i, r in enumerate(shown)]
+             + ["-" if name == AVG_CALL else num(sum(per.values()) if per else sum(r.count for r in grouped.rows))]
+             for name, per in columns]
     cells.insert(0, [glossary.printed(metric)] + [num(r.mass) for r in shown] + [num(sum(r.mass for r in grouped.rows))])
     widths = [max(map(len, column)) for column in cells]
 
     def line(label: str, k: int, last: str) -> str:  # row ``k`` of every figure column
         return "  ".join(["%-*s" % (width, label)] + ["%*s" % (w, c[k]) for w, c in zip(widths, cells)] + [last])
 
-    lines = [style.tag(line(heading, 0, share_header(grouped).rjust(6)), style.HEADER)]
+    per_call = schema.metric(metric).aggregation == schema.PER_CALL
+    lines = [style.tag(line(heading, 0, share_header(grouped, per_call).rjust(6)), style.HEADER)]
     mass, at = width + 2, width + sum(w + 2 for w in widths) + 2  # the figures' spans: mass and share
     held = residual.residual_note(grouped.dim, grouped.residual) if (
         grouped.dim in residual.RESIDUAL_NOTES and grouped.residual) else ""  # what this table's residual holds
@@ -240,37 +246,3 @@ def relabelled(grouped: query.Table, relabels: List[Tuple[str, Dict[str, str]]],
     text = head + ", ".join(" / ".join(cut(value(dim, labels[v], names)) for dim, labels in relabels)
                             for v in rows)
     return style.tag(text, "", values=((len(head), len(text)),))
-
-
-def leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:
-    """The ``limit`` largest facts, each with its dimensions and, indented
-    under it, its evidence: the candidate contributors of an ambiguous
-    increment, the parent of a fork's starting context, the parent window and
-    branch call of an inherited increment."""
-    spec = schema.metric(metric)
-    largest = sorted((f for f in facts if f.kind == spec.carrier),
-                     key=lambda f: -abs(f.metrics[metric]))[:limit]  # a shrink is as large as its |mass|
-    lines = ["%16s  file:line  uuid  dimensions" % glossary.printed(metric)]  # as in the tables
-    for f in largest:
-        lines.append("%16s  %s  %s  %s" % (num(f.metrics[metric]), at(f.locator),
-                                           uuid(f.locator), tags(f.dims)))
-        lines += list(_evidence(f.evidence))
-    lines[1:] = [style.tag(line, "", values=((0, len(line)),)) for line in lines[1:]]  # values only
-    return lines
-
-
-def _evidence(evidence: dict) -> Iterator[str]:
-    """Each key once; the candidates one per line under theirs, each with
-    its line, uuid and the dimensions it would have booked."""
-    for key, value in evidence.items():
-        if key == schema.CANDIDATES:
-            yield "%18s%s:%s" % ("", key, "" if value else " none")
-            for candidate in value:
-                yield "%20s%s %s  %s" % ("", at(candidate.locator), uuid(candidate.locator),
-                                         tags(candidate.dims))
-        elif isinstance(value, schema.WindowKey):  # a parent window: its --where value
-            yield "%18s%s: %s=%s" % ("", key, schema.WINDOW_DIM, schema.window_value(value))
-        elif isinstance(value, schema.Locator):
-            yield "%18s%s: %s %s" % ("", key, at(value), uuid(value))
-        else:
-            yield "%18s%s: %s" % ("", key, value)

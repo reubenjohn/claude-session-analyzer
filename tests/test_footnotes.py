@@ -59,9 +59,9 @@ def test_the_hint_follows_the_headline_levers(tmp_path, args, hint):
 def test_under_a_pinned_tool_the_hint_names_its_top_command():
     def fact(command, mass):
         return schema.Fact(schema.INCREMENT, {schema.TOOL_DIM: "Bash", schema.COMMAND_DIM: command},
-                           {schema.CONTEXT_DELTA: mass}, None, {}, None)
+                           {cli.VIEWS["context"].metric: mass}, None, {}, None)
     sel = SimpleNamespace(facts=[fact("Bash:sed", 30), fact("Bash:cat", 20), fact("Bash:sed", 5)],
-                          where=[(schema.TOOL_DIM, "Bash")], drill=[(schema.TOOL_DIM, "Bash")])
+                          where=[(schema.TOOL_DIM, "Bash")], drill=[(schema.TOOL_DIM, "Bash")], calls=1)
     assert render.next_step(cli.VIEWS["context"], sel, None) == [render.NEXT + "--where command=Bash:sed"]
 
 
