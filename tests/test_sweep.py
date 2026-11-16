@@ -1,9 +1,15 @@
 """The sweep's counts over the fixtures: each count that is zero on one
 corpus is non-zero on another, so the figure a docstring cites is read by
-code that has been seen to count."""
+code that has been seen to count. The average-context figures: a peak
+as percentiles of peaks, never a sum; what a missing parent costs."""
+import json
+import os
+
 import fixtures as fx
 import fixtures_edge as fe
-from sa import schema, sweep, sweep_mean
+from sa import query, schema, sweep
+
+PEAK_METRIC = fx.metric_named(aggregation=schema.PEAK)
 
 
 def test_counts_over_the_cli_corpus(tmp_path):
@@ -16,7 +22,7 @@ def test_counts_over_the_cli_corpus(tmp_path):
     assert sweep.cross_file_parents(loaded) == (0, 0)
     lines = sweep.report(loaded)
     assert lines[0] == "4 files, 3 windows, 21 calls, 18 intervals"
-    assert lines[12:] == sweep_mean.report(loaded, facts, sweep.cut(loaded))
+    assert lines[12:] == sweep.averages(loaded, facts, sweep.cut(loaded), sweep.reconciliation.reconcile(facts))
     assert "holds in 3 of 3 windows" in lines[12]
     assert sweep.fork_marks(loaded, sweep.cut(loaded)) == (1, 1, 0, 1, 0, 0)  # by its ref, parent absent
 
@@ -66,3 +72,50 @@ def test_the_zero_window_counts_are_non_zero_on_a_corpus_built_for_them(tmp_path
     sub = [dict(r, agentId="agent-fake1") for r in fx.window_records("s-")] + [fork]
     loaded, _ = fx.load_facts(fx.corpus(tmp_path / "fork", {"proj-a/sess-0001/subagents/agent-fake1.jsonl": sub}))
     assert sweep.fork_marks(loaded, sweep.cut(loaded)) == (1, 1, 1, 0, 0, 0)
+
+
+def test_a_peak_is_reported_as_percentiles_of_peaks_never_a_sum(tmp_path):
+    _, facts = fx.load_facts(fx.window_corpus(tmp_path))
+    found = sweep.peaks(facts)
+    assert len(found) == query.window_count(facts)
+    assert max(v for v, _ in found.values()) == query.largest(facts, PEAK_METRIC).metrics[PEAK_METRIC]
+    assert sum(sub for _, sub in found.values()) == 2  # the fork and the plain subagent
+    assert sweep.rank([4, 1, 3, 2], 50) == 2 and sweep.rank([4, 1, 3, 2], 100) == 4 and sweep.rank([], 90) == 0
+    top = query.largest(facts, PEAK_METRIC)
+    assert sweep.shape(found, None).endswith("(window=%s)" % top.dims[schema.WINDOW_DIM])
+    assert sweep.shape({}, None) == "0 windows"
+
+
+def test_a_fork_read_without_its_parent_walks_the_copied_calls_as_its_own(tmp_path):
+    """What a missing parent costs (D-MISSING-PARENT counts it; reading the
+    parent anyway was ruled out): the copied prefix is live, so the fork
+    gains the parent's calls (phantoms under the average's denominator) and,
+    unmarked, is no longer recognised as a copy."""
+    root = fx.window_corpus(tmp_path / "all")
+    for name, when in ((fx.W_PARENT, 2e9), (fx.W_FORK, 1e9), (fx.W_REPLAY, 3e9)):
+        os.utime(str(root / name), (when, when))  # the fork is older than its parent, the replay newer
+    loaded, _ = fx.load_facts(root)
+    cuts = {s.name: sweep.windows.cut(s, loaded.usages) for s in loaded.files}
+    assert sweep.parents(loaded, cuts)[:3] == (len(fx.W_INHERITED), len(fx.W_INHERITED), 1)
+    with_parent = len(cuts[fx.W_FORK][0].calls)
+    every = fx.window_corpus(tmp_path / "copy")
+    alone, _ = fx.load_facts(fx.corpus(tmp_path / "alone", {
+        fx.W_FORK: [json.loads(line) for line in
+                    (every / fx.W_FORK).read_text(encoding="utf-8").splitlines()]}))
+    (window,) = sweep.windows.cut(alone.files[0], alone.usages)
+    assert len(window.calls) > with_parent and window.start == schema.SUBAGENT_START
+
+
+def test_a_since_read_that_drops_the_parent_is_compared_band_for_band(tmp_path):
+    """D-PEAK-BAND is measured, not built: the fork read alone walks its
+    copied calls live, which hold no more than the branch call its own first
+    call exceeds, so its band holds."""
+    root = fx.window_corpus(tmp_path)
+    for path in root.rglob("*.jsonl"):
+        os.utime(str(path), (1e9, 1e9))  # every file old ...
+    os.utime(str(root / fx.W_FORK), None)  # ... but the fork
+    loaded, facts = fx.load_facts(root)
+    assert sweep.since_bands(loaded, facts) == (0, 1)
+    alone = fx.load_facts(root, 7.0)[1]
+    assert sum(f.kind == schema.CALL for f in alone) > sum(  # vacuity guard: the copies went live
+        f.kind == schema.CALL and f.locator.file == fx.W_FORK for f in facts)

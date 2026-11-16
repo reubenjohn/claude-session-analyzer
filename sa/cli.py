@@ -34,7 +34,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from . import corpus, glossary, grammar, query, render, residual, schema, style, tables, walk
+from . import corpus, glossary, grammar, query, render, schema, style, tables, walk
 from .grammar import UsageError
 from .render import View
 from .tables import WIDTH
@@ -115,8 +115,8 @@ def resolve(dim: str, text: str, view: str, present: List[str],
     facts that lack ``dim``) and as the tables print it. ``present`` is
     every value of ``dim`` the view's facts carry, as printed."""
     text = text.rstrip(glossary.MARKER) or text  # a label pasted with its footnote marker
-    if text.lower() == residual.label(dim).lower() and dim in residual.RESIDUAL_NOTES:
-        return None, residual.label(dim)
+    if text.lower() == schema.residual_label(dim).lower() and dim in schema.RESIDUAL_NOTES:
+        return None, schema.residual_label(dim)
     if dim in schema.VOCABULARY:
         declared = schema.VOCABULARY[dim]
         hit = [v for v in declared if v.lower() == text.lower()] or [
@@ -144,8 +144,8 @@ def resolve(dim: str, text: str, view: str, present: List[str],
 def no_match(view: str, dim: str, text: str, printed: Sequence[str], every: str, given: bool = False) -> UsageError:
     """The refusal of a pin no fact carries (``given`` the pins before it):
     the nearest value as a pin, and the command listing every one."""
-    lacking = text.lower() in ("", "none", "no", "-") and dim in residual.RESIDUAL_NOTES  # the catch-all
-    near = [residual.label(dim)] if lacking else difflib.get_close_matches(text, list(printed), 1, 0.5) or [
+    lacking = text.lower() in ("", "none", "no", "-") and dim in schema.RESIDUAL_NOTES  # the catch-all
+    near = [schema.residual_label(dim)] if lacking else difflib.get_close_matches(text, list(printed), 1, 0.5) or [
         p for p in printed if p.lower() == text.lower()][:1] or list(printed)[:1]
     return UsageError("no %s has %s=%s%s%s" % (
         schema.PLURAL[grammar.carrier(view)][:-1], dim, text, " with the pins before it" if given else "",

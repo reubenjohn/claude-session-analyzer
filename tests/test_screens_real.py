@@ -8,7 +8,7 @@ import re
 import shlex
 
 import fixtures as fx
-from sa import checks, grammar, render, residual, schema
+from sa import checks, grammar, render, schema
 from test_screen_budgets import (CONTEXT, ERROR_LINES, MORE, PROG, SPEND, homes, ok, parsed_tables,  # noqa: F401
                                  runs, sa, suggested)
 
@@ -119,9 +119,9 @@ def test_a_catch_all_whose_parts_fold_names_the_pin_that_lists_them(homes):
     folded = [i for i, l in enumerate(lines) if re.search(r" \d+ more [\d,]+$", l) and " = " in l]
     assert folded, lines  # vacuity guard: the realistic default folds a catch-all's parts
     for i in folded:
-        dim = next(d for d in schema.DIMENSIONS if lines[i].startswith(residual.label(d) + " "))
+        dim = next(d for d in schema.DIMENSIONS if lines[i].startswith(schema.residual_label(d) + " "))
         command = lines[i + 1].strip()
-        assert command == grammar.run(CONTEXT, "%s=%s" % (dim, residual.label(dim))), (lines[i], command)
+        assert command == grammar.run(CONTEXT, "%s=%s" % (dim, schema.residual_label(dim))), (lines[i], command)
         causes = dict(parsed_tables(runs(home, command)[1]))[schema.CAUSE_DIM]
         assert len(causes) >= int(re.search(r" (\d+) more ", lines[i]).group(1)) + 1, causes
     whole = [i for i, l in enumerate(lines) if re.match(r"^no \w+ .* = ", l) and i not in folded]
@@ -136,14 +136,14 @@ def test_a_mistake_keeps_only_the_words_that_read_right(homes):
     tool, command = schema.TOOL_DIM, schema.COMMAND_DIM
     for args, said in ((("contxt", "--were", "tol=Bash"), "did you mean %s" % CONTEXT),
                        ((CONTEXT, "%s=Bash" % tool, "%s=Read" % tool), "keep one"),
-                       ((CONTEXT, "%s=none" % command), grammar.quote("%s=%s" % (command, residual.label(command)))),
+                       ((CONTEXT, "%s=none" % command), grammar.quote("%s=%s" % (command, schema.residual_label(command)))),
                        ((CONTEXT, grammar.BY, grammar.FACTS[SPEND]), grammar.FACTS[CONTEXT])):
         code, out, err = sa(home, *args)
         assert code == 2 and said in err and len(err.splitlines()) <= ERROR_LINES, err
         for line in suggested(err):
             assert "--were" not in line and runs(home, line)[0] == 0, (line, err)
         assert suggested(err) or "nearest" in err, err
-    assert ok(home, CONTEXT, "%s=%s" % (command, residual.label(command)))  # the nearest pins
+    assert ok(home, CONTEXT, "%s=%s" % (command, schema.residual_label(command)))  # the nearest pins
 
 
 def test_every_screen_closes_with_its_checks_and_a_change_prints_its_pins(homes):

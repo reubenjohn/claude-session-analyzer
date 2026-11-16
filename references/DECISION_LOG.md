@@ -1,5 +1,16 @@
 # session-analyzer v2 — decision log
 
+Superseded rows: `DECISION_LOG_HISTORY.md` (`_HISTORY`). Open work: Filed.
+
+## Sources — folded here, deleted 2026-11-16 (`git show 048b3ff:references/<file>`)
+
+| Source | Ruled as | Its evidence |
+|---|---|---|
+| `DESIGN_COMPETITION.md`, `designs/` (A, B, C, C2, panel) | R1, P1, P4, P9; `DESIGN_BRIEF.md` | Spike 2: a metric on both kinds totals 2.000000x; Spike 1: 94.98% exact |
+| `UX_FEEDBACK.md` (owner's cold use, 2026-11-14) | D-PLAIN-TERMS, D-UNASSIGNED, the 2026-11-15 rows | 13 items; a cold reader answered all three questions twice (2026-11-15) |
+| `PROPOSAL_UX_MODEL.md` (UX-model proposal) | 2026-11-15 rows: window 1B, start 2, fork 3B, no split 4, headline 5 | UX PROBE 2026-11-15: 580 windows, 9 markers, fork head / parent 1.006-1.034 |
+| `PROPOSAL_MEAN_CONTEXT.md` (mean-context proposal) | 2026-11-16 rows | LOCAL SWEEP 2026-11-16T01:14Z: held = occupancy in 610 of 610 windows |
+
 ## Rulings — 2026-09-30
 
 Authority: the owner delegated all design rulings to the lead agent, each
@@ -48,7 +59,7 @@ denominators; presets reduce to the two subcommands' defaults.
 
 **D-SPEND-BY-INCREMENT — spend cannot leave the window.** DEFERRED:
 no cost-per-increment join; the row, with its design note, is in
-`DECISION_LOG_HISTORY_2.md`.
+`DECISION_LOG_HISTORY.md`.
 
 **D-USAGE-DOCSTRINGS — `sa/usage.py` docstrings are the measured facts.**
 RULED. Each docstring is the measured fact with its population and date
@@ -71,39 +82,19 @@ tokens) share one tool, 36 of them (206k) the command as well. A user
 record batching several tool_result blocks yields one contributor per
 block (0 of 808 observed locally).
 
-**D-AGENT-DIM — a main window carries no `subagent`.** RULED 2026-10-01.
-Only a subagent's window carries `subagent` (its `agentId`); main windows
-lack the dimension and land in the residual row, so `--by subagent` never
-sums every session's main window into one row named like an agent
-(measured: 9 main windows, 985,920 of 3,285,308 context tokens, would
-have formed one). Main windows are selected by session, project or
-window. A `--where` value of a closed-vocabulary dimension (`cause`,
-`reason`, `started_by`) is validated at parse time.
+**D-AGENT-DIM — a main window carries no `subagent`.** RULED 2026-10-01;
+the row, verbatim, is in `_HISTORY`.
 
 **D-MESSAGE-ID-DEDUP — a call's identity is its `message.id`, deduplicated
-across files.** RULED 2026-10-01; opus agreed with four conditions, all
-applied. A fork re-mints its parent's last call under a new uuid in
-another file. `corpus` marks an assistant record whose `message.id` was
-already seen in an EARLIER-OWNED file as a duplicate exactly like a
-repeated uuid: the owner is the first file in owner order (first
-timestamp, longest run, path), never bare path order; the record is
-marked, not dropped, so the tool_use join index still sees it; and the
-population line counts both kinds together. Within one file, records
-sharing a `message.id` are the split constituents of one call, max-merged;
-an id-less record is never a key; constituents spread across files are
-max-merged over all of them before the call is credited to the owning
-file (`SourceFile.usages`). Measured basis (live local corpus,
-2026-10-01): 1 of ~888 live calls, 15,240 input-side base-token
-equivalents; it scales with fork fan-out. Pinned by a fixture of a main
-file and a fork sharing one `message.id` under different uuids.
+across files.** RULED 2026-10-01 (owner order, marked not dropped,
+max-merged across files); the row, verbatim, is in `_HISTORY`.
 
 ## Rulings — 2026-11-15
 
 Owner-approved, amended after review. Each row cites [W], its
 measurement (`WINDOW PROBE 2026-11-15`; `python3 -m sa.sweep` measures
 the same figures), and [O], its second opinions (an independent opus
-review, 2026-11-15, and `PROPOSAL_UX_MODEL.md` §Second opinion). The rows
-as proposed: that proposal, mapped in `_HISTORY`.
+review, 2026-11-15, and the UX-model proposal's §Second opinion: Sources).
 
 **D-CONTEXT-WINDOW — a window is one context window.** RULED. It starts
 at a session start, a subagent, a fork, a replay or a compaction marker
@@ -142,7 +133,7 @@ reconciliation includes it; corpus totals exclude it only when the
 parent window is in the selected population (query selection decides),
 else count it in full. (Amended 2026-11-16: the one fork with a
 `fork-context-ref` carries one copied call, its parent's last,
-re-minted, not none; `PROPOSAL_MEAN_CONTEXT.md` §3.4.) Footer "inherited (counted in parent)", like shrink. The
+re-minted, not none; the mean-context proposal §3.4.) Footer "inherited (counted in parent)", like shrink. The
 window keeps the tokens and one total prints. [W][O]
 
 **D-NO-START-SPLIT — starting context is never split by content.**
@@ -165,11 +156,11 @@ amendment: AGREE.) [W][O]
 RULED. A test caps it at 46 lines, 3,228 chars: the fixture baseline at
 ux-pass HEAD, on the resync corpus with root and projects as `~`. No
 headroom. Doc caps count BYTES, as the pre-commit gates do
-(`tests/test_doc_caps.py`). [W][O]
+(`tests/test_docs.py`). [W][O]
 
 **D-PLAIN-TERMS, D-UNASSIGNED — display terms.** RULED (owner
 directives, 2026-11-15 and -16); the rows, verbatim, are in
-`DECISION_LOG_HISTORY_2.md`. Causes, dimensions and reasons print in
+`DECISION_LOG_HISTORY.md`. Causes, dimensions and reasons print in
 plain words (`replies`, `starting_context`, `started_by`, `command`,
 `subagent`, `several`, ...); the residual row prints `unassigned*`, and
 `*` marks a glossary term at its first appearance, the key listing
@@ -177,7 +168,7 @@ exactly the marked terms. Display only: no figure changes.
 
 ## Rulings — 2026-11-16
 
-Owner-approved. [M]: `PROPOSAL_MEAN_CONTEXT.md`, measured by
+Owner-approved. [M]: the mean-context proposal (Sources), measured by
 `python3 -m sa.sweep` (`LOCAL SWEEP 2026-11-16T01:14Z`: 610 windows,
 24,517 calls; the fork marks `LOCAL SWEEP 2026-11-16T02:29Z`: 614
 windows, 24,771 calls). [O]: its `## Second opinion` (an independent
@@ -207,7 +198,7 @@ constant per window: the band of the window's largest call
 `--since`: a dropped parent makes a fork's copies live, each no larger
 than the branch call its first own call exceeds (LOCAL SWEEP
 2026-11-16T02:53Z: 0 of 43 windows of a 7d read differ,
-`sweep_mean.since_bands`). Declared, ASCII, shell-safe: `0-50K`, `50-100K`,
+`sweep.since_bands`). Declared, ASCII, shell-safe: `0-50K`, `50-100K`,
 `100-200K`, `200K+` (K = 1,000; each band includes its lower edge). A
 label, never a summed peak. `--by peak` and `--where peak=200K+` use the
 existing grammar; `spend --where peak=` too. Basis: a window filter by
@@ -313,3 +304,30 @@ or `by change` screen still prints the line; the `!` trigger is
 unchanged. With the blank line between the ways deeper and the checks,
 it pays for the two pointer lines above within the 46-line budget.
 Rejected: raising the budget; cutting table rows.
+
+## Rulings — 2026-11-16, the repo (phase 2)
+
+Each DECIDED (orchestrator, by principle N; owner to review); N is
+`UX_PRINCIPLES.md` "The project is a screen too".
+
+| id | decided | by | rejected |
+|---|---|---|---|
+| D-REFS-LIVE | `references/` holds live docs only; the rest folded (Sources) | 2 | an `archive/` folder: git keeps them |
+| D-ONE-HISTORY | one `_HISTORY`; R1-P9 as proposed left to git | 1 | concatenating both (31.6K, over the 20K cap) |
+| D-BRIEF-WALK | `DESIGN_BRIEF.md` trimmed to the walk (§2), its gaps | 3 | keeping the retired engine's model |
+| D-PLAN-CURRENT | `PUBLISHING_PLAN.md` rewritten to today, kept | 3 | folding into AGENTS.md (at its cap; the clean-room text cites step 1) |
+| D-RESIDUAL-SCHEMA | `residual` into `schema` (a dimension's catch-all is vocabulary); dead `residual_note` deleted | 1 | `glossary` (words, not values; over 15K) |
+| D-ONE-SWEEP | `sweep_mean` into `sweep`; the proposal's sum-vs-average comparisons and `expand` deleted (their rulings are built); the held identity read from `reconciliation` | 2 | two measuring modules |
+| D-KEEP-MODULES | `grammar`, `notes`, `style`, `leaves` stay: one concern each, and any merge is over 15K | 2 | merging past the cap |
+| D-TEST-FILES | `test_sweep_mean` into `test_sweep`; `test_docs` (caps, examples); `test_scripts` (screens, agent eval) | 1 | one file per module where that file would pass 15K |
+| D-CI | `.github/workflows/ci.yml`: push/PR, Python 3.8, pytest; every corpus is a fixture, so nothing skips | 3 | a Python matrix (3.8 is the floor) |
+
+## Filed, not built (re-checked 2026-11-16)
+
+- Project names print encoded (`~-work-proj3`), not as paths.
+- No pin shows a parent's breakdown to a branch call (D-INHERITED-HELD).
+- `subagent` is a dimension and `subagent_start` a `started_by` value.
+- Fork / compaction / replay counts are small (10 / 9 / 0): re-measure
+  before pinning; D-INHERITED-HELD's exact expansion is unmeasured since
+  D-ONE-SWEEP (`expand`, git 048b3ff).
+- Headroom: AGENTS.md and `sa/sweep.py` sit at their caps.

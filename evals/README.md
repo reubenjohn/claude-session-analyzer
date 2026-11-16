@@ -65,4 +65,4 @@ paired measure (commands vs verdict, ...) next to it.
 update them when the grammar changes), `note` for the grader. Three are
 `held_out`: never iterate the design against them; run them only for final
 checks (`--include-held-out`, or name them in `--tasks`).
-`tests/test_agent_eval.py` checks these files without calling claude.
+`tests/test_scripts.py` checks these files without calling claude.

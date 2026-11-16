@@ -6,7 +6,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import checks as checks_module, cli, glossary, render, residual, schema, style, tables
+from sa import checks as checks_module, cli, glossary, render, schema, style, tables
 
 ESC = "\033["
 
@@ -89,10 +89,10 @@ def test_rows_a_table_never_hides_are_never_dimmed_nor_heated(tmp_path):
     their share, outside the heatmap; so does the total row."""
     root = str(fx.cli_corpus(tmp_path))
     out = fx.run_cli("context", "--root", root, "--color", style.ALWAYS)[1].splitlines()
-    labels = [residual.label(d) for d in residual.RESIDUAL_NOTES] + [schema.SHRINK]
+    labels = [schema.residual_label(d) for d in schema.RESIDUAL_NOTES] + [schema.SHRINK]
     kept = [line for line in out if re.match(r"(%s)\*?\s|\+\d+ more\s" % "|".join(map(re.escape, labels)),
                                              style.plain(line))]
-    assert any(style.plain(line).startswith(residual.label(schema.TOOL_DIM)) for line in kept)  # vacuity guard
+    assert any(style.plain(line).startswith(schema.residual_label(schema.TOOL_DIM)) for line in kept)  # vacuity guard
     assert any(style.plain(line).startswith(schema.SHRINK) for line in kept)
     faint, italic = "%s%sm" % (ESC, style.FAINT[0]), "%s%sm" % (ESC, style.ITALIC[0])
     heated = re.compile(r"\033\[(%s)[;m]" % "|".join((style.RED, style.YELLOW, style.GREEN)))

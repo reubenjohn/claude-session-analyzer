@@ -1,261 +1,11 @@
-# session-analyzer v2 — decision log history: rows as proposed (the Phase 3
-synthesis R1–R6, P1–P9, before the 2026-09-30 rulings) and rows moved
-verbatim out of `DECISION_LOG.md`.
-
-## R1 — Carrier of attributed mass (ENGINE_CONTRACT §5) — NEEDS-RULING
-
-**The choice.** Where does `context_delta`'s attributed mass live? The
-contract tags "spend and context_delta exist ONLY on generation facts"
-[ARITHMETIC]. The misfile lens split it: *each token counted by exactly one
-fact per metric* is the [ARITHMETIC] partition law; WHICH fact kind carries
-the mass is a [RULING]. That split is what makes this cleanly rulable.
-
-**Options considered.**
-1. **C2's move (panel's evidence-based lean):** `context_delta` moves to
-   increment facts; `spend` stays on generations. Clean buckets, the
-   chain-integrity test and reconciliation footer hang naturally off
-   increment facts, and Spike 2 shows the ported engine consumes them
-   unmodified. Touches a pinned test and the [ARITHMETIC] tag's letter.
-2. **Design A's variant:** keep §5's letter; mint a NEW additive metric
-   `context_added` on contributor facts. No pinned test touched, but two
-   token-mass metrics coexist and a consumer summing both double-counts —
-   needs a declared reconciliation between them.
-3. **Design B's silent both-carriers variant: REJECTED** by the panel (the
-   one hard silent §5 violation; double-counts mass, inflates every share
-   denominator).
-
-**Measured stakes (Spike 2):** both kinds carrying `context_delta` in one
-unpredicated map = exactly 2.000000x the true total, AND the mixed root's
-shape-containment filter hides every `cause.*` axis — wrong and blind.
-Whichever carrier wins, presets must lead with a kind predicate.
-
-**Recommendation:** option 1, with C2's spelled-out fallback (fat generation
-facts; see brief §3 item 5) if the owner keeps §5's letter.
-
-## R2 — §6 file=lane re-tag + continuation-head probe — NEEDS-RULING
-
-**The choice.** ENGINE_CONTRACT §6 tags "the carry resets to an empty window
-at the start of EVERY file" [ARITHMETIC]. All three designers independently
-flagged it: *never difference two unrelated windows* is [ARITHMETIC];
-*file = lane* is a modeling choice — bg, /branch, --fork-session continue ONE
-window in a new file, so the per-file reset books a boot-sized `lane_head`
-delta at every continuation head (lane_head = 28.56% of chain mass, Spike 2).
-
-**Options considered.** (a) Approve the named settling measurement — the
-**continuation-head probe**: do continuation files' first calls report
-occupancy ≈ the parent lane's last observed occupancy? Re-tag [OPEN] pending
-its result. (b) Rule the [ARITHMETIC] tag stands as written; `lane_head`
-remains the permanent honesty bucket.
-
-**Recommendation:** approve the probe; keep file=lane and the `lane_head`
-bucket in build v1 either way (no cross-file stitching ships in v1).
-
-## R3 — Misfile-lens re-tag batch — NEEDS-RULING (one batch ruling)
-
-**The choice.** The misfile lens adjudicated 9 contract-tag cases; none are
-applied until ruled. The shared pattern (rule it once, not nine times): the
-contract fuses a true statement about a QUANTITY with a DISPOSITION toward it
-(carrier, reset point, display refusal, quarantine, clamp) and tags the pair
-by the stronger half. The ported code already treats several dispositions as
-policy. The batch:
-
-1. §6 carry resets every file — SPLIT: never-difference-two-windows
-   [ARITHMETIC]; file=lane [OPEN] + continuation-head probe (substance = R2).
-2. §5 only-generation carriers — SPLIT: one-fact-per-token-per-metric
-   [ARITHMETIC]; carrier choice [RULING] (substance = R1).
-3. §1 peak→None, never max — SPLIT: no-sum / no-max-as-peak [ARITHMETIC];
-   refusing a labeled member-max display [RULING].
-4. metric_units fail-open — CORRECTLY TAGGED, but latent code defect: nothing
-   pins set(METRIC_UNITS) == set(AGGREGATION); add the swept test (P1 closes
-   this).
-5. §7 duplicate-partition suppression — SPLIT: signature =
-   partition(+residual) [ARITHMETIC]; suppression + alphabetical survivor
-   [OPEN].
-6. §4 shrink-quarantine lead (A's #2) — MISFILED: no-slot/no-sum core
-   [ARITHMETIC]; quarantine disposition [OPEN].
-7. §1 derived-absent — SPLIT: never-0 / never-misnamed-mean [ARITHMETIC];
-   absent-vs-labeled-mean-vs-pooled-recompute [OPEN].
-8. §1 sanctioned door (peak stays measurable via η²) — SPLIT: measurability
-   [ARITHMETIC]; must-stay-open mandate [RULING].
-9. §2 no-clamp — SPLIT: shrinks-are-real [MEASURED]; unclamped disposition
-   [RULING].
-
-**Options.** Accept the batch re-tags as listed; or accept with exceptions
-named per row; or reject (tags stand as written).
-
-**Recommendation:** accept the batch. No behavior changes in build v1 —
-these change what KIND of claim each invariant is, i.e. which future
-challenges are category errors and which are rulable.
-
-## R4 — Bless the measured attribution headline — NEEDS-RULING
-
-**The choice.** The build-brief non-negotiable says "~77% of intervals
-attribute exactly … the other ~23%" (ENGINE_CONTRACT §4 [MEASURED], older
-corpus, all-non-assistant contributor definition). Spike 1 measured, on
-51,960 intervals (full corpus 2026-07-28, token-relevant contributor
-definition): **94.98% exact / ~5% ambiguous** (multi_contributor 3.08%,
-shrink 1.59%, remainder_negative 0.35%, zero-token-relevant 0.00%).
-
-**Options.** (a) Bless the new headline: MEASURED supersedes MEASURED by a
-new measurement — the sanctioned channel — so the non-negotiable's wording
-does not outlive its measurement. (b) Keep quoting ~77% (now known-stale).
-
-**Recommendation:** bless (a), with the population and the token-relevant
-definition's [OPEN] attachment caveat printed wherever the figure appears.
-Note: this does NOT relax "no estimated attribution" — the ambiguous bucket
-stays, it is just smaller.
-
-## R5 — `tool_input_head` normalization rule — NEEDS-RULING (privacy)
-
-**The choice.** The flagship pivot needs a low-cardinality command-head
-dimension stamped at parse time. Proposed rule: for Bash, the FIRST token of
-`input.command`; for file tools, extension only; never a full command line,
-never a file path; one declared head-extractor mapping, swept and asserted
-nonempty.
-
-**Why the owner must see it before it ships:** this is the one new surface
-that derives an ATTRIBUTE from transcript CONTENT. Heads land in datasets,
-reports, and drill output — unlike evidence fields they are meant to be
-displayed and grouped. A wrong rule leaks (first "token" of `env
-SECRET=… cmd`, or a path-shaped first token); even a right rule turns command
-vocabulary into a queryable dimension. The privacy gate (no transcript text
-in tracked files) makes the extraction rule itself privacy policy, so it is
-[OPEN] with a mandatory owner review, not a build detail.
-
-**Options.** (a) Ship the proposed rule as scoped above; (b) restrict v1 to
-`tool_name` only, defer heads; (c) owner amends the rule (e.g. an allowlist
-of known command heads, everything else → `other`).
-
-**Recommendation:** (a), with (c)'s allowlist noted as the hardening path if
-review finds leak-shaped heads. Measured value: top head bucket = 10.77% of
-chain mass vs top agent 0.24% (~44x, Spike 2) — this axis is why the rewrite
-answers PURPOSE's flagship question.
-
-## R6 — `sa_schema.py` import surface — NEEDS-RULING (build precondition)
-
-**The choice.** Ported `sa_schema.py` line 23 does `from lib import lib_cli,
-lib_dataset`. Neither file is on the v1 read allowlist, neither was ported —
-so the engine CANNOT import standalone (Spike 2 finding 0; the probe stubbed
-the modules, zero engine bytes changed, but a stub is not a build).
-
-**Where the imports are used (measured on the ported file):** only in the CLI
-entry path — `lib_cli.prog(__file__)` (argparse prog name, line 344),
-`lib_dataset.add_stale_arg(ap)` (line 348), `lib_dataset.version_error(ds,
-path, tool="sa schema")` (line 361), all inside `main()`. The library surface
-the engine actually needs (`AGGREGATION`, `METRIC_UNITS`, `metric_units`,
-`flatten`, `census`, …) never touches them.
-
-**Options.**
-1. **Owner allowlists** v1's `lib_cli.py` + `lib_dataset.py` for verbatim
-   porting (widens the clean-room window; imports v1's CLI/dataset-versioning
-   machinery the build may not want).
-2. **Owner sanctions a minimal mechanical strip.** Exactly what it touches:
-   the two-name import on line 23 plus the three call sites above — either
-   delete `main()`/`__main__` entirely (the build queries the library
-   surface, not v1's CLI) or make the import lazy inside `main()`. No
-   docstring, declaration, or census-logic byte changes; the diff is
-   committed and named as the sanctioned exception to "port verbatim".
-3. Something else the owner prefers (e.g. port stubs that raise on use).
-
-**Recommendation:** option 2, delete-the-CLI variant — smallest surface,
-keeps the clean-room boundary intact, and the removed code is v1 CLI plumbing
-the v2 presets replace anyway. Build blocks until answered: this is the
-first task of any build session.
-
----
-
-## P1 — METRICS single declaration (Design B graft) — proposed
-
-**Choice:** one v2 `METRICS` declaration (name → class, unit); swept,
-vacuity-guarded test asserts both ported dicts agree and the sweep found
-≥ 13 metrics. New metrics touch one declaration; ported files stay verbatim.
-Also closes misfile-batch row 4's latent defect. **Options:** wrapper (as
-proposed) / fallback: keep two ported dicts + a pinned key-set-equality test.
-**Recommendation:** wrapper.
-
-## P2 — Shrink's home — proposed
-
-**Choice:** shrink's signed mass demotes `cause.kind` (#1-ranked dimension)
-to a count-basis concentration while siblings rank on mass — silent basis
-mixing (Spike 2; ENGINE_CONTRACT §2 live). **Options:** sign attribute /
-quarantine kind outside the default preset / accept-and-render
-`dist_basis_reason`. **Recommendation:** exclude `shrink` from the `context`
-preset's membership predicate; its mass stays reconciliation-footer-mandatory
-(−3.91M tokens corpus-wide), so honesty survives and the default ranking
-stays on one basis.
-
-## P3 — Residual-aware `top_key` rendering — proposed
-
-**Choice:** `top_key`/`top_metric_share` can BE the residual bucket (observed
-59.94% residual printed as "top", Spike 2). **Options:** display layer owns
-residual handling (recommended, no engine change) / engine grows a
-top-non-residual field — an engine change only an owner ruling could
-authorize; NOT requested in v1. **Recommendation:** renderer rule — never
-print `top_key` as "top" without residual handling.
-
-## P4 — `cause.candidates` to evidence — proposed
-
-**Choice:** lists json-dump into one opaque flatten key; the dimension died at
-98.3% residual (Spike 2). **Recommendation:** candidates move to the evidence
-side (locator/preview); the drillable scalar is `cause.candidate_count`.
-Diverges from Design C as originally briefed; measured, not argued.
-
-## P5 — `lib_corpus.py` shared parser — proposed tangent
-
-**Choice:** two spike probes (three, counting Phase 0's) duplicate
-`read_file`/`build_calls`/`tool_index` verbatim. **Recommendation:** promote
-to `scripts/lib/lib_corpus.py` before a third copy drifts; the build's parser
-grows from it rather than from a fourth copy. Cost: one module + tests; the
-panel reported it upward as the standing missing-tool signal.
-
-## P6 — Usage-less call disposition — proposed (keep as ported)
-
-**Choice:** ENGINE_CONTRACT §6: a call reporting no usage emits `0` without
-advancing the carry; the trailing parenthetical marks `0`-over-no-fact
-[OPEN]. Design A proposed absent-metrics-not-0. **Recommendation:** keep the
-ported behavior in build v1 — no new measurement distinguishes the options'
-totals (they are identical; the difference is `n_valued` honesty), and the
-misfile batch (R3 row 7) already routes the display-side question. Revisit
-only with a measurement.
-
-## P7 — v1 [OPEN] choices kept unchanged — proposed (keep)
-
-**Choice:** score = stat × cover; cover as fact count; missing-key/null
-residual unification; purity boundary; fail-closed unclassified metric;
-absent-not-defaulted statistic fields; max-merge reconciliation.
-**Recommendation:** keep all, unchanged — no new measurement, and these
-survived mutation testing; challenging them on argument alone is the recorded
-failure mode. Listed so the keep is itself a logged decision.
-
-## P8 — Schema shape rules — proposed
-
-**Choice:** two rules Spike 2 measured against the ported engine: dimension
-attributes nest at most two deep (`flatten()` offers depth-2 only; deeper is
-silently un-offerable), and lane identity lives only in `locator.source`
-(duplicate attribute folds into an alias row). **Recommendation:** declare
-both as tested schema rules so they are design, not rediscovery.
-
-## P9 — Presets-as-data + computed denominators — proposed
-
-**Choice:** a view is `{membership predicate, default metric, starting
-path}` — data, not code; two presets (`context`, `spend`); every population
-line counted from the predicate (B graft), never hand-written prose; a preset
-naming an unknown metric dies in `statistic_for`; unknown `cause.kind` fails
-closed. **Recommendation:** build as stated; this is the replacement for
-v1's ~40 hand-maintained tables (three fail-silent) the charter orders
-killed.
-
----
+# session-analyzer v2 — decision log history: rows moved verbatim out of
+`DECISION_LOG.md`, and what each superseded proposal was. The proposals
+themselves are in git (`git show 048b3ff:references/<file>`).
 
 ## Phase 3 synthesis — the rows as proposed (history)
 
-Travels with `DESIGN_BRIEF.md`. Every open or disputed choice is a numbered
-row. **Original STATUS meanings:** `NEEDS-RULING` — the build BLOCKS until
-the owner answers; `proposed` — synthesis will build it as recommended unless
-the owner vetoes. The status column now shows the 2026-09-30 ruling
-(RULED / DEFERRED / MOOT / RECORD-ONLY). The per-row discussions as
-originally proposed are above. Populations for every
-figure: see the brief; corpus figures are 2026-07-28 sweeps and drift.
+The Phase 3 synthesis's numbered rows and their 2026-09-30 ruling; the
+discussions as proposed: `git show 048b3ff:references/DECISION_LOG_HISTORY.md`.
 
 | id | choice | status |
 |---|---|---|
@@ -275,12 +25,6 @@ figure: see the brief; corpus figures are 2026-07-28 sweeps and drift.
 | P7 | Keep v1's untouched [OPEN] engine choices | MOOT |
 | P8 | Schema rules: depth-2 nesting, one lane home | MOOT |
 | P9 | Presets-as-data; computed denominators | RULED |
-
-## 2026-11-15 rows as proposed
-
-`PROPOSAL_UX_MODEL.md`: D-CONTEXT-WINDOW is 1B (its review preferred
-A+), D-START-CAUSE 2, D-FORK-INHERITED 3B, D-INHERITED-ONCE 3C (rejected
-there), D-NO-START-SPLIT 4, D-HEADLINE-TWO-LINES 5; D-OUTPUT-CAP is new.
 
 ## Rows moved from `DECISION_LOG.md`, 2026-11-15 (verbatim)
 
@@ -352,3 +96,208 @@ or value, a dimension the carrier never has, a value no fact carries) and
 `query.group` checks `--by` against the carrier, the CLI only surfacing
 the library's error as exit 2; the fork evidence keys and `candidates`
 are declared once in `schema`.
+
+## Rows moved from `DECISION_LOG.md` (verbatim; formerly `DECISION_LOG_HISTORY_2.md`)
+
+**R5-BUILTINS — output-less shell builtins are skipped like keywords.**
+RULED 2026-10-01, closing R5-BASENAME's logged gap: a loop body that opens
+with a label (`for f in …; do echo "== $f"; cat "$f"; done`) had yielded
+`Bash:echo`, although `echo` never produces the tokens the increment books.
+Measured basis, live corpus (40 files, 32 windows, 2026-10-01, `--where
+tool=Bash --by head`): before, `Bash:echo` carried 167,401 tokens over 23
+increments (the #2 Bash head) and `Bash:cat` 238,494 over 37; after,
+`Bash:echo` and `Bash:printf` (2,440) carry nothing and `Bash:cat` is
+448,448 over 57 (48.0% of 935,044 with a head). One declared tuple in
+`heads.py`, `BUILTINS = ("echo", "printf", "true", "false", "set",
+"export", "unset", "shift")`: a builtin is skipped with its own arguments up
+to the next separator, so the head is the next command word (`echo hi && pytest` ->
+`Bash:pytest`, `printf '%s' x | sort` -> `Bash:sort`) and a command that is
+only builtins yields `Bash:other`. The interpreter-plus-script gap
+(`python3 scripts/x.py` -> `Bash:python3`) stays logged, not widened. Same
+pass: a table's mass column is headed by the metric name
+(`context_delta`, `spend`) rather than its unit, which the headline already
+states once; spend's 33-character unit had overflowed the column and
+misaligned `by agent`. Extended 2026-10-01 (fourteenth judge): the
+principle is negligible output, not the builtin list, so a second declared
+tuple `SILENT = ("mkdir", "touch", "mv", "cp", "rm", "chmod", "sleep",
+"ln")` is skipped the same way (`mkdir -p x && cat > f <<EOF` ->
+`Bash:cat`); measured basis, live corpus 2026-10-01: `Bash:mkdir` carried
+59,586 context tokens over 13 increments, one increment of 23,390 tokens
+that mkdir did not print. Amended 2026-10-01 (fifteenth judge): the
+tokenizer is the standard library's `shlex` (posix; a run of `();|&` is
+one word), so quoting is modelled (`echo "a; b"; make` -> `Bash:make`), a
+nested `$(...)` collapses from the inside, and a builtin's arguments run to
+the next separator, never a reserved word (`echo if x; make` ->
+`Bash:make`); heredocs and function definitions are still not.
+
+**D-HEADLINE-SPECIFIC — the headline names the most specific unpinned
+table's top row as a share of the total.** RULED 2026-10-01, same judge.
+`sa context` had led with "top cause=tool_result 33%", the "mostly tools"
+category PURPOSE calls true and useless. Now the lead is the top regular
+row of the most specific dimension shown that `--where` did not pin, in the
+order head, tool, cause, agent, session, project — declared once as
+`schema.DIMENSIONS` reversed, general to specific — so `sa context` leads
+with "top head=Bash:cat 554,879 (13.2% of the 4,188,015 total)" and `sa
+spend` with the top agent; `--by` still overrides. The share is of the
+headline TOTAL, named "of the N total"; the table's own `share of <base>`
+column stays over its base, so the two differ whenever a residual or
+signed row exists and each names what it is over. Same pass, three fixes
+the judge measured: `--where cause=shrink` had been refused ("no facts
+carry cause=shrink") because the present values were read from a table's
+regular rows, which file shrink as signed — they now come from the carrier
+facts themselves, by descending |mass|, and the closed-vocabulary guard is
+parametrized over EVERY declared value; `--by fact` sorted by signed mass,
+so a shrink leaf fell last under `--limit` — now by |mass|; and
+`heads.bash_head` treats a newline and either parenthesis as separators,
+drops a bare separator, skips `timeout`'s options (`VALUED` take a
+word) before its duration, skips a `[`…`]` / `[[`…`]]` test, and skips
+`exit` as a builtin (`cd x || exit 1; make` is `Bash:make`, re-pinned).
+AMENDED 2026-10-01, seventh judge: picking the lead by position had led
+a subagent window (72% of its mass ambiguous, sharing a tool but no head)
+with `head=Edit:py 19,214` while `tool=Bash` carried 99,422 below it.
+Levers are declared per view (`render.View.levers`): context `tool` and
+`head`, spend `agent`; never `cause` (categories) nor a window dimension
+(local corpus, 46 files, 2026-10-01: the top project row is 81.0% of the
+context total; on a window drill each window table's one row is 100%).
+AMENDED (judge 8): `--by` had made its table the lever, so
+`spend --by session` and `context --by window` led with a population row
+and `--by cause` with a category. Now the headline is grouped from the
+levers alone, whatever `--by` shows (`fact` too), and since a head row
+can never exceed its tool row it walks down: the top tool with its share
+of the total, then `within it` the top head when it lies under that tool
+(a top head under another tool ends the walk); a pinned lever drops out.
+AMENDED 2026-10-01, ninth judge: `within it head=Bash:cat 839,141
+(15.4%)` was a share of the total that read as a share of Bash, and a
+top head under another tool was silent. Now the refining clause is the
+largest head of the top tool's facts, grouped once, with both bases
+(`47.0% of Bash, 15.4% of the total`), and when the largest head overall
+lies elsewhere it follows: `top head=Read:py N (x% of the total) under
+tool=Read`. A `--where` pin omits every default table and lever whose
+facts all share one value (a pinned head implies its tool, a pinned
+window its agent, session and project; `--by` still prints on request).
+Same pass: `cd` joined `BUILTINS` in place of its own branch (`cd -P /x
+&& make` -> `Bash:make`; a lone `cd /x` -> `Bash:other`, like `echo
+done`); `query.Selection` dropped the CLI's root, since and corpus,
+which `cli` now hands to `render.population`.
+
+## Rows moved from `DECISION_LOG.md`, 2026-11-16 (verbatim)
+
+**R5 — `tool_input_head` normalization.** RULED: option (a) with a mechanical
+guard. Bash head = first token after stripping leading `VAR=value`
+assignments and `cd <dir>` prefixes ended by `&&`, `;` or `||`; kept only if it matches
+`^[A-Za-z0-9_.+-]{1,32}$` and contains no slash, else `other`. File tools ->
+extension only. One declared extractor mapping. Rationale: output goes to the
+user's own terminal from their own transcripts; the privacy gate governs
+tracked files.
+
+**D-START-CAUSE — `start` names what began a window.** RULED. A window
+dimension on both kinds, constant per window: `session_start`,
+`subagent`, `fork`, `replayed`, `compaction`; fork beats subagent (forks
+live under `subagents/`). `start`, not `trigger`: it names the line it
+heads; `replayed`, not `resume`: the record, not a guessed intent.
+Measured 68 / 513 / 10 / 0 / 5; `replayed` declared, 0 observed. [W][O]
+
+**D-PLAIN-TERMS — user-facing terms explain themselves.** RULED, owner
+directive (UX_FEEDBACK 6, 7, 10); [O] an independent opus review,
+2026-11-15, agreed with the changes as folded in. Supersedes
+D-START-CAUSE's spellings and every older row's. Key and CLI spelling
+renamed together: cause `feed_forward` -> `replies`, `window_head` ->
+`starting_context`; dimension `start` -> `started_by` (values unchanged),
+`head` -> `command` (table "by command / file type"), `agent` ->
+`subagent` (spend's lever too); reasons `multi_contributor` ->
+`several`, `negative_remainder` -> `less_than_reply`, `no_contributor` ->
+`unexplained`. Display only: `context_delta` prints as "context
+tokens", increments as `changes`, calls as `calls`, spend's unit as
+price-weighted input tokens; `-h` says subcommand and pin. Markers only
+on `ambiguous`, `∅`, `window`, `starting_context`. Never more verbose
+than pre-A1: default `--limit` 10 -> 5, the cause table always whole,
+`∅` and signed rows never hidden; key entries one clause, the full text
+in `sa explain`. Unchanged: ambiguous, ∅, window, inherited, replayed,
+shrink, exact, tool_result, user_text, spend, drill.
+
+**D-UNASSIGNED — the residual row prints `unassigned*`; `*` footnotes.**
+RULED, owner directive, 2026-11-16. A display rename only: the residual
+row (was `∅`) means what it meant, never in a share, never hidden. `*`
+replaces `°` and marks a glossary term at its first appearance (every
+residual row carries it); the key lists exactly the marked terms, one
+clause each. The per-table `∅ by X` lines go; `sa explain unassigned`
+gives each table's cases. `--where` never took `∅` as a value, nor
+takes `unassigned`. Amends D-PLAIN-TERMS' markers; no second opinion yet.
+
+## Rows moved from `DECISION_LOG.md`, 2026-11-16, per call (verbatim)
+
+**D-SPEND-BY-INCREMENT — spend cannot leave the window.** DEFERRED. Call
+facts carry only window dimensions, so `sa spend` cannot say what put the
+tokens there; it prints a one-line pointer to `sa context` and says that
+context shares are not cost shares. No cost-per-increment join. Design
+note: an exact decomposition exists — spread each call's
+spend uniformly over the tokens occupying its window at that call, so an
+increment's cost is `delta x sum over later calls N of spend(N)/occupancy(N)`,
+which telescopes to `sum spend` exactly — but uniform per-token spreading
+inside a call is a convention, so it is attribution by model and waits for an
+owner ruling. Alternative: price each call's `cache_creation` at its own
+tier rate against the increment booked into the interval that call closes;
+this rests on the identity `cache_read(N) == cache_read(N-1) +
+cache_creation(N-1)`, measured at 92.21% of pairs, so it must be measured
+before anyone calls it exact.
+
+**D-PEAK-DEFAULT — the default output leads with the band.** RULED.
+`context`'s default tables gain `by peak` (context tokens, windows,
+calls, share; under a drill, whole windows with a matching change),
+before `session` (the path's order). A default table, lever or hint
+opens only when the windows in view carry more than one value, pinned
+or not: one band prints no `by peak`. The hint follows the headline's
+own walk (tool, then command, then `by change`): amended iter2, display
+only, since a band the default screen no longer prints did not motivate
+it (audit F4); `by peak` stays a table away. Tables that repeat one
+table row for row share its one relabel line (`by session, project:`),
+which keeps the fixture output at 46 lines / 2,872 chars, D-OUTPUT-CAP
+unchanged. The "calls holding over 200K" figure (1,860 of 24,563 [O])
+is not printed: it counts calls, not windows, so it has no pin to act
+on (the call filter is deferred, D-OCCUPANCY-FILTER), the 200K+ row's
+calls column already sizes the exposure, and the cap has no room; it
+stays a sweep line. [O] second opinion 2026-11-16: AGREE-WITH-CHANGE, applied.
+
+**D-ENGINE — the ported ranking engine is RETIRED from the build.** RULED.
+`scripts/lib/lib_drill.py` and `scripts/sa_schema.py` are not in the tree
+(they remain in git history and on the `v1-legacy` branch).
+Measured basis: the engine is ~85–90% dimension-ranking machinery (four
+filters, entropy and eta-squared statistics, partition-signature collapse)
+built for v1's many-shape taxonomy; v2 has two fact kinds and about six
+dimensions, which are shown side by side rather than ranked. `sa_schema.py`
+also cannot import standalone (it depends on two unported v1 modules).
+What survives, pinned by v2's own tests: never sum a peak; a peak reports
+no value at a node; signed mass handled explicitly; fail closed on an unknown
+metric; the one residual bucket. What the owner loses: the mutation-tested
+score rule and the eta-squared door for drilling a peak. Mitigation: v2's
+fact shape stays `{attributes, metrics, locator}` so `lib_drill.py` can be
+re-attached if dimensions multiply. `sa/usage.py` keeps the ported function
+bodies; it carries the measured corrections (D-USAGE-DOCSTRINGS).
+
+## Rows moved from `DECISION_LOG.md`, 2026-11-16, phase 2 (verbatim)
+
+**D-AGENT-DIM — a main window carries no `subagent`.** RULED 2026-10-01.
+Only a subagent's window carries `subagent` (its `agentId`); main windows
+lack the dimension and land in the residual row, so `--by subagent` never
+sums every session's main window into one row named like an agent
+(measured: 9 main windows, 985,920 of 3,285,308 context tokens, would
+have formed one). Main windows are selected by session, project or
+window. A `--where` value of a closed-vocabulary dimension (`cause`,
+`reason`, `started_by`) is validated at parse time.
+
+**D-MESSAGE-ID-DEDUP — a call's identity is its `message.id`, deduplicated
+across files.** RULED 2026-10-01; opus agreed with four conditions, all
+applied. A fork re-mints its parent's last call under a new uuid in
+another file. `corpus` marks an assistant record whose `message.id` was
+already seen in an EARLIER-OWNED file as a duplicate exactly like a
+repeated uuid: the owner is the first file in owner order (first
+timestamp, longest run, path), never bare path order; the record is
+marked, not dropped, so the tool_use join index still sees it; and the
+population line counts both kinds together. Within one file, records
+sharing a `message.id` are the split constituents of one call, max-merged;
+an id-less record is never a key; constituents spread across files are
+max-merged over all of them before the call is credited to the owning
+file (`SourceFile.usages`). Measured basis (live local corpus,
+2026-10-01): 1 of ~888 live calls, 15,240 input-side base-token
+equivalents; it scales with fork fan-out. Pinned by a fixture of a main
+file and a fork sharing one `message.id` under different uuids.

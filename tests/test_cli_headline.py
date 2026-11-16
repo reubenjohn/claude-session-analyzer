@@ -2,7 +2,7 @@
 import re
 
 import fixtures as fx
-from sa import cli, glossary, grammar, headline, heads, notes, query, residual, schema, tables
+from sa import cli, glossary, grammar, headline, heads, notes, query, schema, tables
 from sa.schema import CALL
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
@@ -178,7 +178,7 @@ def test_headline_share_is_of_the_added_while_the_table_share_is_of_its_base(tmp
     code, out, err = fx.run_cli("context", "--root", str(root), "by", TOOL)
     assert code == 0, err
     assert re.search(r"^%s\s+84,552\s+\d+\s+-  = %s 84,333 \+ " % (
-        re.escape(residual.label(TOOL)), schema.STARTING_CONTEXT), out, re.M)  # in no share, its parts shown
+        re.escape(schema.residual_label(TOOL)), schema.STARTING_CONTEXT), out, re.M)  # in no share, its parts shown
     assert re.search(r"^%s\*?\s+-57\s" % re.escape(schema.SHRINK), out, re.M)
     assert " 84,333 99.5% " in fx.headline(out) and " 433 0.5% " in fx.headline(out)  # of the 84,766
     verbose = fx.run_cli("context", "--root", str(root), "by", TOOL, "-v")[1]
@@ -187,7 +187,7 @@ def test_headline_share_is_of_the_added_while_the_table_share_is_of_its_base(tmp
     assert re.search(r"^by %s\s.*\s+%s\s+share$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
     assert re.search(r"^Bash\s+214\s+3\s+100\.0%$", out, re.M)
     assert re.search(r"^%s\s+214\s+3  %s$" % (re.escape(tables.BASE_LABEL), re.escape(  # the base: what has a tool
-        tables.BASE_NOTE % residual.label(TOOL))), out, re.M)
+        tables.BASE_NOTE % schema.residual_label(TOOL))), out, re.M)
 
 
 def test_headline_total_and_table_base_are_one_sum(tmp_path):

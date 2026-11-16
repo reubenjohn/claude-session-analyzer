@@ -5,7 +5,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, query, schema
+from sa import cli, query, reconciliation, schema
 from sa.schema import Locator
 
 
@@ -198,3 +198,25 @@ def test_a_window_peak_band_includes_its_lower_edge_and_is_whole_window(tmp_path
         mine = [f for f in facts if f.window == key]
         top = max(f.metrics[fx.PEAK] for f in mine if f.kind == schema.CALL)
         assert {f.dims[schema.PEAK_DIM] for f in mine} == {schema.band(top)}
+
+
+def test_the_engine_books_held_and_reconciles_it_per_window(tmp_path):
+    """D-PER-CALL: ``walk.forest`` books ``context_held`` on every increment
+    and the reconciliation checks it per window; one token off breaks it.
+    The expectation is by hand, not by ``walk.held``: ``fx.window_records``
+    is one window of 7 calls; its start is held by all 7, the changes
+    closed at call k (2 here, 2 at call 3, ...) by calls k through 7."""
+    one = fx.load_facts(fx.corpus(tmp_path / "one", {"proj-a/sess-0001.jsonl": fx.window_records()}))[1]
+    increments = [f for f in one if f.kind == schema.INCREMENT]
+    assert sum(f.kind == schema.CALL for f in one) == 7  # vacuity guard: the window counted by hand
+    assert [f.metrics[fx.HELD] / f.metrics[fx.DELTA] for f in increments] == [7, 6, 6, 5, 5, 4, 3, 2, 2, 1, 1]
+    _, facts = fx.load_facts(fx.every_corpus(tmp_path))
+    assert all(fx.HELD in f.metrics for f in facts if f.kind == schema.INCREMENT)
+    r = reconciliation.reconcile(facts)
+    assert r.held_holds and r.holds and r.held == r.occupancy > 0
+    i = next(i for i, f in enumerate(facts) if f.kind == schema.INCREMENT)
+    broken = list(facts)
+    broken[i] = facts[i]._replace(metrics=dict(facts[i].metrics, **{fx.HELD: facts[i].metrics[fx.HELD] + 1}))
+    r = reconciliation.reconcile(broken)
+    assert not r.held_holds and not r.holds and r.mass_holds
+    assert r.held_windows == r.windows - 1

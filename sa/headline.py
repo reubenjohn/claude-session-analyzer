@@ -1,12 +1,12 @@
 """The answer, under the scope: the total and how it was taken (for
 context, the average context per call, D-PER-CALL), then the starting
 context by what started each window and the growth walked down the view's
-levers (D-HEADLINE-TWO-LINES), each in the total's unit. A ``--where`` pin
+levers (D-HEADLINE-TWO-LINES), each in the total's unit. A pin
 omits every lever whose facts all share one value."""
 import textwrap
 from typing import Dict, List, Optional, Tuple
 
-from . import glossary, query, residual, schema, style, tables
+from . import glossary, query, schema, style, tables
 from .query import Selection
 from .schema import Fact
 from .tables import at, count, num, pct
@@ -28,7 +28,7 @@ def headline(view, sel: Selection, forest: List[Fact] = (), names: Names = None)
     """The total and the windows it is over, then one aligned block over it
     (D-HEADLINE-TWO-LINES), each line what, tokens, share, where from: the
     starting context as the sum of what started each window, then the
-    growth and its largest part down the view's levers, whatever ``--by``
+    growth and its largest part down the view's levers, whatever ``by DIM``
     shows: a category (``cause``) or a population row is never the answer.
     With no starting context, the block is the largest value of the first
     lever left open, its share left to its table: one share per figure on a
@@ -79,7 +79,7 @@ def level(sel: Selection, spec: schema.Metric, names: Names = None) -> str:
         named = [(d, v) for d, v in sel.drill if not (d == schema.TOOL_DIM and schema.COMMAND_DIM in dict(sel.drill))]
         shown = query.window_count(sel.facts)
         line = "%s: %s of the %s-token average call, over %s in %s\n  from %s in %s" % (
-            ", ".join(tables.value(d, v, names) if v is not None else residual.label(d) for d, v in named),
+            ", ".join(tables.value(d, v, names) if v is not None else schema.residual_label(d) for d, v in named),
             num(sel.total), num(mean), count(sel.calls, "call"), count(sel.n_windows, "window"),
             count(changes, schema.PLURAL[spec.carrier][:-1], schema.PLURAL[spec.carrier]),
             count(shown, "window") if shown == sel.n_windows else "%s of those windows" % num(shown))
@@ -153,7 +153,7 @@ TERMS = 3  # a sum's terms of starts, ``N more`` the last
 
 
 def copied(sel: Selection, forest: List[Fact]) -> List[str]:
-    """Under a ``--where window=`` pin, each inherited increment counted
+    """Under a ``window=`` pin, each inherited increment counted
     here, as its parent window's exact breakdown by tool through the branch
     call, signed rows included, found by reference (D-FORK-INHERITED); per
     call, each part held by the fork's calls as the copy was."""
@@ -170,7 +170,7 @@ def copied(sel: Selection, forest: List[Fact]) -> List[str]:
             lines.append("  %s %s copied from %s=%s through %s, by tool: %s" % (
                 schema.INHERITED, num(delta * scale), schema.WINDOW_DIM,
                 schema.window_value(key), at(call), ", ".join(
-                    "%s %s" % (residual.label(schema.TOOL_DIM) if r.kind == query.RESIDUAL else r.value,
+                    "%s %s" % (schema.residual_label(schema.TOOL_DIM) if r.kind == query.RESIDUAL else r.value,
                                num(r.mass * scale)) for r in rows)))
     return lines
 
@@ -192,7 +192,7 @@ def over(sel: Selection, carrier: str, names: Names = None) -> str:
 
 def pins(pairs: List[Tuple[str, str]], names: Names = None) -> str:
     """`` where dim=value ...`` for the pairs as the tables print them, or nothing."""
-    return " where " + " ".join("%s=%s" % (d, residual.label(d) if v is None else tables.value(d, v, names))
+    return " where " + " ".join("%s=%s" % (d, schema.residual_label(d) if v is None else tables.value(d, v, names))
                                 for d, v in pairs) if pairs else ""
 
 

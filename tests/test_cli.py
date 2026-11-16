@@ -7,7 +7,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import checks, cli, glossary, grammar, headline, notes, render, residual, schema, tables, walk
+from sa import checks, cli, glossary, grammar, headline, notes, render, schema, tables, walk
 from sa.schema import INCREMENT
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
@@ -53,7 +53,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     by_tool = fx.run_cli("context", "--root", str(root), "by", schema.TOOL_DIM)[1]
     assert fx.checks(by_tool).endswith(  # the * where the word first prints: the catch-all's parts
         "\n  %s: 0.2%% of the average call over all 21 calls, not traced to one source" % schema.AMBIGUOUS)
-    assert re.search(r"^%s .* \+ %s\%s \d" % (residual.label(schema.TOOL_DIM), schema.AMBIGUOUS,
+    assert re.search(r"^%s .* \+ %s\%s \d" % (schema.residual_label(schema.TOOL_DIM), schema.AMBIGUOUS,
                                                glossary.MARKER), by_tool, re.M)
     worked = fx.run_cli("context", "--root", str(root), "-v")[1].splitlines()
     added = "tokens added 254,860 - tokens shrunk 300"  # the widest label sets the figures' column
@@ -123,11 +123,11 @@ def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
     assert code == 0, err
     assert re.search(r"; largest %s [\d,]+ agent-fake1$"  # the one subagent, beside a 200K+ window
                      % schema.SUBAGENT_DIM, fx.headline(out))
-    assert re.search(r"^%s\s+[\d,]+\s+14\s+-(  |$)" % re.escape(residual.label(schema.SUBAGENT_DIM)),
+    assert re.search(r"^%s\s+[\d,]+\s+14\s+-(  |$)" % re.escape(schema.residual_label(schema.SUBAGENT_DIM)),
                      out, re.M)  # labelled by what its windows lack
-    pinned = fx.run_cli("spend", "--root", str(root), "%s=%s" % (schema.SUBAGENT_DIM, residual.label(
+    pinned = fx.run_cli("spend", "--root", str(root), "%s=%s" % (schema.SUBAGENT_DIM, schema.residual_label(
         schema.SUBAGENT_DIM)))  # the label as printed is typable input, unquoted
-    assert pinned[0] == 0 and "14 calls" in pinned[1] and " " not in residual.label(schema.SUBAGENT_DIM)
+    assert pinned[0] == 0 and "14 calls" in pinned[1] and " " not in schema.residual_label(schema.SUBAGENT_DIM)
     facts = fx.load_facts(root)[1]
     by_file = {f.locator.file: f.dims.get(schema.SUBAGENT_DIM) for f in facts}
     assert by_file == {"proj-a/sess-0001.jsonl": None, "proj-b/sess-0002.jsonl": None,

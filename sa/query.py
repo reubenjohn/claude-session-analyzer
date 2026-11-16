@@ -53,7 +53,7 @@ def narrow(facts: List[Fact], where: Where, metric: str) -> List[Fact]:
 
 
 def split(where: Where) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
-    """The ``--where`` pairs that keep whole windows, and those that drill
+    """The pins (``DIM=VALUE``) that keep whole windows, and those that drill
     within them."""
     pairs = list(where)
     return ([p for p in pairs if p[0] in schema.WINDOW_DIMENSIONS],
@@ -245,8 +245,8 @@ def largest(facts: Iterable[Fact], metric: str) -> Optional[Fact]:
 class Selection(NamedTuple):
     """What a view is answered over: the whole windows the window-dimension
     filters kept and the facts the drill filters kept within them."""
-    window_where: List[Tuple[str, str]]  # the --where pairs that kept whole windows
-    drill: List[Tuple[str, str]]     # the --where pairs that selected within them
+    window_where: List[Tuple[str, str]]  # the pins that kept whole windows
+    drill: List[Tuple[str, str]]     # the pins that selected within them
     window_facts: List[Fact]        # whole windows kept by ``window_where``
     facts: List[Fact]               # the windows' facts kept by ``drill`` too, less ``inherited``
     total: float                    # the view's metric over ``facts``, summed once (per call: over ``calls``)

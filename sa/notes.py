@@ -11,7 +11,7 @@ import re
 import textwrap
 from typing import Dict, List, Sequence, Tuple
 
-from . import glossary, headline, leaves, query, residual, schema, style, tables
+from . import glossary, headline, leaves, query, schema, style, tables
 from .tables import WIDTH, count, num, pct, value
 
 HEAD = "-v: "  # each part of the block opens with it
@@ -82,8 +82,8 @@ def block(figures: Sequence[Tuple[str, str, str]], terms: Sequence[str],
         lines.append(HEAD + "what the marked words and the catch-all rows mean")
         for term in terms:
             lines += define(term, "; ".join((view_notes or {}).get(term, ())), window)
-        for dim in (d for d in catch_alls if residual.RESIDUAL_NOTES.get(d, ("", []))[1]):
-            lines += _wrapped("%s (by %s): %s" % (residual.label(dim), dim, residual.residual_cases(dim)))
+        for dim in (d for d in catch_alls if schema.RESIDUAL_NOTES.get(d, ("", []))[1]):
+            lines += _wrapped("%s (by %s): %s" % (schema.residual_label(dim), dim, schema.residual_cases(dim)))
     return [style.tag(line, style.KEY) for line in lines]
 
 
@@ -106,7 +106,7 @@ def figures(view, sel: query.Selection, shown: Sequence[Tuple[query.Table, objec
     if spec.aggregation == schema.PER_CALL:
         mass = sum(f.metrics[view.metric] for f in carried)
         what = glossary.printed(glossary.AVERAGE).replace("_", " ") if not sel.drill else (
-            "the pinned part, %s" % ", ".join("%s=%s" % (d, residual.label(d) if v is None else value(d, v, names))
+            "the pinned part, %s" % ", ".join("%s=%s" % (d, schema.residual_label(d) if v is None else value(d, v, names))
                                               for d, v in sel.drill))
         out.append((what, "its changes' tokens × calls held, summed, ÷ the calls in view",
                     "%s ÷ %s = %s" % (num(mass), num(sel.calls), num(sel.total))))

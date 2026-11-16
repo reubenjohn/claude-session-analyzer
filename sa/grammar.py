@@ -15,7 +15,7 @@ import difflib
 import shlex
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from . import glossary, residual, schema
+from . import glossary, schema
 
 PROG = glossary.PROG
 VIEWS = ("spend", "context")  # cost first, then cost aside
@@ -238,7 +238,7 @@ class Invocation(NamedTuple):
                 verbose: bool = False) -> str:
         words = [self.view] + ([BY, by] if by else [])
         pins = list(self.pins) + list(add)
-        implied = {d for p in pins if p[1] != residual.label(p[0]) for d in IMPLIES.get(p[0], ())}
+        implied = {d for p in pins if p[1] != schema.residual_label(p[0]) for d in IMPLIES.get(p[0], ())}
         words += ["%s=%s" % p for p in pins if p[0] not in implied]
         flags = (["--since", self.since_text] if self.since_text else [])
         root = ""

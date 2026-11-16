@@ -14,9 +14,10 @@ capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
 
 Package `sa/`, one module per stage (`corpus` read+dedup, `windows`
 the cut, `walk` attribution, `heads`, `schema` METRICS, vocabularies,
-`glossary`, `query`, `reconciliation`, `headline`, `tables`, `leaves`,
-`render`, `checks`, `cli`, `usage` ported); each
-docstring is its spec. The parser IS the product: `sa.sweep` imports it.
+`glossary`, `query`, `reconciliation`, `grammar`, `cli`, `render`,
+`headline`, `tables`, `leaves`, `notes`, `checks`, `style`, `usage`
+ported); each docstring is its spec. The parser IS the product:
+`sa.sweep` imports it.
 
 One data model, `Fact`, specified in `schema.py`: `kind` is `call` or
 `increment`; `metrics`; `dims`; `locator` `file:line:uuid` with `file`
@@ -31,15 +32,15 @@ records; identity (file, start line). Window dimensions `project`,
 `session`, `subagent` (none on a main window, else `<type> <8 hex>`),
 `window` (8 hex of its key), `started_by`, `peak` (its largest call's
 band, D-PEAK-BAND) are on both kinds; `cause`,
-`tool`, `command`, `reason` on increments only; an increment prints as a change. A command is `<tool>:<summary>`: a Bash command's first command word
+`tool`, `command`, `reason` on increments only (printed: changes). A command is `<tool>:<summary>`: a Bash command's first command word
 (`Bash:pytest`) or a file tool's extension (`Read:py`); never a path. Unknown names, undeclared values and a pin value no fact
-carries exit 2 (`grammar`, `query.narrow`), naming the nearest.
+carries exit 2 (`query.narrow`), naming the nearest.
 `starting_context` (never split by content) and `ambiguous` are rows,
 never spread or a lever. A fork's copy is one `inherited`
 increment, held by the fork's calls; a parentless fork is counted, not
 fixed (D-MISSING-PARENT).
 
-CLI: `python3 -m sa -h`, one grammar (`grammar`). Order: scope (`read:`, `in view:`;
+CLI: `python3 -m sa -h`, one grammar. Order: scope (`read:`, `in view:`;
 `--since` 7d unless `all`), answer, `View.tables`, the `by DIM` and
 `-v` commands, the `✓` lines (`checks`). Context is
 per call (D-PER-CALL): each change x the calls that held it
@@ -49,7 +50,7 @@ population. Under it: starting context by `started_by`, then growth down
 `View.levers` (context `tool`, `command`; spend `subagent`) whatever
 `by` shows. `*` marks terms, not values. A pin omits every
 table and lever whose facts share one value (a command implies its
-tool); the headline names a pin. Screen budgets: `UX_PRINCIPLES.md`. `glossary` drives `-v`, `*`.
+tool); the headline names a pin. `glossary` drives `-v`, `*`.
 Both identities hold by construction (`walk`): MISMATCH is a bug, exit 1.
 
 ## Non-negotiables
@@ -68,7 +69,7 @@ Both identities hold by construction (`walk`): MISMATCH is a bug, exit 1.
   literals); every negative assertion has a vacuity guard.
 - Never sum a peak, nor a per-call figure across populations. No dollars.
 - Shrink is a signed row, in no share, always in the checks. The
-  catch-all row (`residual.label`), signed rows and cause rows never fold
+  catch-all row (`schema.residual_label`), signed rows and cause rows never fold
   into `+N more`; a share is of the `= 100%` row.
 
 ## Measured corrections — stay pinned by tests
@@ -112,13 +113,15 @@ LIMITS: code, tests, docs, history. Need another file? STOP AND ASK.
 Pre-commit warns: `.py` > 15,000 bytes, `.md` > 20,000. Privacy gate
 FAILS CLOSED (`tests/test_privacy.py`): no literal `/home/...` or
 `/Users/...` paths, no real-looking UUIDs, no transcript text in any tracked
-file. Run the suite before pushing (`.githooks/pre-push` does not fire). Tested: doc caps in bytes (README 5,000,
-SKILL.md 6,000, this file 7,000); examples = fixture output, synced by
-`scripts/resync_examples.py`.
+file. CI (`.github/workflows/ci.yml`) runs the suite; you, before
+pushing (`.githooks/pre-push` never fires). `tests/test_docs.py`: byte
+caps (README 5,000, SKILL.md 6,000, this file 7,000); examples =
+fixture output (`scripts/resync_examples.py`).
 
 ## Pointers, never copies
 
-`references/`: `DESIGN_BRIEF.md` §2 (the attribution walk: the spec),
-`DECISION_LOG.md` (`_HISTORY*`: the archive),
-`PHASE0_MEASUREMENT.md`, `PUBLISHING_PLAN.md`, `DESIGN_COMPETITION.md`.
-UX: `UX_PRINCIPLES.md` binds every screen; read before CLI work.
+`references/`: `DESIGN_BRIEF.md` (the walk: the spec),
+`DECISION_LOG.md` (rulings, Filed; `_HISTORY`),
+`PHASE0_MEASUREMENT.md`, `PUBLISHING_PLAN.md` (release).
+`UX_PRINCIPLES.md` binds every screen and file: read first.
+`scripts/screens.py` (every screen), `evals/README.md`.

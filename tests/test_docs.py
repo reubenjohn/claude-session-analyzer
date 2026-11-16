@@ -1,4 +1,7 @@
-"""The README and SKILL example blocks are the fixture corpus's live output:
+"""The docs as tested artifacts. Each doc is within the cap AGENTS.md
+states, in bytes like the pre-commit size gates (the docs print multi-byte
+marks such as ✓ and →, so bytes are the stricter and unambiguous count).
+The README and SKILL example blocks are the fixture corpus's live output:
 ``scripts/resync_examples.py --check`` finds no drift. The same corpus's
 default output stays within its cap (D-OUTPUT-CAP)."""
 import importlib.util
@@ -6,9 +9,23 @@ import re
 import subprocess
 import sys
 
+import pytest
+
 import fixtures as fx
 from fixtures import REPO
-from sa import glossary, schema, tables
+from sa import glossary, schema
+
+
+CAPS = {"README.md": 5000, "skills/session-analyzer/SKILL.md": 6000, "AGENTS.md": 7000, "CLAUDE.md": 100}
+
+
+@pytest.mark.parametrize("name", sorted(CAPS))
+def test_each_doc_is_within_its_cap(name):
+    path = REPO / name
+    assert path.is_file() and path.stat().st_size > 0, name  # vacuity guard: it exists, non-empty
+    size = len(path.read_bytes())
+    assert size <= CAPS[name], "%s is %d bytes, cap %d" % (name, size, CAPS[name])
+
 
 SCRIPT = REPO / "scripts" / "resync_examples.py"
 # D-OUTPUT-CAP: the default `context --since 7d` output at ux-pass HEAD (decc4fe),

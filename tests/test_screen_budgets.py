@@ -3,7 +3,7 @@ Legible: attention is the budget) and mechanical instances of principle 1
 (Learnable: whatever the output names is valid input, verbatim).
 
 Budgets, hard gates: the default ``context`` on the fixture corpus (46 lines,
-3,228 chars: D-OUTPUT-CAP, ``test_examples``), ``-h`` (25 lines), one term's
+3,228 chars: D-OUTPUT-CAP, ``test_docs``), ``-h`` (25 lines), one term's
 ``-v`` explanation (6 lines), an error (2 lines), any line (100 columns), and
 no line printed whatever is asked. P1: every suggested command runs, every
 row label pins, every ``+N more`` command shows N more rows.
@@ -24,8 +24,8 @@ import pytest
 
 import corpora
 import fixtures as fx
-import test_examples
-from sa import glossary, grammar, notes, render, residual, schema, tables
+import test_docs
+from sa import glossary, grammar, notes, render, schema, tables
 
 PROG = glossary.PROG
 CONTEXT, SPEND = grammar.VIEWS[1], grammar.VIEWS[0]
@@ -38,7 +38,7 @@ SHRINK = schema.SHRINK
 
 
 def _load_resync():
-    spec = importlib.util.spec_from_file_location("resync_examples", str(test_examples.SCRIPT))
+    spec = importlib.util.spec_from_file_location("resync_examples", str(test_docs.SCRIPT))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -135,8 +135,8 @@ def matrix():
         every += [(view, grammar.BY, grammar.FACTS[view]), (view, grammar.BY, grammar.FACTS[view], "-v")]
     every += [(CONTEXT, "%s=%s" % (schema.PEAK_DIM, schema.BANDS[-1])),
               (CONTEXT, "%s=Bash" % schema.TOOL_DIM), (CONTEXT, "%s=Bash" % schema.TOOL_DIM, "-v"),
-              (CONTEXT, "%s=%s" % (schema.TOOL_DIM, residual.label(schema.TOOL_DIM))),
-              (SPEND, "%s=%s" % (schema.SUBAGENT_DIM, residual.label(schema.SUBAGENT_DIM)))]
+              (CONTEXT, "%s=%s" % (schema.TOOL_DIM, schema.residual_label(schema.TOOL_DIM))),
+              (SPEND, "%s=%s" % (schema.SUBAGENT_DIM, schema.residual_label(schema.SUBAGENT_DIM)))]
     return every
 
 
@@ -150,8 +150,8 @@ def test_the_default_screen_stays_within_its_budget(homes, corpus, view):
     measures what users see, not only a thin fixture."""
     out = ok(homes[corpus], view)
     assert out.startswith("read: ") and render.NEXT in out  # vacuity guard: a full screen
-    assert len(out.splitlines()) <= test_examples.CAP_LINES, (len(out.splitlines()), out)
-    assert len(out) <= test_examples.CAP_CHARS, (len(out), out)
+    assert len(out.splitlines()) <= test_docs.CAP_LINES, (len(out.splitlines()), out)
+    assert len(out) <= test_docs.CAP_CHARS, (len(out), out)
 
 
 def test_help_fits_and_no_arguments_print_it_with_a_runnable_first_command(homes):
@@ -277,7 +277,7 @@ def test_every_row_label_round_trips_as_a_pin(homes, corpus):
     home = homes[corpus]
     pins, catch_alls = 0, 0
     for view, (dim, labels) in [(v, t) for v in grammar.VIEWS for t in parsed_tables(ok(home, v))]:
-        catch_alls += residual.label(dim) in labels
+        catch_alls += schema.residual_label(dim) in labels
         for label in (l.rstrip(glossary.MARKER) for l in labels):
             if label in (tables.BASE_LABEL, tables.TOTAL_LABEL) or MORE.match(label) or (
                     label == SHRINK and dim != schema.CAUSE_DIM):  # a signed row: no value to pin

@@ -14,9 +14,9 @@ raises rather than skipping: a silent skip is how a wrong number stays
 plausible.
 """
 import hashlib
-from typing import Callable, Dict, NamedTuple, Optional
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
-from . import usage
+from . import heads, usage
 
 ADDITIVE = "additive"
 PEAK = "peak"
@@ -115,7 +115,7 @@ COMPACTION = "compaction"
 STARTS = (SESSION_START, SUBAGENT_START, FORK, REPLAYED, COMPACTION)
 # A window's ``peak``: the band its largest call's ``context_tokens`` falls
 # in, each band's lower edge inclusive (K = 1,000). A label, never a summed
-# peak; ASCII and shell-safe, so ``--where peak=200K+`` needs no quoting.
+# peak; ASCII and shell-safe, so the pin ``peak=200K+`` needs no quoting.
 BANDS = ("0-50K", "50-100K", "100-200K", "200K+")
 BAND_EDGES = (0, 50000, 100000, 200000)  # each band's lower edge, inclusive
 VOCABULARY = {CAUSE_DIM: CAUSES, REASON_DIM: REASONS, STARTED_BY_DIM: STARTS,
@@ -128,6 +128,46 @@ ORDERED = {PEAK_DIM: BANDS[::-1]}
 def band(tokens: float) -> str:
     """The ``peak`` band of a window whose largest call held ``tokens``."""
     return [b for b, edge in zip(BANDS, BAND_EDGES) if tokens >= edge][-1]
+
+
+# The catch-all row of a table by a dimension, ``RESIDUAL_NOTES[dim]``: its
+# label, what its facts lack (``no tool``, ``main``; printed as is, it pins
+# that row: ``query.select`` reads its value as None), and the cases ``-v``
+# lists, each a reading of a residual fact and the dims it holds for. An
+# ambiguous change is residual when its candidates share no one tool (by tool)
+# or no one command (by command); a tool_result, when its tool_use did not
+# resolve (by tool) or its tool has no command (by command).
+Case = Tuple[str, Callable[[dict], bool]]
+
+
+def _cause(cause: str) -> Callable[[dict], bool]:
+    return lambda dims: dims.get(CAUSE_DIM) == cause
+
+
+RESIDUAL_NOTES: Dict[str, Tuple[str, List[Case]]] = {
+    SUBAGENT_DIM: ("main", []),  # typable as printed: subagent=main
+    TOOL_DIM: ("no tool", [(c, _cause(c)) for c in (STARTING_CONTEXT, REPLIES, USER_TEXT, INHERITED)] + [
+        ("%s naming no one tool" % AMBIGUOUS, _cause(AMBIGUOUS)),
+        ("an unresolved %s" % TOOL_RESULT, _cause(TOOL_RESULT))]),
+    COMMAND_DIM: ("no command", [
+        ("no tool", lambda dims: TOOL_DIM not in dims),
+        ("not %s" % "/".join(sorted(heads.EXTRACTORS)),
+         lambda dims: TOOL_DIM in dims and _cause(TOOL_RESULT)(dims)),
+        ("%s naming no one command" % AMBIGUOUS, lambda dims: TOOL_DIM in dims and _cause(AMBIGUOUS)(dims))]),
+    REASON_DIM: ("not %s" % AMBIGUOUS, [  # shrink is the signed row, never residual
+        (c, _cause(c)) for c in CAUSES if c not in (AMBIGUOUS, SHRINK)]),
+}
+
+
+def residual_cases(dim: str) -> str:
+    """Every case the catch-all row of a table by ``dim`` can hold: for
+    ``-v``, after its label."""
+    return ", ".join(text for text, _ in RESIDUAL_NOTES[dim][1])
+
+
+def residual_label(dim: str) -> str:
+    """The catch-all row's label in a table by ``dim``: what its facts lack."""
+    return RESIDUAL_NOTES[dim][0] if dim in RESIDUAL_NOTES else "no " + dim
 
 # Evidence keys: an ambiguous increment lists its contributors; a fork's
 # starting context names the parent ids its fork-context-ref gives; an inherited
@@ -188,7 +228,7 @@ class WindowKey(NamedTuple):
 
 def window_value(key: WindowKey) -> str:
     """The ``window`` value: 8 hex of sha1 over ``file:line``. Display and
-    ``--where`` only; a collision cannot merge two windows' accounting."""
+    pins only; a collision cannot merge two windows' accounting."""
     return hashlib.sha1(("%s:%d" % key).encode("utf-8")).hexdigest()[:8]
 
 

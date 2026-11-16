@@ -7,7 +7,7 @@ pin, a table, the facts, ``-v`` and three refusals.
     python3 scripts/screens.py --root DIR       # any transcripts directory
     python3 scripts/screens.py --since all      # passed through, like --root
 
-Stdlib only; ``tests/test_screens_script.py`` runs it on the fixture."""
+Stdlib only; ``tests/test_scripts.py`` runs it on the fixture."""
 import subprocess
 import sys
 from pathlib import Path

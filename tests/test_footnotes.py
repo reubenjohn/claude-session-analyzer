@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 import fixtures as fx
-from sa import cli, glossary, grammar, notes, render, residual, schema
+from sa import cli, glossary, grammar, notes, render, schema
 
 STAR = re.escape(glossary.MARKER)
 CATCH_ALL = re.compile(r" \(%s \w+\)$" % grammar.BY)  # a catch-all row's entry: ``no tool (by tool)``
@@ -95,11 +95,11 @@ def test_under_a_pinned_tool_the_hint_names_its_top_command():
         render.NEXT + inv.command(add=[(schema.COMMAND_DIM, "Bash:sed")])]
 
 
-@pytest.mark.parametrize("dim", [d for d, (_, cases) in residual.RESIDUAL_NOTES.items() if cases])
+@pytest.mark.parametrize("dim", [d for d, (_, cases) in schema.RESIDUAL_NOTES.items() if cases])
 def test_v_says_what_a_catch_all_row_can_hold(tmp_path, dim):
     out = fx.run_cli("context", "--root", str(fx.cli_corpus(tmp_path)), grammar.BY, dim, "-v")[1]
-    assert re.search(r"^%s%s?\s" % (re.escape(residual.label(dim)), STAR), out, re.M)  # vacuity guard: it prints
-    assert dict(fx.key(out))["%s (%s %s)" % (residual.label(dim), grammar.BY, dim)] == residual.residual_cases(dim)
+    assert re.search(r"^%s%s?\s" % (re.escape(schema.residual_label(dim)), STAR), out, re.M)  # vacuity guard: it prints
+    assert dict(fx.key(out))["%s (%s %s)" % (schema.residual_label(dim), grammar.BY, dim)] == schema.residual_cases(dim)
 
 
 def test_a_value_named_like_a_term_is_never_marked(tmp_path):

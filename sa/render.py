@@ -4,7 +4,7 @@ checks. The tables are grouped here from the selection's facts; its total
 and reconciliation come with it, so nothing here decides the exit status."""
 from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
 
-from . import checks, glossary, grammar, headline, leaves, notes, query, residual, schema, style, tables, windows
+from . import checks, glossary, grammar, headline, leaves, notes, query, schema, style, tables, windows
 from .corpus import Corpus
 from .query import Selection
 from .schema import Fact
@@ -71,7 +71,7 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], inv: g
                     total=_total(view, sel) if dim in (schema.CAUSE_DIM, by) else None, names=names,
                     counts=counts, more=inv.command(by=dim), parts=_parts(sel, dim, view.metric),
                     glosses=GLOSSES if dim == schema.CAUSE_DIM else None,
-                    pin=inv.command(add=[(dim, residual.label(dim))])) + (
+                    pin=inv.command(add=[(dim, schema.residual_label(dim))])) + (
                     [WHOLE_WINDOWS] if counts and sel.drill else []) + [""]
         ways = notes.also_by(sel, view, spec.carrier, printed, inv)
     # the glosses beside their commands align; one that goes under its command sets no column
@@ -91,7 +91,7 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], inv: g
     figures = notes.figures(view, sel, shown, by == facts_by, names)
     block = notes.block(figures, terms, catch_alls, {glossary.printed(view.metric): view.notes},
                         "%s=%s" % (schema.WINDOW_DIM, schema.window_value(sel.facts[0].window)) if sel.facts else "")
-    catch_alls = [d for d in catch_alls if residual.RESIDUAL_NOTES.get(d, ("", []))[1]]  # a case list to tell
+    catch_alls = [d for d in catch_alls if schema.RESIDUAL_NOTES.get(d, ("", []))[1]]  # a case list to tell
     deeper = []
     for _ in range(2):  # -v's cost, exactly: its lines less the pointer's own, which it replaces
         deeper = notes.pointer(inv.command(by=by, verbose=True), notes.footer(

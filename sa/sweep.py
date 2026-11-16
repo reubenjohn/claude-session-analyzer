@@ -5,13 +5,15 @@ live corpus under ``~/.claude/projects``, which changes with every session,
 so the figures are a snapshot of one machine at one minute, stamped on the
 first line, which a docstring cites. Aggregate counts only: no transcript
 text, no ids, no paths.
+
+An average context per call is one population's (D-PER-CALL), never summed.
 """
 import datetime
 from bisect import bisect_left, bisect_right
 from collections import Counter
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from . import query, reconciliation, schema, sweep_mean, usage, walk, windows
+from . import reconciliation, schema, usage, walk, windows
 from .corpus import Corpus, Record, default_root, load, message_id
 from .schema import Fact
 
@@ -156,6 +158,88 @@ def fork_marks(loaded: Corpus, cuts: Dict[str, List[windows.Window]]) -> Tuple[i
             sum(s.name in found for s in forks))
 
 
+def peaks(facts: List[Fact]) -> Dict[schema.WindowKey, Tuple[float, bool]]:
+    """Each window's peak ``context_tokens`` and whether it is a subagent's."""
+    out: Dict[schema.WindowKey, Tuple[float, bool]] = {}
+    for f in facts:
+        if f.kind == schema.CALL:
+            peak = max(out.get(f.window, (0, False))[0], f.metrics[schema.CONTEXT_TOKENS])
+            out[f.window] = (peak, schema.SUBAGENT_DIM in f.dims)
+    return out
+
+
+def rank(values: List[float], p: float) -> float:
+    """The nearest-rank percentile: a value some window reached, never an
+    interpolation between two."""
+    ordered = sorted(values)
+    return ordered[max(0, -(-len(ordered) * p // 100) - 1)] if ordered else 0
+
+
+def shape(found: Dict[schema.WindowKey, Tuple[float, bool]], sub: Optional[bool]) -> str:
+    """median / p90 / max of the peaks of the windows (all, main or subagent)."""
+    mine = {k: v[0] for k, v in found.items() if sub is None or v[1] == sub}
+    if not mine:
+        return "0 windows"
+    top = max(mine, key=lambda k: mine[k])
+    return "%d windows median %s p90 %s max %s (window=%s)" % (
+        len(mine), *("{:,}".format(int(rank(list(mine.values()), p))) for p in (50, 90, 100)),
+        schema.window_value(top))
+
+
+def parents(loaded: Corpus, cuts: Dict[str, List[windows.Window]]) -> Tuple[int, ...]:
+    """Fork and replayed windows; those whose parent's branch call was read;
+    those whose parent file was modified no earlier than theirs (so no
+    ``--since`` keeps the copy and drops the parent); the fork-context-ref
+    files and the copied (duplicate) records they carry; the copied records
+    every other fork or replayed file carries (D-MISSING-PARENT)."""
+    copies = [n for n, ws in cuts.items() if ws and ws[0].start in (schema.FORK, schema.REPLAYED)]
+    found = windows.inherits(loaded, cuts)
+    path = {s.name: s.path for s in loaded.files}
+    newer = sum(path[i.parent.file].stat().st_mtime >= path[n].stat().st_mtime
+                for n, i in found.items() if n in copies)
+    refs = {s.name for s in loaded.files if any(r.data.get("type") == windows.FORK_REF for r in s.records)}
+    dup = {s.name: sum(r.duplicate for r in s.records) for s in loaded.files if s.name in copies}
+    return (len(copies), sum(n in found for n in copies), newer, len(refs),
+            sum(v for n, v in dup.items() if n in refs), sum(v for n, v in dup.items() if n not in refs))
+
+
+def since_bands(loaded: Corpus, facts: List[Fact], days: float = 7.0) -> Tuple[int, int]:
+    """The windows a ``--since days`` read walks whose ``peak`` band is not
+    the one ``facts`` (every file read) gives the same window, and all of
+    them: a missing parent makes a fork's copies live, so the band is a
+    measurement, not a construction (D-PEAK-BAND)."""
+    recent = {f.window: f.dims[schema.PEAK_DIM] for f in walk.forest(load(loaded.root, days))}
+    every = {f.window: f.dims[schema.PEAK_DIM] for f in facts}
+    return sum(every.get(k) != v for k, v in recent.items()), len(recent)
+
+
+def averages(loaded: Corpus, facts: List[Fact], cuts, rec) -> List[str]:
+    """The average-context lines, each beside its population."""
+    calls = [f for f in facts if f.kind == schema.CALL]
+    sub = [c for c in calls if schema.SUBAGENT_DIM in c.dims]
+    inherited = sum(f.metrics.get(schema.CONTEXT_HELD, 0) for f in facts
+                    if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED)
+    found, n = peaks(facts), "{:,}".format
+    mean = lambda cs: sum(c.metrics[schema.CONTEXT_TOKENS] for c in cs) / max(1, len(cs))
+    return [
+        "average context per call: sum held %s vs sum call occupancy %s, %s in %d of %d windows; "
+        "%s calls (main %s, subagent %s); average %s tokens" % (
+            n(int(rec.held)), n(int(rec.occupancy)), "holds" if rec.held_holds else "MISMATCH",
+            rec.held_windows, rec.windows, n(len(calls)), n(len(calls) - len(sub)), n(len(sub)),
+            n(int(round(rec.occupancy / max(1, len(calls)))))),
+        "average by population: main %s, subagent %s; calls holding over 200,000 tokens: %s of %s"
+        % tuple(n(int(round(x))) for x in (
+            mean([c for c in calls if schema.SUBAGENT_DIM not in c.dims]), mean(sub),
+            sum(c.metrics[schema.CONTEXT_TOKENS] > 200000 for c in calls), len(calls))),
+        "inherited under the average: %s of %s (%.2f%%)" % (
+            n(int(inherited)), n(int(rec.held)), 100 * inherited / (rec.held or 1)),
+        "fork and replayed windows %s, parent read %s, parent file no older %s; fork-context-ref "
+        "files %s carrying %s copied records; the others carry %s" % tuple(map(n, parents(loaded, cuts))),
+        "peak band under --since 7d vs every file: %d of %d windows differ" % since_bands(loaded, facts),
+    ] + ["window peaks %s: %s" % (name, shape(found, s))
+         for name, s in (("all", None), ("main", False), ("subagent", True))]
+
+
 def report(loaded: Corpus) -> List[str]:
     """Every count as one line, each beside the population it was taken over."""
     facts = walk.forest(loaded)
@@ -185,7 +269,7 @@ def report(loaded: Corpus) -> List[str]:
          " a prefix %s, parent found %s", fork_marks(loaded, cuts)),
     ]
     return [text % tuple(c if isinstance(c, str) else format(int(round(c)), ",d") for c in counts)
-            for text, counts in lines] + sweep_mean.report(loaded, facts, cuts)
+            for text, counts in lines] + averages(loaded, facts, cuts, rec)
 
 
 if __name__ == "__main__":

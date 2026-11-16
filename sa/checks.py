@@ -22,7 +22,7 @@ each table's rows, its catch-all and signed rows included, sum to the
 headline, in the screen's own numbers."""
 from typing import Callable, List, Optional, Sequence, Tuple
 
-from . import glossary, query, reconciliation, residual, schema, style, tables
+from . import glossary, query, reconciliation, schema, style, tables
 from .query import Selection
 from .tables import count, num
 
@@ -152,7 +152,7 @@ def spend(sel: Selection, shown: Sequence[query.Table]) -> Tuple[List[str], List
         ok = num(total) == num(sel.total)
         holds = holds and ok
         terms = ["%s %s" % (tables.BASE_LABEL, num(regular))] + [
-            "%s %s" % (residual.label(grouped.dim) if r.kind == query.RESIDUAL else v, num(r.mass)) for r, v in others]
+            "%s %s" % (schema.residual_label(grouped.dim) if r.kind == query.RESIDUAL else v, num(r.mass)) for r, v in others]
         worked.append(style.tag("%s%s: %s = %s %s  %s" % (
             INDENT, tables.title(grouped.dim), " + ".join(terms), glossary.printed(schema.SPEND), num(total),
             "%s the headline's" % tables.OK_MARK if ok else "%s not the headline's %s" % (

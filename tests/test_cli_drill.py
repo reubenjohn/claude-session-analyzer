@@ -4,7 +4,7 @@ What each view prints unnarrowed is ``test_cli``."""
 import re
 
 import fixtures as fx
-from sa import checks, cli, glossary, grammar, leaves as leaves_module, query, residual, schema, tables
+from sa import checks, cli, glossary, grammar, leaves as leaves_module, query, schema, tables
 from sa.leaves import HEAVIEST
 
 CONTEXT = cli.VIEWS["context"]
@@ -31,7 +31,7 @@ def test_a_drill_prints_a_table_that_has_only_a_residual_row(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "%s=%s" % (CAUSE, schema.STARTING_CONTEXT), "by", TOOL)
     assert code == 0, err
-    assert re.search(r"^%s\s+84,333\s+3\s+-  = %s 84,333$" % (re.escape(residual.label(TOOL)), schema.STARTING_CONTEXT),
+    assert re.search(r"^%s\s+84,333\s+3\s+-  = %s 84,333$" % (re.escape(schema.residual_label(TOOL)), schema.STARTING_CONTEXT),
                      out, re.M)  # all it holds: one part, named
     assert "; largest" not in fx.headline(out)
     assert re.search(r"^by %s\s+%s\s+%s$" % (TOOL, fx.printed(CONTEXT.metric), fx.count_column(CONTEXT.metric)),

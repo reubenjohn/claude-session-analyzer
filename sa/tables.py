@@ -16,7 +16,7 @@ import shlex
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from . import glossary, query, residual, schema, style
+from . import glossary, query, schema, style
 from .schema import Fact
 
 WIDTH = 100  # every line's budget (UX_PRINCIPLES)
@@ -46,7 +46,7 @@ def _encoded_home() -> str:
 def home(value: str) -> str:
     """A project name or root-relative locator that starts with the encoded
     home directory, that prefix printed as ``~``; ``unhome`` reverses it, so
-    a printed label still works in ``--where``."""
+    a printed label still works as a pin."""
     prefix = _encoded_home()
     return "~" + value[len(prefix):] if value == prefix or value.startswith(prefix + "-") else value
 
@@ -104,7 +104,7 @@ NAMED = (schema.SUBAGENT_DIM, schema.SESSION_DIM)  # the dimensions printed by a
 
 def _label(row: query.Row, dim: str, names: Optional[Dict[str, str]] = None) -> str:
     if row.kind == query.RESIDUAL:
-        return residual.label(dim)
+        return schema.residual_label(dim)
     return value(dim, row.value, names) if row.kind == query.REGULAR else row.value
 
 
@@ -153,7 +153,7 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
     """The top ``limit`` regular rows (every one when None, and in the
     cause table), the rest as ``+N more`` ending with ``more``, the command
     that prints them all; the ``= 100%`` row, the base every share is of;
-    then the catch-all row (``residual.label``) with its ``parts`` and the
+    then the catch-all row (``schema.residual_label``) with its ``parts`` and the
     signed shrink row, in no share. ``total``, when given, closes the
     table with every row's sum and that text. The mass column is named for
     the metric as printed, the count column for the carrier kind it
@@ -214,7 +214,7 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
         elif i == values and hidden:
             note = more
         elif r.kind == BASE_LABEL:
-            note = BASE_NOTE % residual.label(grouped.dim) if any(
+            note = BASE_NOTE % schema.residual_label(grouped.dim) if any(
                 h.kind == query.RESIDUAL for h in grouped.rows) else BASE_NOTE.split(", not")[0]
         elif r.kind in (query.REGULAR, query.SIGNED) and glosses and r.value in glosses:
             note = glosses[r.value] if len(text) + 2 + len(glosses[r.value]) <= WIDTH else ""
@@ -259,7 +259,7 @@ def subagent_names(loaded_types: Dict[str, str], facts: Iterable[Fact]) -> Dict[
     """Each subagent id whose file's type ``loaded_types`` records (by file
     name, ``corpus.agent_type``), as ``<type> <first 8 of its id>``, unless
     that label would name two ids: those keep their whole id. Display and
-    ``--where`` only: the id stays the dimension's value."""
+    pins only: the id stays the dimension's value."""
     named = {f.dims[schema.SUBAGENT_DIM]: loaded_types[f.locator.file] for f in facts
              if schema.SUBAGENT_DIM in f.dims and f.locator.file in loaded_types}
     named = {i: "%s %s" % (kind, i[:8]) for i, kind in named.items()}
