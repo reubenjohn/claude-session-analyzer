@@ -59,7 +59,11 @@ def test_unknown_value_of_a_closed_vocabulary_dimension_is_refused(tmp_path, dim
     root = fx.every_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "%s=bogus" % dim)
     assert code == 2 and not out
-    assert "unknown %s 'bogus'; declared: %s" % (dim, ", ".join(schema.VOCABULARY[dim])) in err.replace("\n", "; ")
+    assert "unknown %s 'bogus'" % dim in err and "declared: %s" % ", ".join(schema.VOCABULARY[dim]) in err
+    near = value[:-1] + "#"  # one character off: no prefix of a declared value, nearest to this one
+    code, out, err = fx.run_cli("context", "--root", str(root), "%s=%s" % (dim, near))
+    assert code == 2 and not out and len(err.splitlines()) == 2, err
+    assert "unknown %s %r; nearest: %s=%s;" % (dim, near, dim, value) in err.replace("\n", "; ")  # fit may wrap
     code, out, err = fx.run_cli("context", "--root", str(root), "%s=%s" % (dim, value))
     assert code == 0, err  # vacuity guard
     lead = re.escape(fx.total_line(CONTEXT.metric)) if dim in schema.WINDOW_DIMENSIONS else r"%s\*?: " % value

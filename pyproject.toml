@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-session-analyzer"
+dynamic = ["version"]
+description = "What did my Claude Code sessions cost, and is context degrading the model: measured, drillable answers from local transcripts."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [{name = "Reuben John"}]
+keywords = ["claude-code", "sessions", "context-window", "token-spend"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Environment :: Console",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/reubenjohn/claude-session-analyzer"
+Changelog = "https://github.com/reubenjohn/claude-session-analyzer/blob/main/CHANGELOG.md"
+
+# No console script: `sa` is the system-accounting command (acct/psacct), and a
+# second name would make the commands the output prints differ from those typed.
+# The one way to run it stays `python3 -m sa`.
+
+[tool.setuptools]
+packages = ["sa"]
+
+[tool.setuptools.dynamic]
+version = {attr = "sa.__version__"}

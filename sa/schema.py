@@ -13,6 +13,7 @@ Adding a metric or a dimension is one line here; a cause is its entry in
 raises rather than skipping: a silent skip is how a wrong number stays
 plausible.
 """
+import difflib
 import hashlib
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
@@ -203,12 +204,24 @@ def check_dimension(dim: str, kind: Optional[str] = None) -> str:
     return dim
 
 
+def nearest(text: str, choices: List[str]) -> Optional[str]:
+    """The choice closest to ``text``, case aside; none when nothing is close."""
+    lowered = {c.lower(): c for c in choices}
+    close = difflib.get_close_matches(text.lower(), list(lowered), 1, 0.6)
+    return lowered[close[0]] if close else None
+
+
+def unknown_value(dim: str, value: str) -> str:
+    """The refusal of an undeclared value: the nearest declared one as a pin."""
+    near = nearest(value, VOCABULARY[dim])
+    return "unknown %s %r%s" % (dim, value, "; nearest: %s=%s" % (dim, near) if near else "")
+
+
 def check_value(dim: str, value: Optional[str]) -> Optional[str]:
     """``value`` is declared, when ``dim`` has a vocabulary: a filter on a
     misspelt cause would print a confident zero."""
     if dim in VOCABULARY and value not in VOCABULARY[dim]:
-        raise SchemaError("unknown %s %r; declared: %s"
-                          % (dim, value, ", ".join(VOCABULARY[dim])))
+        raise SchemaError("%s; declared: %s" % (unknown_value(dim, str(value)), ", ".join(VOCABULARY[dim])))
     return value
 
 

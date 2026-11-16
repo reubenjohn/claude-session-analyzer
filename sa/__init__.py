@@ -8,3 +8,4 @@ the words with ``grammar``; ``render`` lays out ``headline``, ``tables``,
 table the others read; ``glossary`` its words; ``usage`` holds the measured
 helpers; ``sweep`` measures the figures the docstrings cite.
 """
+__version__ = "2.0.0"  # the one place: pyproject.toml and the plugin manifests read or match it

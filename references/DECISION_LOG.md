@@ -2,14 +2,11 @@
 
 Superseded rows: `DECISION_LOG_HISTORY.md` (`_HISTORY`). Open work: Filed.
 
-## Sources — folded here, deleted 2026-11-16 (`git show 048b3ff:references/<file>`)
+## Sources — folded here, deleted 2026-11-16
 
-| Source | Ruled as | Its evidence |
-|---|---|---|
-| `DESIGN_COMPETITION.md`, `designs/` (A, B, C, C2, panel) | R1, P1, P4, P9; `DESIGN_BRIEF.md` | Spike 2: a metric on both kinds totals 2.000000x; Spike 1: 94.98% exact |
-| `UX_FEEDBACK.md` (owner's cold use, 2026-11-14) | D-PLAIN-TERMS, D-UNASSIGNED, the 2026-11-15 rows | 13 items; a cold reader answered all three questions twice (2026-11-15) |
-| `PROPOSAL_UX_MODEL.md` (UX-model proposal) | 2026-11-15 rows: window 1B, start 2, fork 3B, no split 4, headline 5 | UX PROBE 2026-11-15: 580 windows, 9 markers, fork head / parent 1.006-1.034 |
-| `PROPOSAL_MEAN_CONTEXT.md` (mean-context proposal) | 2026-11-16 rows | LOCAL SWEEP 2026-11-16T01:14Z: held = occupancy in 610 of 610 windows |
+Two design proposals, a competition and the owner's feedback, each
+mapped to its rulings with its evidence: `git show
+41ca90c:references/DECISION_LOG.md`; the files: `git show 048b3ff:references/<file>`.
 
 ## Rulings — 2026-09-30
 
@@ -322,6 +319,16 @@ Each DECIDED (orchestrator, by principle N; owner to review); N is
 | D-TEST-FILES | `test_sweep_mean` into `test_sweep`; `test_docs` (caps, examples); `test_scripts` (screens, agent eval) | 1 | one file per module where that file would pass 15K |
 | D-CI | `.github/workflows/ci.yml`: push/PR, Python 3.8, pytest; every corpus is a fixture, so nothing skips | 3 | a Python matrix (3.8 is the floor) |
 
+## Rulings — 2026-11-16, release (phase 3): as phase 2
+
+| id | decided | by | rejected |
+|---|---|---|---|
+| D-PIP | `pyproject.toml`; no console script: `sa` is acct's, and a 2nd name breaks printed = typed | 1 | an `sa` entry point |
+| D-VERSION | `sa.__version__`; manifests match (test); `-h` prints it | 2 | `--version` (retires nothing) |
+| D-CHANGELOG | `CHANGELOG.md`, 2.0.0 | 3 | GitHub notes only |
+| D-README-RUNS | README leads with install; its commands run on the fixture (test) | 1 | untested |
+| D-NEAREST-DECLARED | a closed-vocabulary typo names the nearest value | 1 | the list alone |
+
 ## Filed, not built (re-checked 2026-11-16)
 
 - Project names print encoded (`~-work-proj3`), not as paths.
@@ -330,4 +337,4 @@ Each DECIDED (orchestrator, by principle N; owner to review); N is
 - Fork / compaction / replay counts are small (10 / 9 / 0): re-measure
   before pinning; D-INHERITED-HELD's exact expansion is unmeasured since
   D-ONE-SWEEP (`expand`, git 048b3ff).
-- Headroom: AGENTS.md and `sa/sweep.py` sit at their caps.
+- Headroom: AGENTS.md, `sa/sweep.py` and this log sit at their caps.

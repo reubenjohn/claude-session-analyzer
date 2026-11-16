@@ -15,7 +15,7 @@ import difflib
 import shlex
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from . import glossary, schema
+from . import __version__, glossary, schema
 
 PROG = glossary.PROG
 VIEWS = ("spend", "context")  # cost first, then cost aside
@@ -31,7 +31,7 @@ RETIRED = {"--where": "write DIM=VALUE alone, no flag: tool=Bash",
            "explain": "add -v to any command: it explains that screen"}
 
 HELP = """\
-usage: %(p)s spend|context [by DIM] [DIM=VALUE ...] [-v] [--since Nd|all]
+usage: %(p)s spend|context [by DIM] [DIM=VALUE ...] [-v] [--since Nd|all]   v%(v)s
 
 Reads your Claude Code transcripts (~/.claude/projects, the last 7 days)
 and answers two questions:
@@ -52,7 +52,7 @@ DIM: %(w)s;
      context only: %(i)s
 --since 30d|all  files modified in the last N days (default 7d)
 --root DIR       the transcripts' directory (default ~/.claude/projects)
---color auto|always|never""" % {"p": PROG, "w": ", ".join(schema.WINDOW_DIMENSIONS), "i": ", ".join(
+--color auto|always|never""" % {"p": PROG, "v": __version__, "w": ", ".join(schema.WINDOW_DIMENSIONS), "i": ", ".join(
     d for d in schema.KIND_DIMENSIONS[schema.INCREMENT] if d not in schema.WINDOW_DIMENSIONS)}
 
 

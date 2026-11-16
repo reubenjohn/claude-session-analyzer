@@ -5,7 +5,9 @@ The README and SKILL example blocks are the fixture corpus's live output:
 ``scripts/resync_examples.py --check`` finds no drift. The same corpus's
 default output stays within its cap (D-OUTPUT-CAP)."""
 import importlib.util
+import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -62,3 +64,44 @@ def test_the_default_output_stays_within_its_baseline(tmp_path):
     assert str(home) not in out and resync.re.sub(r"[^A-Za-z0-9]", "-", str(home)) not in out  # pinned
     assert len(out.splitlines()) <= CAP_LINES, out
     assert len(out) <= CAP_CHARS, out
+
+
+# A command the README shows: a code-block line or an inline span (a grammar
+# template, with ``[`` or ``|``, is not a command), its ``# comment`` cut.
+COMMAND = re.compile(r"^(python3 -m sa\b[^#\n]*)|`(python3 -m sa\b[^`\[|\n]*)`", re.M)
+
+
+def test_every_readme_command_runs_verbatim_on_the_fixture(tmp_path):
+    """Principle 1: what the README names is valid input. Each command runs
+    as printed, from outside the repo (the installed package's view), with
+    HOME at the fixture corpus: exit 0, some output."""
+    spec = importlib.util.spec_from_file_location("resync_examples", str(SCRIPT))
+    resync = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(resync)
+    home = tmp_path.resolve()
+    resync.build(home)
+    text = (REPO / "README.md").read_text(encoding="utf-8")
+    commands = sorted({(a or b).strip() for a, b in COMMAND.findall(text)})
+    assert "python3 -m sa" in commands and len(commands) >= 5, commands  # vacuity guard: the front door too
+    env = dict(os.environ, HOME=str(home), PYTHONPATH=str(REPO))
+    for command in commands:
+        argv = shlex.split(command)[3:]
+        done = subprocess.run([sys.executable, "-m", "sa"] + argv, cwd=str(home), env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        assert done.returncode == 0 and done.stdout.strip(), command + "\n" + done.stderr
+
+
+def test_the_version_lives_in_one_place():
+    """``sa.__version__`` is the version: pyproject reads it, the plugin
+    manifests match it, ``-h`` prints it, the changelog's latest entry names it."""
+    import json
+    import sa
+    assert re.fullmatch(r"\d+\.\d+\.\d+", sa.__version__)  # vacuity guard: a version is set
+    assert 'version = {attr = "sa.__version__"}' in (REPO / "pyproject.toml").read_text(encoding="utf-8")
+    plugin = json.loads((REPO / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    market = json.loads((REPO / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+    assert plugin["version"] == sa.__version__ == market["plugins"][0]["version"]
+    code, out, _ = fx.run_cli("-h")
+    assert code == 0 and out.splitlines()[0].endswith(" v" + sa.__version__)
+    changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert re.search(r"^## (\S+)", changelog, re.M).group(1) == sa.__version__

@@ -114,14 +114,14 @@ Pre-commit warns: `.py` > 15,000 bytes, `.md` > 20,000. Privacy gate
 FAILS CLOSED (`tests/test_privacy.py`): no literal `/home/...` or
 `/Users/...` paths, no real-looking UUIDs, no transcript text in any tracked
 file. CI (`.github/workflows/ci.yml`) runs the suite; you, before
-pushing (`.githooks/pre-push` never fires). `tests/test_docs.py`: byte
+pushing (`.githooks/pre-push` is inert). `tests/test_docs.py`: byte
 caps (README 5,000, SKILL.md 6,000, this file 7,000); examples =
 fixture output (`scripts/resync_examples.py`).
 
 ## Pointers, never copies
 
 `references/`: `DESIGN_BRIEF.md` (the walk: the spec),
-`DECISION_LOG.md` (rulings, Filed; `_HISTORY`),
-`PHASE0_MEASUREMENT.md`, `PUBLISHING_PLAN.md` (release).
+`DECISION_LOG.md` (rulings, Filed),
+`PHASE0_MEASUREMENT.md`, `PUBLISHING_PLAN.md` (release, `CHANGELOG.md`).
 `UX_PRINCIPLES.md` binds every screen and file: read first.
 `scripts/screens.py` (every screen), `evals/README.md`.

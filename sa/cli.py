@@ -123,8 +123,8 @@ def resolve(dim: str, text: str, view: str, present: List[str],
             v for v in declared if v.lower().startswith(text.lower())]
         if len(hit) == 1:
             return hit[0], hit[0]
-        raise UsageError("unknown %s %r; declared: %s" % (dim, text, ", ".join(declared)),
-                         "every %s in view: %s" % (dim, grammar.run(view, grammar.BY, dim)))
+        raise UsageError(schema.unknown_value(dim, text), "declared: %s; every %s in view: %s" % (
+            ", ".join(declared), dim, grammar.run(view, grammar.BY, dim)))
     printed = {tables.value(dim, v, names): v for v in present}
     value = tables.unhome(text)
     if dim in tables.NAMED:
