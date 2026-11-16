@@ -71,16 +71,16 @@ first six keep whole windows (`window=<hex>` isolates one; `--by window`
 lists them); the rest drill, named on the headline with the windows
 hit. `cause=bogus` or `tool=bash` (absent) exits 2, naming what is
 declared or present. A command is a Bash call's first command word
-(`Bash:pytest`) or a file tool's extension (`Read:py`). Under one total
-the headline's block gives the starting context as a sum by `started_by`
-(what entered, not a window size), then the growth: the top tool, `→`
-its largest command, then a larger `top command` (`spend`: the top
-subagent, as `<type> <8 hex>`), whatever `--by` shows, never a cause or
-window row; shares are of the mass added. A pin omits what it implies; a table that
+(`Bash:pytest`) or a file tool's extension (`Read:py`). Under the
+average the headline's block gives the starting context by `started_by`,
+then the growth: the top tool, `→` its largest command, then a larger
+`top command` (`spend`: the top subagent, as `<type> <8 hex>`), whatever
+`--by` shows, never a cause or window row; shares are of the average
+before shrink. A pin omits what it implies; a table that
 repeats the one above row for row prints as one line. `--limit` (5)
 never folds the cause table, `unassigned` or a signed row. `--by fact` lists the
-leaves with `file:line  uuid  dimensions`, an ambiguous one's
-`candidates:` under it.
+leaves, each its part of the average then its raw tokens, with
+`file:line  uuid  dimensions`, an ambiguous one's `candidates:` under it.
 
 On a terminal the output is styled (`--color always|never|auto`,
 `NO_COLOR`, `FORCE_COLOR`); a pipe gets the same text, unstyled. A
@@ -92,9 +92,11 @@ A window is one context window: from a session start, subagent, fork,
 replay or compaction to its file's end or the next compaction. Its
 `peak` is the band of its largest call: `0-50K`, `50-100K`, `100-200K`,
 `200K+`, lower edge inclusive. The average context per call is what a
-call held, averaged over the calls in view; never summed. A fork's
-copied context is one `inherited` change, left out of the total when
-its parent window is kept; with the parent missing (deleted, or
+call held, averaged over the calls in view; never summed. Every
+`context` figure is a part of it: each change times the calls that held
+it, over the calls in view (a drill's too), so a table's rows add up to
+it. A fork's copied context is one `inherited` change, held by the
+fork's calls; with the parent missing (deleted, or
 outside `--since`) or its branch call not found, the copy counts as the
 fork's own, and the scope says how many marked forks, and why.
 

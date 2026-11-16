@@ -14,8 +14,8 @@ capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
 
 Package `sa/`, one module per stage (`corpus` read+dedup, `windows`
 the cut, `walk` attribution, `heads`, `schema` METRICS, vocabularies,
-`glossary`, `query`, `headline`, `tables`, `render`, `checks`, `cli`,
-`usage` ported); each
+`glossary`, `query`, `reconciliation`, `headline`, `tables`, `leaves`,
+`render`, `checks`, `cli`, `usage` ported); each
 docstring is its spec. The parser IS the product: `sa.sweep` imports it.
 
 One data model, `Fact`, specified in `schema.py`: `kind` is `call` or
@@ -32,26 +32,26 @@ records; identity (file, start line). Window dimensions `project`,
 `window` (8 hex of its key), `started_by`, `peak` (its largest call's
 band, D-PEAK-BAND) are on both kinds; `cause`,
 `tool`, `command`, `reason` on increments only; an increment prints as
-a change. A command is `<tool>:<summary>`: a Bash command's first COMMAND word (past keywords, wrappers, builtins) as
-a basename (`Bash:pytest`), or a file tool's extension (`Read:py`);
-never a path (R5). Unknown names, undeclared values and a `--where`
+a change. A command is `<tool>:<summary>`: a Bash command's first command word
+(`Bash:pytest`, `heads`) or a file tool's extension (`Read:py`); never a
+path (R5). Unknown names, undeclared values and a `--where`
 value no fact carries exit 2 (`query.narrow`), naming what is present.
 `starting_context` (never split by content) and `ambiguous` are rows,
 never spread or a lever. A fork's copy is one `inherited`
-increment, counted once (D-INHERITED-ONCE); a parentless fork is
-counted, not fixed (D-MISSING-PARENT).
+increment, held by the fork's calls; a parentless fork is counted, not
+fixed (D-MISSING-PARENT).
 
 CLI: `python3 -m sa -h`. Order: scope (`read:`, `in view:`; `--since` 7d
-unless `all`), answer, tables, one dimmed key, `✓ checks`. Under one
-total, a block (D-HEADLINE-TWO-LINES): starting context as a sum by
-`started_by`, then growth down `View.levers` (context `tool`, `command`;
-spend `subagent`) whatever `--by` shows; shares of the mass added; then
-the average context per call (`query.mean`, never summed). `*` marks
-terms, not values. A `--where` pin omits every table and lever whose
-facts share one value (a command implies its tool); a drill pin is
-named on the headline. D-OUTPUT-CAP caps the default output. `glossary.GLOSSARY` drives `explain`, `*`, `-h`.
-The reconciliation holds by construction (`walk`): MISMATCH is a bug,
-exit 1.
+unless `all`), answer, tables, one dimmed key, `✓ checks`. Context is
+per call (D-PER-CALL): each change x the calls that held it
+(`context_held`) over the calls in view; rows add up to the headline's
+average, shares of it before shrink; `query.per` refuses it without one
+population. Under it: starting context by `started_by`, then growth down
+`View.levers` (context `tool`, `command`; spend `subagent`) whatever
+`--by` shows. `*` marks terms, not values. A `--where` pin omits every
+table and lever whose facts share one value (a command implies its
+tool); a drill pin is named on the headline. D-OUTPUT-CAP caps the default output. `glossary.GLOSSARY` drives `explain`, `*`, `-h`.
+Both identities hold by construction (`walk`): MISMATCH is a bug, exit 1.
 
 ## Non-negotiables
 
@@ -67,9 +67,8 @@ exit 1.
   measured per run, never hard-coded.
 - Tests derive assertions from the schema (never metric names as
   literals); every negative assertion has a vacuity guard.
-- Never sum a peak; a peak reports no value at a node. Never quote dollars.
-- Shrink is a signed row: excluded from shares, always in the reconciliation
-  footer. `unassigned`, signed rows and cause rows never hide behind `--limit`;
+- Never sum a peak, nor a per-call figure across populations. No dollars.
+- Shrink is a signed row: excluded from shares, always in the checks. `unassigned`, signed rows and cause rows never hide behind `--limit`;
   a table with no base prints `share` alone.
 
 ## Measured corrections — stay pinned by tests
@@ -94,8 +93,7 @@ styling need no ruling. The recorded failure mode: a confident in-place
 - Contributors are token-relevant only (tool_result + user text), one per
   tool_result block; counting 2.1.28x bookkeeping attachments drops the
   exact rate from 84% to <1%; their text folds into the remainder.
-- Local figures (batched results, call spans, ambiguity, re-mints,
-  windows, compactions, forks): a dated `python3 -m sa.sweep` snapshot.
+- Local figures: a dated `python3 -m sa.sweep` snapshot.
 
 ## Clean-room boundary — binds every session and subagent
 

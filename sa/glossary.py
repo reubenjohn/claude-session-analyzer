@@ -52,8 +52,7 @@ GLOSSARY: Dict[str, Term] = {
                           " counted there from its first, small ones too"),
     schema.FORK: Term("a window that began as a copy of another window's context: a forked"
                       " session or subagent, its file opening with the parent's records",
-                      "the copy is one inherited change, counted in the parent when the parent"
-                      " is in view; with the parent missing (deleted, or outside --since) or its"
+                      "the copy is one inherited change, held by the fork's calls; with the parent missing (deleted, or outside --since) or its"
                       " branch call not found, the copy counts as the fork's own, which the scope"
                       " warns of when the fork's file marks it one; an unmarked fork with its"
                       " parent missing reads as subagent_start, unwarned"),
@@ -81,7 +80,8 @@ GLOSSARY: Dict[str, Term] = {
                        " calls; it is never quoted in dollars", True),
     AVERAGE: Term(
         "what a call held (its context size), averaged over the calls in view: the size the"
-        " model reasoned over at a typical call",
+        " model reasoned over at a typical call. Every context figure is a part of it: each"
+        " change times the calls that held it, over those calls, so a table's rows add up to it",
         "not what a call added: every call re-reads its whole window, so long windows hold most"
         " calls; a mean of one population, never summed or averaged with another's", True,
         "what a call held, averaged over these calls; never added per call, never summed"),
@@ -118,16 +118,17 @@ GLOSSARY: Dict[str, Term] = {
     schema.REASON_DIM: Term("why a change is ambiguous", "only ambiguous changes have one"),
     schema.STARTING_CONTEXT: Term(
         "what a window held at its first call: the system prompt, tools, CLAUDE.md and the first"
-        " message or prompt, or a compaction's summary; a fork's copy of its parent is counted"
-        " apart, as inherited",
+        " message or prompt, or a compaction's summary; a fork's copy of its parent is apart,"
+        " in an inherited row that appears only when a fork with its parent is in view",
         "it is not split by content: the transcript records no size for each part. The lever is"
         " how many windows start (subagent starts are usually most of it) and what each start"
         " loads", True, "what a window held at its first call: system prompt, tools, CLAUDE.md,"
         " first message or summary"),
     schema.INHERITED: Term("what a fork or replayed window copied: its parent window's size at"
                            " the branch call",
-                           "counted once: left out of the total when the parent window is kept;"
-                           " its breakdown is the parent's up to that call"),
+                           "every fork call held it, so the average counts it per fork call, as the"
+                           " parent's own calls count theirs; a row only when such a fork is in"
+                           " view; its breakdown is the parent's up to that call"),
     schema.REPLIES: Term("Claude's replies, tool-call inputs included, read back by the next call",
                          "it is what the model wrote, not what a tool returned"),
     schema.TOOL_RESULT: Term("a tool's output, booked exactly to its tool and command",
@@ -162,15 +163,16 @@ GLOSSARY: Dict[str, Term] = {
     GROWTH: Term("what the windows added after their start: every change between two calls,"
                  " shrinks aside. Its line names the largest tool and its tokens, then (→) the"
                  " largest command within that tool; '; top command' names a larger one elsewhere",
-                 "its share is of every token added, starting context included, so it often looks"
-                 " small: it is the part a tool or command can cut"),
+                 "its share is of the average before shrink, starting context included, so it often"
+                 " looks small: it is the part a tool or command can cut"),
     GAP: Term("the step from one call to the next in a window: N calls make N - 1 gaps; each"
               " gap's growth is booked to one source (exact), left ambiguous, or shrank",
               "a gap can book two changes (the previous reply, then the rest) and each window's"
               " start is one more, so changes outnumber gaps"),
     DRILL: Term("a --where pin on cause, tool, command or reason: narrows the changes inside"
                 " the windows kept",
-                "the checks still cover the whole windows, not the drill"),
+                "its figure is still per call of the whole windows in view, as their tables'"
+                " rows are; the checks cover those windows, not the drill"),
 }
 
 _KEYS = {printed: key for key, printed in PRINTED.items()}
