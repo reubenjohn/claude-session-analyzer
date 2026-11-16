@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 import fixtures as fx
-from sa import checks, cli, corpus, glossary, grammar, notes, render, schema, tables
+from sa import checks, cli, corpus, glossary, grammar, headline, notes, render, schema, tables
 
 CONTEXT = cli.VIEWS["context"]
 
@@ -28,7 +28,7 @@ def test_the_first_line_names_the_files_the_default_window_and_the_root(tmp_path
     _age(old, 30)
     n = len(list(root.rglob("*.jsonl")))
     out = fx.joined(fx.run_cli("context", "--root", str(root))[1])  # a long root: its own line
-    rest = ""  # the one read line: nothing set aside, so nothing said
+    rest = "; 1 with no call"  # the one read line: the file with no call is said, it is no window
     assert out.splitlines()[0] == "read: %d files from the last %gd (default) under %s%s" % (
         n - 1, grammar.DEFAULT_SINCE, root, rest)
     out = fx.joined(fx.run_cli("context", "--root", str(root), "--since", grammar.ALL)[1])
@@ -45,7 +45,7 @@ def test_home_prints_as_a_tilde(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("HOME", str(tmp_path))
     assert cli.main(["context", "--root", str(root)]) == 0
     out = capsys.readouterr().out
-    assert out.splitlines()[0].endswith(" under ~/%s" % root.relative_to(tmp_path).as_posix())
+    assert " under ~/%s;" % root.relative_to(tmp_path).as_posix() in out.splitlines()[0]
     assert str(tmp_path) not in out  # the next command's --root too
     assert " --root ~/%s" % root.relative_to(tmp_path).as_posix() in out
     assert tables.tilde(tmp_path.parent) == str(tmp_path.parent)  # vacuity guard: only under home
@@ -64,11 +64,11 @@ def test_sections_read_scope_answer_tables_also_footer_checks(tmp_path):
     assert tables_at == list(range(2, 2 + len(tables_at))) and tables_at  # contiguous, non-empty
     for dim in CONTEXT.tables:  # each printed, or relabelled under the table it repeats
         assert re.search(r"^by (?:[\w /]+, )*%s[\s:,]" % dim, "\n".join(sum(sections[2:2 + len(tables_at)], [])), re.M), dim
-    deeper = fx.joined("\n".join(sections[-2])).splitlines()  # the ways deeper: a table, then -v, as commands
-    commands = [l for l in deeper if l.startswith(grammar.PROG)]
+    last = fx.joined("\n".join(sections[-1])).splitlines()  # the ways deeper as commands, then the checks
+    at = next(i for i, l in enumerate(last) if l.startswith(checks.OK))
+    commands = [l for l in last[:at] if l.startswith(grammar.PROG)]
     assert len(commands) == 2 and fx.also(out) and commands[1] == fx.pointer_v(out).split("  ")[0]
-    assert firsts[-1].startswith(checks.OK)
-    assert len(sections) == 4 + len(tables_at)
+    assert len(sections) == 3 + len(tables_at)
     assert all(len(line) <= tables.WIDTH for section in sections for line in section
                if "/pytest-" not in line)  # the read line and the next command name this test's root
 
@@ -87,7 +87,8 @@ def test_the_v_footer_says_what_v_prints_and_v_prints_it_in_its_place(tmp_path):
     block, worked = fx.verbose(verbose), fx.worked(verbose)
     assert len(verbose.splitlines()) - len(out.splitlines()) == lines  # what it costs, exactly
     assert len(block) + worked.count("\n") > lines and footer not in verbose and worked  # less the pointer
-    ways = fx.sections(out)[-2]
+    ways = fx.sections(out)[-1]  # the ways deeper, then the checks
+    ways = ways[:next(i for i, l in enumerate(ways) if l.startswith(checks.OK))]
     raw = "\n".join(ways[max(i for i, l in enumerate(ways) if l.startswith(grammar.PROG)):])  # as printed
     assert verbose.replace("\n".join(block), raw).replace(worked, "") == out  # in place, then the checks worked
     heads = [i for i, l in enumerate(block) if l.startswith(notes.HEAD)]
@@ -201,8 +202,8 @@ def test_the_answer_and_checks_words_each_explain(tmp_path):
         assert re.search(r"(?<![\w_])%s(?![\w_])" % re.escape(word), out), word  # vacuity guard: printed
     assert re.search(r"^%s\s.*%%  %s$" % (schema.REPLIES, re.escape(render.GLOSSES[schema.REPLIES])), out, re.M)
     verbose = fx.run_cli("context", "--root", str(root), "-v")[1]
-    assert "\n  18 calls after their window's first = 21 calls - 3 windows\n" in fx.worked(verbose)
-    assert " → " in out and "→" in glossary.GLOSSARY[glossary.GROWTH].meaning
+    assert "\n  18 calls after their window's first = 21 calls - 3 windows, " in fx.worked(verbose)
+    assert headline.WITHIN in out and "(of which)" in glossary.GLOSSARY[glossary.GROWTH].meaning
 
 
 def test_the_peak_guidance_says_where_to_start_with_no_verdict_number():

@@ -47,8 +47,8 @@ def test_a_drill_prints_the_whole_window_checks_with_their_mass(tmp_path):
                                 " changes in 3 windows" % schema.TOOL_RESULT)
     assert fx.checks(out).startswith("%s over 3 windows in view: " % checks.OK)  # whole windows, as by default
     worked = fx.worked(fx.run_cli("context", "--root", str(root), "%s=%s" % (CAUSE, schema.TOOL_RESULT), "-v")[1])
-    assert re.search(r"\n  context tokens added 254,860 - %s 300 += 254,560  ✓ same as the final window sizes\n"
-                     % schema.SHRINK, worked), worked
+    assert re.search(r"\n  tokens added 254,860 - tokens shrunk 300 += 254,560  ✓ same as the final window sizes\n",
+                     worked), worked
     assert "\n  %d calls after their window's first = " % (3 * fx.INTERVALS) in worked
     assert tables.TOTAL_LABEL not in out  # no total row on a drill
     whole = fx.run_cli("context", "--root", str(root))[1]
@@ -61,7 +61,7 @@ def test_by_change_prints_the_checks_with_their_mass(tmp_path):
     assert code == 0, err
     assert fx.checks(out).startswith("%s over 3 windows in view: " % checks.OK)
     worked = fx.worked(fx.run_cli("context", "--root", str(root), "by", "change", "-v")[1])
-    assert re.search(r"\n  context tokens added 254,860 - %s 300 += 254,560  ✓ " % schema.SHRINK, worked), worked
+    assert re.search(r"\n  tokens added 254,860 - tokens shrunk 300 += 254,560  ✓ ", worked), worked
     assert "\n  %d calls after their window's first = " % (3 * fx.INTERVALS) in worked
 
 
@@ -125,7 +125,7 @@ def test_a_main_window_is_selected_by_its_window_value_alone(tmp_path):
     assert "\nin view where %s=%s: 1 window*, 11 changes*\n" % (schema.WINDOW_DIM, main) in out
     assert re.search(r"^%s\s+%s\s.*%s = mean call size$" % (tables.TOTAL_LABEL, mean, tables.OK_MARK), out, re.M)
     worked = fx.worked(fx.run_cli("context", "--root", str(root), "%s=%s" % (schema.WINDOW_DIM, main), "-v")[1])
-    assert re.search(r"\n  context tokens added 1,620 - shrink 100 += %s  ✓ [^\n]+\n  6 calls after their" % (
+    assert re.search(r"\n  tokens added 1,620 - tokens shrunk 100 += %s  ✓ [^\n]+\n  6 calls after their" % (
         format(fx.FINAL_OCCUPANCY, ",d")), worked), worked
     for view in cli.VIEWS:
         assert schema.WINDOW_DIM not in cli.VIEWS[view].tables
@@ -166,7 +166,7 @@ def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
     assert code == 0, err
     population = [l for l in fx.joined(out).splitlines() if l.startswith(("read: ", "in view"))]
     assert population == [l for l in fx.joined(unpinned).splitlines() if l.startswith(("read: ", "in view"))] == [
-        "read: 4 files from the last 7d (default) under %s" % root,
+        "read: 4 files from the last 7d (default) under %s; 1 with no call" % root,
         "in view where %s: 2 windows*, 22 changes*" % window]
     assert drill not in "".join(population) and schema.TOOL_RESULT not in "".join(population)
     assert fx.headline(out).startswith("%s: 214 of the " % schema.TOOL_RESULT)
@@ -180,11 +180,12 @@ def test_by_change_lists_leaves_with_their_dimensions_and_evidence(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root), "by", "change",
                                 "%s=%s" % (CAUSE, schema.TOOL_RESULT))
     assert code == 0, err
-    assert re.search(r"^\s+%s\s+tokens\s+%s\s+line$" % (fx.printed(CONTEXT.metric), leaves_module.HELD),
-                     out, re.M)  # its part of the average, its raw tokens, the calls that held it
+    assert re.search(r"^\s+%s\s+tokens\s+%s\s+line\s+%s$" % (fx.printed(CONTEXT.metric), leaves_module.HELD,
+                                                         leaves_module.DIMENSIONS),
+                     out, re.M)  # its part of the average, its raw tokens, the calls that held it, its pins
     leaves = [l for l in out.splitlines() if fx.LEAF.match(l)]
     assert len(leaves) == 3
-    assert re.search(r"^proj-a/sess-0001\.jsonl  %s=\S+.*\n\s+[\d,]+\s+250\s+\d+\s+:2$" % schema.WINDOW_DIM, out, re.M)
+    assert re.search(r"^proj-a/sess-0001\.jsonl  %s=\S+.*\n\s+[\d,]+\s+250\s+\d+\s+:2  .*%s=" % (schema.WINDOW_DIM, TOOL), out, re.M)
 
     window = "%s=%s" % (schema.WINDOW_DIM, fx.window_value("proj-a/sess-0001.jsonl"))
     code, out, err = fx.run_cli("context", "--root", str(root), "by", "change",

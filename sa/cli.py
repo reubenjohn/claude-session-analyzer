@@ -129,6 +129,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         lines = render.report(view, sel, loaded, args.by, inv, args.verbose, forest=forest, names=names)
     except query.NoMatch as error:
         before = tuple(p for p in printed if p[0] != error.dim)
+        twice = [v for d, v in printed if d == error.dim]
+        if len(twice) > 1:  # one dimension pinned twice: every pin holds, so no fact has both
+            keep = grammar.Invocation(args.view, before + ((error.dim, twice[-1]),), inv.since_text, inv.root)
+            return refuse(args.view, UsageError("every pin holds, and no %s has %s; keep one" % (
+                schema.PLURAL[grammar.carrier(args.view)][:-1], " and ".join(
+                    grammar.quote("%s=%s" % (error.dim, v)) for v in twice)), "e.g. " + keep.command()))
         shown = [tables.value(error.dim, v, names) for v in error.present]
         value = dict(printed).get(error.dim, error.value)
         every = grammar.Invocation(args.view, before, inv.since_text, inv.root).command(by=error.dim)

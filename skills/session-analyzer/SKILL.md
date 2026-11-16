@@ -22,7 +22,7 @@ One grammar: `python3 -m sa spend|context [by DIM | by change | by call]
 |---|---|
 | `DIM=VALUE` | a pin, repeatable, as a table prints the value; `project` `session` `subagent` `window` `started_by` `peak` keep whole windows; `cause` `tool` `command` `reason` drill |
 | `by DIM` | that one table, every row (default screen: 5 rows, then `+N more` and its command) |
-| `by change` / `by call` | the facts: one change (spend: call) per row, `file:line`, `held`, evidence under |
+| `by change` / `by call` | the facts: one change (spend: call) per row, `file:line`, `calls held`, its pins, evidence under |
 | `-v` | how this screen's figures are computed and what its `*` words mean |
 | `--since 30d` | files modified in the last N days (default 7d; `all`: every file) |
 
@@ -39,12 +39,12 @@ replies, tool-call inputs included), `tool_result`, `user_text`,
 
 **`spend`** sums each call's price-weighted input tokens: uncached
 input, cache writes (1h 2.0x, 5m 1.25x), cache reads 0.1x; output
-apart (`-v`: `other call totals`). Context shares are not cost shares.
+apart (`-v`: `also counted`). Context shares are not cost shares.
 
 The `context` headline opens with `average context per call* N tokens,
 over C calls in W windows` (what a call held; never summed, never "added
 per call"), then the starting context by `started_by` and the `growth`:
-`largest:` the top tool `→` its largest command. A drill pin's headline
+`largest:` the top tool, `of which` its largest command. A drill pin's headline
 says its part: `Bash: 214 of the 84,709-token average call, over 21
 calls in 3 windows`, then its changes. A pin omits tables that would have one row.
 
@@ -54,12 +54,12 @@ calls in 3 windows`, then its changes. A pin omits tables that would have one ro
 python3 -m sa context                        # average, its tables
 python3 -m sa context tool=Bash              # where: top tool, its commands
 python3 -m sa context tool=Bash by change    # file:line
-python3 -m sa context peak=200K+ tool=Bash   # pins stack: the fullest windows
+python3 -m sa context peak=200K+ tool=Bash   # all pins hold: Bash in the fullest
 ```
 
 `by change` names the directory the files share once, then groups the
 changes by window (its file under it, `window=`), each row
-`part of avg  tokens  held  :line` and the dims that vary; an ambiguous
+`part of avg  tokens  calls held  :line` and its dims as pins; an ambiguous
 one's `candidates:` under it. It ends `Σ N changes: X tokens × held ÷ C
 calls = Y ✓ the headline's Y`. A `command` is a Bash call's first
 command word (`Bash:pytest`) or a file tool's extension (`Read:py`);
@@ -85,12 +85,11 @@ average (what could not be traced); `-v` works them in this run's numbers:
 <!-- example: context -v | ✓ numbers add up -->
 ```
 ✓ numbers add up over 3 windows in view: rows to the average call, changes to final window sizes
-  ambiguous: 0.2% of the average call over all 21 calls, not traced to one source
-  each change × the calls that held it       1,778,890
-  ÷ calls in view                                   21
-  = average call                                84,709  ✓ same as the mean measured call size
-  context tokens added 254,860 - shrink 300  = 254,560  ✓ same as the final window sizes
-  18 calls after their window's first = 21 calls - 3 windows
+  each change × the calls that held it      1,778,890
+  ÷ calls in view                                  21
+  = average call                               84,709  ✓ same as the mean measured call size
+  tokens added 254,860 - tokens shrunk 300  = 254,560  ✓ same as the final window sizes
+  18 calls after their window's first = 21 calls - 3 windows, counted (not tokens)
     = 6 (33.3%) one source + 9 (50.0%) ambiguous + 3 shrank  ✓
 ```
 

@@ -58,12 +58,12 @@ def headline(view, sel: Selection, forest: List[Fact] = (), names: Names = None)
         rows.append(("largest " + levers[0], top.mass, None, _name(top, levers, names) + path))
     heads = [part for text in line.split("\n") for part in textwrap.wrap(
         text, tables.WIDTH, subsequent_indent="    ", break_on_hyphens=False)]
-    return [style.tag(part, style.HEADLINE) for part in heads] + _block(rows, extra) + (
-        [] if per_call else _average(sel))
+    return [style.tag(part, style.HEADLINE) for part in heads] + _block(rows, extra)
 
 
 BEFORE_SHRINK = " before shrink"  # the split adds up to the average before shrink: said where it shows
 LARGEST = "largest: "  # the growth's largest part, walked down the levers: a part, never all of it
+WITHIN = ", of which "  # the walk's next step: the largest row within the one before
 
 
 def level(sel: Selection, spec: schema.Metric, names: Names = None) -> str:
@@ -204,7 +204,7 @@ def _largest(table: query.Table) -> Optional[query.Row]:
 def _path(facts: List[Fact], levers: List[str], metric: str,
           names: Names = None, calls: Optional[int] = None) -> Tuple[Optional[query.Row], str]:
     """The first lever's largest row, and the walk from it: each next lever
-    refines the row before, ``→`` the largest row within it; when a row of
+    refines the row before, ``WITHIN`` the largest row within it; when a row of
     that lever elsewhere is strictly larger, ``; top <lever>`` names it,
     never silent. A row with none of the lever within it (a top tool with
     no command: Agent, MCP tools) still has the largest elsewhere named,
@@ -218,7 +218,7 @@ def _path(facts: List[Fact], levers: List[str], metric: str,
     for dim in levers[1:]:
         within = _largest(query.group(lead, dim, metric, calls))
         if within is not None:
-            text += " → %s %s" % (tables.value(dim, within.value, names), num(within.mass))
+            text += WITHIN + "%s %s" % (tables.value(dim, within.value, names), num(within.mass))
         overall = _largest(query.group(facts, dim, metric, calls))
         if overall is not None and overall.mass > (within.mass if within else 0):
             text += "; top %s %s %s" % (dim, tables.value(dim, overall.value, names), num(overall.mass))
@@ -226,18 +226,3 @@ def _path(facts: List[Fact], levers: List[str], metric: str,
             break
         lead = query.select(lead, [(dim, within.value)])
     return top, text
-
-
-def _average(sel: Selection) -> List[str]:
-    """The average context per call: what a call held (its
-    ``context_tokens``), averaged over the calls of the whole windows
-    selected (a drill keeps no call facts), printed with that population,
-    the headline's above it: "the same" calls.
-    It is never "added per call", and a mean never sums (``query.mean``)."""
-    mean, calls = query.mean(sel.window_facts, schema.CONTEXT_TOKENS)
-    if not calls:
-        return []
-    return ["%s %s %s, over the same %s" % (
-        glossary.printed(glossary.AVERAGE).replace("_", " "), num(mean), schema.metric(schema.CONTEXT_TOKENS).unit,
-        count(calls, "call"))]
-

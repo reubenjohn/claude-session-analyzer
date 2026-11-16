@@ -15,6 +15,7 @@ from . import glossary, headline, leaves, query, residual, schema, style, tables
 from .tables import WIDTH, count, num, pct, value
 
 HEAD = "-v: "  # each part of the block opens with it
+OTHERS = "also counted"  # spend's -v: the call totals beside it, never in it
 INDENT = "    "  # a wrapped line's continuation
 
 
@@ -54,18 +55,22 @@ def _wrapped(text: str, first: str = "  ") -> List[str]:
                          break_on_hyphens=False)
 
 
-def define(term: str, note: str = "") -> List[str]:
+def define(term: str, note: str = "", window: str = "") -> List[str]:
     """A marked word as this screen spells it: what it means, in one
     sentence on its own line, then the edge cases, why its number might
-    surprise (or the view's own ``note`` on it), under it."""
+    surprise (or the view's own ``note`` on it), under it; its example
+    window pin one of this screen's, ``window``, when given."""
     entry = glossary.GLOSSARY[glossary.key_of(term)]
-    return _wrapped("%s: %s" % (term, entry.meaning)) + _wrapped(note or entry.surprise, INDENT)
+    surprise = (note or entry.surprise).replace(glossary.EXAMPLE_WINDOW, window or glossary.EXAMPLE_WINDOW)
+    return _wrapped("%s: %s" % (term, entry.meaning)) + _wrapped(surprise, INDENT)
 
 
 def block(figures: Sequence[Tuple[str, str, str]], terms: Sequence[str],
-          catch_alls: Sequence[str] = (), view_notes: Dict[str, Sequence[str]] = None) -> List[str]:
+          catch_alls: Sequence[str] = (), view_notes: Dict[str, Sequence[str]] = None,
+          window: str = "") -> List[str]:
     """The ``-v`` block: each figure's working, then each marked word's
-    definition and each catch-all row's cases (``residual``)."""
+    definition (its example ``window`` pin one of the screen's) and each
+    catch-all row's cases (``residual``)."""
     lines = []
     if figures:
         lines.append(HEAD + "how the figures are computed, in this run's numbers")
@@ -74,7 +79,7 @@ def block(figures: Sequence[Tuple[str, str, str]], terms: Sequence[str],
     if terms or catch_alls:
         lines.append(HEAD + "what the marked words and the catch-all rows mean")
         for term in terms:
-            lines += define(term, "; ".join((view_notes or {}).get(term, ())))
+            lines += define(term, "; ".join((view_notes or {}).get(term, ())), window)
         for dim in (d for d in catch_alls if residual.RESIDUAL_NOTES.get(d, ("", []))[1]):
             lines += _wrapped("%s (by %s): %s" % (residual.label(dim), dim, residual.residual_cases(dim)))
     return [style.tag(line, style.KEY) for line in lines]
@@ -109,8 +114,8 @@ def figures(view, sel: query.Selection, shown: Sequence[Tuple[query.Table, objec
                                                                            num(sel.total))))
         others = [n for n, m in schema.METRICS.items()
                   if m.carrier == schema.CALL and m.aggregation == schema.ADDITIVE and n != view.metric]
-        out.append(("other call totals", "output, not in %s; the cache writes it weighs" % view.metric,
-                    ", ".join("%s %s" % (n, num(query.total(carried, n))) for n in others)))
+        out.append((OTHERS, "output, not in %s, and the cache writes %s weighs" % (view.metric, view.metric), ", ".join(
+                        "%s %s" % (glossary.printed(n), num(query.total(carried, n))) for n in others)))
     if facts:
         return out + leaves.figure_names(view.metric)
     first = next(((t, c) for t, c in shown if any(r.kind == query.REGULAR for r in t.rows)), None)

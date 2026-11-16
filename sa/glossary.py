@@ -19,13 +19,16 @@ AVG_CALL = "avg_call"  # a window row's own average call size, beside its part o
 # D-NO-VERDICT: where to start, in plain words; no measured rot threshold exists, so no number.
 FULLEST = "Larger windows are where models are most likely to lose track, so start with the fullest band"
 MARKER = "*"  # a footnote: the term is explained below
+EXAMPLE_WINDOW = "window=1a2b3c4d"  # -v prints a window of the screen's own in its place (``notes.define``)
 PROG = "python3 -m sa"  # the real invocation, wherever a runnable command prints
 
 # The output's spelling of a key, where it differs: the column and the
-# total say "context tokens", the counts "changes" and "calls".
+# total say "context tokens", the counts "changes" and "calls", the call
+# totals as spend's formula names them.
 PRINTED = {schema.CONTEXT_DELTA: "context tokens", schema.CONTEXT_HELD: "part of avg", AVG_CALL: "avg call",
            schema.INCREMENT: schema.PLURAL[schema.INCREMENT],
-           schema.CALL: schema.PLURAL[schema.CALL]}
+           schema.CALL: schema.PLURAL[schema.CALL], "output_tokens": "output",
+           "cache_write_1h_tokens": "1h cache writes", "cache_write_5m_tokens": "5m cache writes"}
 
 
 class Term(NamedTuple):
@@ -38,9 +41,8 @@ class Term(NamedTuple):
 GLOSSARY: Dict[str, Term] = {
     schema.WINDOW_DIM: Term(
         "one context window, from its start to its file's end or the next compaction",
-        "it starts at a session start, subagent, fork, replay or compaction; pin one by the 8 hex"
-        " characters by window prints, as window=1a2b3c4d; a file holds one window per compaction"
-        " that a call follows; a file with no call is read but is no window", True),
+        "it starts at a session start, subagent, fork, replay or compaction; pin one as %s;"
+        " a file with no call is read but is no window" % EXAMPLE_WINDOW, True),
     schema.STARTED_BY_DIM: Term("what began the window: " + ", ".join(schema.STARTS),
                                 "a compaction starts a new window in the same file; its starting"
                                 " context re-counts the system prompt"),
@@ -69,7 +71,7 @@ GLOSSARY: Dict[str, Term] = {
         " windows' final sizes",
         "it is net: what a compaction or other shrink removed is not counted, so a window"
         " that grew to 700K and compacted to 70K reports 70K"),
-    schema.SPEND: Term("input tokens weighted by price: cache reads ×0.1, cache writes ×1.25 (5m) or ×2.0 (1h)",
+    schema.SPEND: Term("a call's input tokens, each kind weighted by its price as worked above",
                        "output excluded; every call re-reads its whole context, so spend grows with"
                        " context times calls; it is never quoted in dollars", True),
     AVERAGE: Term(
@@ -114,9 +116,8 @@ GLOSSARY: Dict[str, Term] = {
     schema.REASON_DIM: Term("why a change is ambiguous", "only ambiguous changes have one"),
     schema.STARTING_CONTEXT: Term(
         "what a window held at its first call: system prompt, tools, CLAUDE.md, prompt",
-        "after a compaction, its summary; not split by content: the transcript records no size for each"
-        " part; a fork's copy of its parent is apart, an inherited row, when the parent is in view."
-        " The lever is how many windows start (subagent_start is usually most) and what each loads",
+        "not split by content: the transcript records no size per part; the lever is how many windows"
+        " start (subagent_start is usually most) and what each loads",
         True, gloss="held at a window's first call"),
     schema.INHERITED: Term("what a fork or replayed window copied: its parent window's size at"
                            " the branch call",
@@ -138,7 +139,8 @@ GLOSSARY: Dict[str, Term] = {
         + "; never spread over them; it still names a tool when every candidate came from one;"
         " by change lists the candidates", True, gloss="not traced to one source"),
     schema.SHRINK: Term("a window that got smaller between two calls (often, not always, a compaction)",
-                        "a negative row: excluded from every share, always in the checks", True,
+                        "a negative row in no share: growth before shrink and each = 100% row leave it"
+                        " out, so they exceed the average call by it; the checks count it", True,
                         gloss="the window got smaller; in no share"),
     schema.SEVERAL: Term("several results or texts entered between two calls",
                          "the tokens are not split between them"),
@@ -147,7 +149,7 @@ GLOSSARY: Dict[str, Term] = {
     schema.UNEXPLAINED: Term("the context grew with nothing recorded to explain it",
                              "declared so it is labelled should it appear"),
     GROWTH: Term("what the windows added after their start: every change between two calls,"
-                 " shrinks aside. Its line names its largest part, a tool, then (→) the"
+                 " shrinks aside. Its line names its largest part, a tool, then (of which) the"
                  " largest command within that tool; '; top command' names a larger one elsewhere",
                  "its share is of the average before shrink, starting context included, so it often"
                  " looks small: it is the part a tool or command can cut"),

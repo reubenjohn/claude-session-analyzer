@@ -110,7 +110,7 @@ def test_headline_block_shares_the_mass_added_never_the_table_base():
 def test_the_headline_refines_the_top_row():
     """The head within the top tool Bash is Bash:cat, 60 of Bash's 90.
     Here it is also the top head overall, so nothing follows."""
-    assert _top(FACTS, [TOOL, HEAD], fx.DELTA) == "Bash 90 → Bash:cat 60"
+    assert _top(FACTS, [TOOL, HEAD], fx.DELTA) == "Bash 90, of which Bash:cat 60"
 
 
 def test_a_larger_head_under_another_lead_follows_the_refinement():
@@ -120,7 +120,7 @@ def test_a_larger_head_under_another_lead_follows_the_refinement():
     other = [_inc(60, 1, "Bash", "Bash:ls"), _inc(40, 2, "Bash", "Bash:make"),
              _inc(70, 3, "Read", "Read:py")]
     assert _top(other, [HEAD], fx.DELTA) == "Read:py 70"  # the top head on its own
-    assert _top(other, [TOOL, HEAD], fx.DELTA) == "Bash 100 → Bash:ls 60; top %s Read:py 70" % HEAD
+    assert _top(other, [TOOL, HEAD], fx.DELTA) == "Bash 100, of which Bash:ls 60; top %s Read:py 70" % HEAD
     assert "; top" not in _top(FACTS, [TOOL, HEAD], fx.DELTA)  # vacuity guard
 
 
@@ -129,7 +129,7 @@ def test_an_equal_head_under_another_tool_is_not_named_as_the_top():
     head table's stable sort: only a strictly larger head is named."""
     tie = [_inc(60, 1, "Read", "Read:py"), _inc(60, 2, "Bash", "Bash:ls"), _inc(40, 3, "Bash", "Bash:make")]
     assert headline._largest(query.group(tie, HEAD, fx.DELTA)).value == "Read:py"
-    assert _top(tie, [TOOL, HEAD], fx.DELTA) == "Bash 100 → Bash:ls 60"
+    assert _top(tie, [TOOL, HEAD], fx.DELTA) == "Bash 100, of which Bash:ls 60"
     larger = [tie[0]._replace(metrics={fx.DELTA: 61})] + tie[1:]  # vacuity guard
     assert _top(larger, [TOOL, HEAD], fx.DELTA).endswith("; top %s Read:py 61" % HEAD)
 
@@ -141,7 +141,7 @@ def test_a_top_tool_with_no_head_still_names_the_top_head():
     headless = [_inc(90, 1, "Agent"), _inc(60, 2, "Bash", "Bash:cat")]
     assert _top(headless, [TOOL, HEAD], fx.DELTA) == "Agent 90; top %s Bash:cat 60" % HEAD
     assert _top(headless[:1], [TOOL, HEAD], fx.DELTA) == "Agent 90"
-    assert "→" in _top(FACTS, [TOOL, HEAD], fx.DELTA)  # vacuity guard
+    assert headline.WITHIN in _top(FACTS, [TOOL, HEAD], fx.DELTA)  # vacuity guard
 
 
 def test_the_cause_table_prints_whole_whatever_the_limit(tmp_path):

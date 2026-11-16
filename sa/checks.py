@@ -10,7 +10,8 @@ is the mean measured call size; the tokens added less the shrinks are the
 final window sizes; and the calls after their window's first (calls -
 windows) split into one source, ambiguous and shrank, the measured rates
 ``-v`` prints. ALWAYS too, the ambiguous share of the average: what could
-not be traced, with its base. Material, a ``!`` line of its own: an
+not be traced, with its base, unless the screen's cause table already
+prints that very share (UX_PRINCIPLES 2: one share per figure a screen). Material, a ``!`` line of its own: an
 ``ambiguous`` share of the average at or above ``AMBIGUOUS_MATERIAL``, or a
 ``shrink`` at or beyond ``SHRINK_MATERIAL`` (of the average before shrink,
 the cause table's ``= 100%`` row, whole windows), each with the command
@@ -73,18 +74,20 @@ def _worked(rows: Sequence[Tuple[str, str, str]]) -> List[str]:
             for label, figure, after in rows]
 
 
-def context(sel: Selection, more: Optional[Callable[[str], str]] = None) -> Tuple[List[str], List[str]]:
+def context(sel: Selection, more: Optional[Callable[[str], str]] = None,
+            said: bool = False) -> Tuple[List[str], List[str]]:
     """The context view's lines (what is checked, in plain words; the
-    ambiguous share of the average, with its trigger) and its ``-v``
-    worked equation; a failed reconciliation in full instead."""
+    ambiguous share of the average unless ``said``, the cause table having
+    printed it, with its trigger) and its ``-v`` worked equation; a failed
+    reconciliation in full instead."""
     r = sel.reconciliation
     if not r.holds:
         return _reconciliation(r), []
     lines = [style.tag("%s over %s in view: rows to the average call, changes to final window sizes" % (
-        OK, count(sel.n_windows, "window")), style.GOOD)] + _material(sel, more)
+        OK, count(sel.n_windows, "window")), style.GOOD)] + _material(sel, more, said)
     shrink = r.by_cause[schema.SHRINK]
-    added = ("context tokens added %s - %s %s" % (num(r.booked - shrink), schema.SHRINK, num(-shrink)) if shrink
-             else "context tokens added")
+    added = ("tokens added %s - tokens shrunk %s" % (num(r.booked - shrink), num(-shrink)) if shrink
+             else "tokens added")  # tokens, the unit of the window sizes: never a table's part of avg
     split = " + ".join("%s %s" % (what, name) for what, name in (
         (_rate(r, r.exact), "one source"), (_rate(r, r.ambiguous), schema.AMBIGUOUS), (num(r.shrink), "shrank")))
     worked = _worked([
@@ -94,14 +97,16 @@ def context(sel: Selection, more: Optional[Callable[[str], str]] = None) -> Tupl
          "%s same as the mean measured call size" % tables.OK_MARK),
         (added, "= " + num(r.booked), "%s same as the final window sizes" % tables.OK_MARK)])
     worked += [style.tag(line, style.KEY) for line in (
-        "%s%s = %s - %s" % (INDENT, gaps(r.intervals), count(r.calls, "call"), count(r.windows, "window")),
+        "%s%s = %s - %s, counted (not tokens)" % (INDENT, gaps(r.intervals), count(r.calls, "call"),
+                                                  count(r.windows, "window")),
         "%s  = %s  %s" % (INDENT, split, tables.OK_MARK))]
     return lines, worked
 
 
-def _material(sel: Selection, more: Optional[Callable[[str], str]]) -> List[str]:
+def _material(sel: Selection, more: Optional[Callable[[str], str]], said: bool = False) -> List[str]:
     """ALWAYS the ambiguous share of the whole windows' average (the cause
-    table's, the answer to "what could not be traced"); ON TRIGGER, it or
+    table's, the answer to "what could not be traced"; not again when
+    ``said``, the cause table on screen printing it); ON TRIGGER, it or
     a shrink at or beyond its threshold, ``!`` and the command that shows
     what it holds (``more``, given the cause; none when the cause is pinned)."""
     held = {}
@@ -116,9 +121,10 @@ def _material(sel: Selection, more: Optional[Callable[[str], str]]) -> List[str]
         hit = abs(share) >= floor
         if not (hit or cause == schema.AMBIGUOUS and share):
             continue
-        lines.append("%s%s: %s of the average call over all %s%s" % (
-            INDENT, cause, tables.pct(share), count(sel.calls, "call"),
-            ", not traced to one source" if cause == schema.AMBIGUOUS else ""))
+        if not (said and cause == schema.AMBIGUOUS):
+            lines.append("%s%s: %s of the average call over all %s%s" % (
+                INDENT, cause, tables.pct(share), count(sel.calls, "call"),
+                ", not traced to one source" if cause == schema.AMBIGUOUS else ""))
         if hit and more:
             lines += [style.tag(line, style.HINT) for line in tables.command_lines("%s! %s %s %s%.0f%%: " % (
                 INDENT, cause, "over" if share > 0 else "beyond", "" if share > 0 else "-", 100 * floor),
@@ -126,13 +132,12 @@ def _material(sel: Selection, more: Optional[Callable[[str], str]]) -> List[str]
     return lines
 
 
-def spend(sel: Selection, shown: Optional[Sequence[query.Table]]) -> Tuple[List[str], List[str]]:
+def spend(sel: Selection, shown: Sequence[query.Table]) -> Tuple[List[str], List[str]]:
     """The spend view's line, and per table shown, its rows summed against
     the headline: a ``✓`` only where the printed figures add up; with no
-    table (a pin left none open), the calls' spend summed against it."""
-    if shown is None:  # the facts' list: its Σ line is the check
-        return [], []
-    if not shown:
+    table (a pin left none open, or the facts' list under its Σ line), the
+    calls' spend summed against it: every screen closes with a ✓."""
+    if not shown:  # no table (a pin left none open), or the facts' list: the calls summed
         calls = [f for f in sel.facts if f.kind == schema.CALL]
         summed = sum(f.metrics[schema.SPEND] for f in calls)
         ok = num(summed) == num(sel.total)

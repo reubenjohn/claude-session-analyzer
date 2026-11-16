@@ -22,16 +22,23 @@ def headline(out):
     return "; ".join([first] + [re.sub(r" +", " ", line.strip()) for line in rest if line.startswith("  ")])
 
 
+def closing(out):
+    """The checks' lines, last: the last section from its first ``✓`` (or
+    ``✗``) line, the ways deeper above it in that section aside."""
+    lines = sections(joined(out))[-1]
+    return lines[next((i for i, l in enumerate(lines) if l.startswith(("✓", "✗"))), 0):]
+
+
 def checks(out):
     """The checks, last: its lines joined, the identities then the gaps."""
-    return "\n".join(sections(joined(out))[-1])
+    return "\n".join(closing(out))
 
 
 def worked(out):
     """The ``-v`` worked equation under the checks line: the lines after
     it, its uncertainty lines (a cause's share, ``!``) aside, joined with a
     leading newline."""
-    lines = sections(joined(out))[-1]
+    lines = closing(out)
     material = re.compile(r"^  (%s)\*?: " % "|".join(schema.CAUSES))  # a cause's share of the average
     return "".join("\n" + line for line in lines[1:] if not line.lstrip().startswith("!")
                    and glossary.PROG not in line and not material.match(line))
@@ -66,7 +73,7 @@ def verbose(out):
     """The ``-v`` block's lines (``notes.HEAD`` opens each part), as printed."""
     lines = out.splitlines()
     start = next((i for i, line in enumerate(lines) if line.startswith(notes.HEAD)), len(lines))
-    end = next((i for i in range(start, len(lines)) if not lines[i]), len(lines))
+    end = next((i for i in range(start, len(lines)) if not lines[i] or lines[i].startswith(("✓", "✗"))), len(lines))
     return lines[start:end]
 
 
@@ -86,7 +93,9 @@ def key(out):
 def joined(out):
     """The output with each command wrapped to the line budget (`` \\``,
     then its indented continuation) rejoined on one line, as a shell reads it;
-    the read line's root, on a line of its own when long, rejoined too."""
+    the read line's root, on a line of its own when long, and what the read
+    set aside, on the next, rejoined too."""
+    out = re.sub(r"^(read: .* under)\n  (.*)\n  (?=\d)", r"\1 \2; ", out, flags=re.M)  # what it set aside
     return re.sub(r" \\\n +", " ", re.sub(r"^(read: .* under)\n  ", r"\1 ", out, flags=re.M))
 
 

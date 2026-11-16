@@ -158,7 +158,7 @@ def test_since_excludes_a_parent_before_dedup_so_its_continuation_owns_the_repla
     assert "%s=%s" % (schema.STARTED_BY_DIM, schema.REPLAYED) in out  # the continuation's window header
     assert headline % ("10 calls", "2 windows", "2 changes", "2 windows") in fx.headline(out)
     assert sorted(fx.listed(out)) == ["%s/proj-a/%s" % (root, f) for f in (first, second)]
-    assert "read: 2 files from the last 1d under " in fx.joined(out) and "; 5 duplicates\n" in out
+    assert "read: 2 files from the last 1d under " in fx.joined(out) and "; 5 duplicates\n" in fx.joined(out)
     stale = time.time() - 2 * corpus.DAY
     os.utime(root / "proj-a" / "sess-0001.jsonl", (stale, stale))
     code, out, err = fx.run_cli(*args)

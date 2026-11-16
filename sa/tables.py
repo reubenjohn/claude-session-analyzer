@@ -113,7 +113,8 @@ Counts = Sequence[Tuple[str, Optional[Dict[str, int]]]]  # a count column: its n
 def parts_text(parts: Sequence[Tuple[str, float]], room: int) -> str:
     """``= a 1 + b 2 + 3 more 4``: the catch-all's parts, largest first, as
     many as ``room`` columns hold, the rest folded as a table folds its
-    rows; one part names what the whole row is."""
+    rows (``FOLDED`` finds the fold: its row's pin lists them); one part
+    names what the whole row is."""
     terms = ["%s %s" % (what, num(mass)) for what, mass in parts]
     for keep in range(len(terms), 0, -1):
         rest = parts[keep:]
@@ -122,6 +123,9 @@ def parts_text(parts: Sequence[Tuple[str, float]], room: int) -> str:
         if len(text) <= room or keep == 1:
             return text
     return ""
+
+
+FOLDED = re.compile(r" \d+ more [-\d,]+$")  # a catch-all's parts that fold: its pin lists them
 
 
 def command_lines(lead: str, command: str, indent: str = "    ") -> List[str]:
@@ -144,7 +148,7 @@ def command_lines(lead: str, command: str, indent: str = "    ") -> List[str]:
 def table(grouped: query.Table, metric: str, limit: Optional[int], total: Optional[str] = None,
           names: Optional[Dict[str, str]] = None, counts: Optional[Counts] = None,
           more: str = "", parts: Sequence[Tuple[str, float]] = (),
-          glosses: Optional[Dict[str, str]] = None) -> List[str]:
+          glosses: Optional[Dict[str, str]] = None, pin: str = "") -> List[str]:
     """The top ``limit`` regular rows (every one when None, and in the
     cause table), the rest as ``+N more`` ending with ``more``, the command
     that prints them all; the ``= 100%`` row, the base every share is of;
@@ -154,7 +158,9 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
     the metric as printed, the count column for the carrier kind it
     counts, or ``counts`` names the count columns and counts each value
     (``-`` on a signed row, a mean's never summed). ``glosses`` print
-    beside a row's value where the line has room."""
+    beside a row's value where the line has room. ``pin``, the command
+    that pins the catch-all row, prints under it when its parts fold: that
+    screen lists each part (UX_PRINCIPLES 2, 3)."""
     heading = title(grouped.dim)
     regular = [r for r in grouped.rows if r.kind == query.REGULAR]
     if grouped.dim == schema.CAUSE_DIM or limit is None:
@@ -218,10 +224,12 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
             lines.append(style.tag(text, role, share, ((mass, mass + widths[0]), (at, at + 6))))
             lines += [style.tag(part, style.HINT if i == values else "", values=((4, len(part)),))
                       for part in (command_lines("    ", note) if i == values else ["    " + note])]
-            continue
-        text = text + "  " + note if note else text
-        lines.append(style.tag(text, role, share, ((mass, mass + widths[0]), (at, at + 6)),
-                               ((0, width),) if free else ((len(text) - len(note), len(text)),) if note else ()))
+        else:
+            text = text + "  " + note if note else text
+            lines.append(style.tag(text, role, share, ((mass, mass + widths[0]), (at, at + 6)),
+                                   ((0, width),) if free else ((len(text) - len(note), len(text)),) if note else ()))
+        if r.kind == query.RESIDUAL and pin and FOLDED.search(note):
+            lines += [style.tag(part, style.HINT, values=((4, len(part)),)) for part in command_lines("    ", pin)]
     if total is not None:  # its verdict alone where a long label leaves no room for its words
         text = line(TOTAL_LABEL, -1, "      " + total)
         lines.append(style.tag(text if len(text) <= WIDTH else line(TOTAL_LABEL, -1, "      " + OK_MARK),

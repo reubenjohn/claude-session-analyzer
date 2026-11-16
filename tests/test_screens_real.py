@@ -1,15 +1,16 @@
 """The screens on ``corpora.realistic``, a real week's shape (UX_PRINCIPLES):
 what a default screen leaves out is named (2), the front door takes the
 global flags (1), one identity style for sessions (1), and a fact list
-says what it cut and how to see it (3). Corpora and helpers are
-``test_screen_budgets``'s."""
+says what it cut and how to see it (3), a folded catch-all names its pin
+(2, 3), and a mistake keeps only what reads right (1). Corpora and helpers
+are ``test_screen_budgets``'s."""
 import re
 import shlex
 
 import fixtures as fx
-from sa import checks, grammar, render, schema
-from test_screen_budgets import (CONTEXT, ERROR_LINES, MORE, PROG, homes, ok, parsed_tables,  # noqa: F401
-                                 sa)
+from sa import checks, grammar, render, residual, schema
+from test_screen_budgets import (CONTEXT, ERROR_LINES, MORE, PROG, SPEND, homes, ok, parsed_tables,  # noqa: F401
+                                 runs, sa, suggested)
 
 
 def test_the_realistic_corpus_is_wide_on_every_dimension(homes):
@@ -67,21 +68,27 @@ def test_by_change_says_what_it_cut_and_how_to_see_it(homes):
 
 def test_the_checks_say_what_is_checked_and_material_uncertainty_its_own(homes):
     """P2/P3: ALWAYS one ✓ line saying what is checked, then the ambiguous
-    share of the average (what could not be traced, with its base); ON
+    share of the average (what could not be traced, with its base), unless
+    the cause table above prints that very share (one share a figure); ON
     TRIGGER (that share at or over ``checks.AMBIGUOUS_MATERIAL``) a ``!``
     line whose command shows those changes; ON REQUEST (-v) the worked
     equation. Spend's one line is its own sum, in its numbers."""
     for corpus, material in (("fixture", False), ("realistic", True)):
-        last = ok(homes[corpus], CONTEXT).rstrip("\n").split("\n\n")[-1].splitlines()
+        out = ok(homes[corpus], CONTEXT)
+        last = fx.closing(out)
         assert last[0].startswith(checks.OK) and "average call" in last[0] and "window sizes" in last[0]
-        share = float(re.match(r"^  %s\*?: ([\d.]+)%% of the average call" % schema.AMBIGUOUS, last[1]).group(1))
-        flagged = [l for l in last[2:] if l.lstrip().startswith("!")]
-        assert bool(flagged) is material is (share >= 100 * checks.AMBIGUOUS_MATERIAL) and len(last) == 2 + len(
+        row = re.search(r"^%s\*?\s+[\d,]+\s+[\d,]+\s+([\d.]+)%%" % schema.AMBIGUOUS, out, re.M)
+        share = float(row.group(1))  # the cause table's row: said once
+        assert not any(l.lstrip().startswith(schema.AMBIGUOUS) for l in last), last
+        flagged = [l for l in last[1:] if l.lstrip().startswith("!")]
+        assert bool(flagged) is material is (share >= 100 * checks.AMBIGUOUS_MATERIAL) and len(last) == 1 + len(
             flagged), last
         for line in flagged:
             command = line[line.index(PROG):]
             assert "%s=%s" % (schema.CAUSE_DIM, schema.AMBIGUOUS) in command and grammar.BY not in command
             assert ok(homes[corpus], *shlex.split(command)[len(PROG.split()):])  # a short screen: its tables
+        bare = fx.closing(ok(homes[corpus], CONTEXT, grammar.BY, schema.TOOL_DIM))  # no cause table: said here
+        assert re.match(r"^  %s\*?: %s%% of the average call over all " % (schema.AMBIGUOUS, share), bare[1]), bare
     spent = ok(homes["fixture"], grammar.VIEWS[0]).splitlines()
     assert re.match(r"^%s: = 100%% [\d,]+ \+ .+ = %s ([\d,]+)$" % (checks.OK, schema.SPEND), spent[-1]), spent[-1]
 
@@ -91,3 +98,51 @@ def test_a_pinned_cause_prints_no_trigger_command(homes):
     out = ok(homes["realistic"], CONTEXT, "%s=%s" % (schema.CAUSE_DIM, schema.AMBIGUOUS))
     assert "ambiguous" in out.rstrip("\n").split("\n\n")[-1] and "!" not in out.rstrip("\n").split("\n\n")[-1]
     assert "!" in ok(homes["realistic"], CONTEXT).rstrip("\n").split("\n\n")[-1]  # vacuity guard
+
+
+def test_a_catch_all_whose_parts_fold_names_the_pin_that_lists_them(homes):
+    """D-FOLDED-PARTS-POINTER: under a catch-all row whose parts fold into
+    ``+N more``, the command pinning that row; its screen's cause table
+    lists every part. A row that shows every part names none."""
+    home = homes["realistic"]
+    lines = ok(home, CONTEXT).splitlines()
+    folded = [i for i, l in enumerate(lines) if re.search(r" \d+ more [\d,]+$", l) and " = " in l]
+    assert folded, lines  # vacuity guard: the realistic default folds a catch-all's parts
+    for i in folded:
+        dim = next(d for d in schema.DIMENSIONS if lines[i].startswith(residual.label(d) + " "))
+        command = lines[i + 1].strip()
+        assert command == grammar.run(CONTEXT, "%s=%s" % (dim, residual.label(dim))), (lines[i], command)
+        causes = dict(parsed_tables(runs(home, command)[1]))[schema.CAUSE_DIM]
+        assert len(causes) >= int(re.search(r" (\d+) more ", lines[i]).group(1)) + 1, causes
+    whole = [i for i, l in enumerate(lines) if re.match(r"^no \w+ .* = ", l) and i not in folded]
+    assert whole and all(not lines[i + 1].startswith("    " + PROG) for i in whole)  # vacuity guard: one whole
+
+
+def test_a_mistake_keeps_only_the_words_that_read_right(homes):
+    """P1: a suggestion pastes and runs, so it drops what did not parse; a
+    dimension pinned twice says every pin holds; a value for nothing is
+    the catch-all row; a fact list asked of the wrong view names the right one."""
+    home = homes["realistic"]
+    tool, command = schema.TOOL_DIM, schema.COMMAND_DIM
+    for args, said in ((("contxt", "--were", "tol=Bash"), "did you mean %s" % CONTEXT),
+                       ((CONTEXT, "%s=Bash" % tool, "%s=Read" % tool), "keep one"),
+                       ((CONTEXT, "%s=none" % command), grammar.quote("%s=%s" % (command, residual.label(command)))),
+                       ((CONTEXT, grammar.BY, grammar.FACTS[SPEND]), grammar.FACTS[CONTEXT])):
+        code, out, err = sa(home, *args)
+        assert code == 2 and said in err and len(err.splitlines()) <= ERROR_LINES, err
+        for line in suggested(err):
+            assert "--were" not in line and runs(home, line)[0] == 0, (line, err)
+        assert suggested(err) or "nearest" in err, err
+    assert ok(home, CONTEXT, "%s=%s" % (command, residual.label(command)))  # the nearest pins
+
+
+def test_every_screen_closes_with_its_checks_and_a_change_prints_its_pins(homes):
+    """A fact list closes with a ✓ line too (spend's own sum); a change's
+    dimensions print as pins, never ``-``, the same layout pinned or not."""
+    home = homes["realistic"]
+    assert ok(home, SPEND, grammar.BY, grammar.FACTS[SPEND]).splitlines()[-1].startswith(checks.OK)
+    for pins in ((), ("%s=%s" % (schema.CAUSE_DIM, schema.AMBIGUOUS),)):
+        out = ok(home, CONTEXT, grammar.BY, grammar.FACTS[CONTEXT], *pins)
+        rows = [l for l in out.splitlines() if fx.LEAF.match(l)]
+        assert rows and all(re.search(r":\d+\s+(\S+=\S+( |$))+$", l) for l in rows if "=" in l), rows
+        assert not any(re.search(r"\s-(\s|$)", l.split(":")[-1]) for l in rows), rows

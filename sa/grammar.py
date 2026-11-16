@@ -1,14 +1,9 @@
-"""The command line's one grammar (UX_PRINCIPLES 1: whatever the output
-names is valid input, verbatim):
-
-    python3 -m sa spend|context [by DIM | by change | by call] [DIM=VALUE ...] [-v]
-                                [--since Nd|all] [--root DIR] [--color auto|always|never]
-
-``DIM=VALUE`` is a pin: repeatable, different dimensions AND. ``by DIM``
-prints that one table, every row; ``by change`` (context) and ``by call``
-(spend) list the facts themselves. ``by`` is the only keyword: any other
-bare word is refused with the nearest valid input. No arguments, or
-``-h``, prints ``HELP`` and exits 0.
+"""The command line's one grammar, ``HELP``'s usage line (UX_PRINCIPLES 1:
+whatever the output names is valid input, verbatim). ``DIM=VALUE`` is a
+pin: repeatable, every one holds. ``by DIM`` prints that one table whole;
+``by change`` (context) and ``by call`` (spend) list the facts. ``by`` is
+the only keyword: any other bare word is refused with the nearest valid
+input. No arguments, or ``-h``, prints ``HELP`` and exits 0.
 
 ``parse`` reads the words; ``resolve`` reads a pin's value against the
 facts (case-insensitive for a closed vocabulary, a catch-all row's label,
@@ -31,10 +26,10 @@ DEFAULT_SINCE = 7.0
 ALL = "all"
 WIDTH = 100  # every line's budget, an error's too
 # Flags this grammar retired, and what replaced each: a mistake teaches.
-RETIRED = {"--where": "write the pin alone, DIM=VALUE (tool=Bash)",
+RETIRED = {"--where": "write DIM=VALUE alone, no flag: tool=Bash",
            "--by": "write by DIM (by tool), or by change / by call for the facts",
            "--limit": "by DIM prints every row of its table",
-           "explain": "add -v to any command: it explains what that screen shows"}
+           "explain": "add -v to any command: it explains that screen"}
 
 HELP = """\
 usage: %(p)s spend|context [by DIM] [DIM=VALUE ...] [-v] [--since Nd|all]
@@ -49,13 +44,13 @@ Start broad, then narrow; each screen suggests the next command and ends
 with its checks (✓): what it verified, in plain words.
   %(p)s context                             the answer and its tables
   %(p)s context by tool                     one table, every row
-  %(p)s context tool=Bash command=Bash:cat  pin rows you saw (DIM=VALUE); pins stack
-  %(p)s context tool=Bash by change         the changes themselves, file:line
-  %(p)s context tool=Bash -v                how it's computed; what * words mean
+  %(p)s context tool=Bash command=Bash:cat  pin rows you saw (DIM=VALUE); all pins hold
+  %(p)s context tool=Bash by change         the changes, file:line (spend: by call)
+  %(p)s context tool=Bash -v                -v on any screen: how it's computed, * words
   %(p)s spend by subagent                   what each subagent cost
 
 DIM: %(w)s;
-     context also %(i)s
+     context only: %(i)s
 --since 30d|all  files modified in the last N days (default 7d)
 --root DIR       the transcripts' directory (default ~/.claude/projects)
 --color auto|always|never""" % {"p": PROG, "w": ", ".join(schema.WINDOW_DIMENSIONS), "i": ", ".join(
@@ -79,7 +74,7 @@ class Args(NamedTuple):
     since_text: Optional[str] = None  # as typed; None when the default
     root: Optional[str] = None
     color: str = "auto"
-    bare: Tuple[str, ...] = ()   # words that are neither ``by`` nor a pin: refused once the data names them
+    bare: Tuple[str, ...] = ()   # neither ``by`` nor a pin: refused once the data is read
 
 
 def _days(text: str) -> Optional[float]:
@@ -105,9 +100,19 @@ def _dimension(dim: str, view: str) -> str:
 
 
 def _start(view: str, rest: Sequence[str]) -> str:
-    """The command with the view put right and the user's other words
-    kept, so it pastes as meant; the view alone when that overflows."""
-    whole = run(view, *rest)
+    """The command, the view put right, the words that parse kept: it
+    runs as printed; the view alone when that overflows."""
+    kept: List[str] = []
+    words = list(rest)
+    while words:
+        group = [words.pop(0)]
+        if group[0] in GLOBAL and words:
+            group.append(words.pop(0))
+        try:
+            kept += group if not parse([view] + kept + group).bare else []
+        except UsageError:
+            pass
+    whole = run(view, *kept)
     return whole if len(whole) <= WIDTH - len("start here: ") else run(view)
 
 
@@ -157,7 +162,7 @@ def parse(argv: Sequence[str]) -> Args:
         elif word.startswith("-"):
             near = difflib.get_close_matches(flag, list(RETIRED) + list(GLOBAL), 1, 0.6)
             if near and near[0] in RETIRED:  # the retired flag it was meant as teaches the fix
-                raise UsageError("unknown flag %s; %s is retired" % (word, near[0]), RETIRED[near[0]])
+                raise UsageError("unknown flag %s (like %s, retired): drop it" % (word, near[0]), RETIRED[near[0]])
             raise UsageError("unknown flag %s%s" % (word, "; did you mean %s?" % near[0] if near else ""),
                              "flags: -v, --since, --root, --color; see %s -h" % PROG)
         elif word == BY:
@@ -170,7 +175,7 @@ def parse(argv: Sequence[str]) -> Args:
             if what in FACTS.values() or what in ("fact", "facts", "changes", "calls"):
                 if what not in (FACTS[view],):
                     raise UsageError("%s lists its %s: by %s" % (view, schema.PLURAL[carrier(view)],
-                                                                 FACTS[view]))
+                                                                 FACTS[view]), "e.g. " + run(view, BY, FACTS[view]))
                 found["by"] = what
             else:
                 found["by"] = _dimension(what, view)
@@ -190,8 +195,7 @@ GLOBAL = ("--since", "--root", "--color")  # the flags that take a value
 
 
 def _global_flags(words: Sequence[str]) -> int:
-    """How many leading words are flags and their values: the command
-    follows them (``--color never context`` reads as ``context --color never``)."""
+    """How many leading words are flags and their values, the command after them."""
     i = 0
     while i < len(words):
         flag, eq, _ = words[i].partition("=")
@@ -205,8 +209,10 @@ def _global_flags(words: Sequence[str]) -> int:
 
 
 def refuse_bare(word: str, view: str, values: Dict[str, List[str]]) -> UsageError:
-    """A bare word: the pin it would be when a row carries it as printed
-    (case aside), else the grammar."""
+    """A bare word: what replaced it if retired, the pin it would be if a
+    row prints it (case aside), else the grammar."""
+    if word in RETIRED:
+        return UsageError("%s is retired: %s" % (word, RETIRED[word]), "e.g. " + run(view, "-v"))
     for dim, present in values.items():
         hit = [v for v in present if v.lower() == word.lower()]
         if hit:
@@ -249,16 +255,16 @@ def resolve(dim: str, text: str, view: str, present: List[str],
 
 
 def no_match(view: str, dim: str, text: str, printed: Sequence[str], every: str, given: bool = False) -> UsageError:
-    """The one refusal for a pin no fact carries (here, or ``query.narrow``
-    given the pins before it): the nearest value as a pin, and the command
-    that lists every one."""
-    near = difflib.get_close_matches(text, list(printed), 1, 0.5) or [
-        p for p in printed if p.lower() == text.lower()][:1] or (  # an empty value means the catch-all row
-        [residual.label(dim)] if not text and dim in residual.RESIDUAL_NOTES else list(printed)[:1])
+    """The refusal of a pin no fact carries (``given`` the pins before it):
+    the nearest value as a pin, and the command listing every one."""
+    lacking = text.lower() in ("", "none", "no", "-") and dim in residual.RESIDUAL_NOTES  # the catch-all
+    near = [residual.label(dim)] if lacking else difflib.get_close_matches(text, list(printed), 1, 0.5) or [
+        p for p in printed if p.lower() == text.lower()][:1] or list(printed)[:1]
     return UsageError("no %s has %s=%s%s%s" % (
         schema.PLURAL[carrier(view)][:-1], dim, text, " with the pins before it" if given else "",
         "; nearest: %s" % quote("%s=%s" % (dim, near[0])) if near else "; none present"),
         "every %s: %s" % (dim, every))
+
 
 
 def quote(word: str) -> str:

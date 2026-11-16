@@ -70,7 +70,7 @@ def test_a_call_split_across_files_is_one_call_owned_by_the_earlier_file(tmp_pat
     assert reconciliation.reconcile(facts).holds
     code, out, err = fx.run_cli("spend", "--root", str(root))
     assert code == 0, err
-    assert ("read: 2 files from the last 7d (default) under %s; 1 duplicate\n"
+    assert ("read: 2 files from the last 7d (default) under %s; 1 duplicate, 1 with no call\n"
             "in view: 1 window*, 1 call\n" % root) in fx.joined(out)
     # Merged over both files' constituents: the same metrics as the split within one file.
     (within,) = [f for f in _one_window(tmp_path / "within", [parent, copy]) if f.kind == CALL]

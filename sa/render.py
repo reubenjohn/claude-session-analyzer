@@ -30,18 +30,16 @@ class View(NamedTuple):
 def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], inv: grammar.Invocation,
            verbose: bool = False, forest: List[Fact] = (),
            names: Optional[Dict[str, str]] = None) -> List[str]:
-    """Every line of the view, in reading order: the scope (what was read
-    and kept), the answer (the headline and its lever walk, the next
-    command), the tables a pin left open (``by DIM`` that one table whole,
-    or the facts themselves), the ways deeper as commands (``by DIM`` for
-    the tables not shown, ``-v`` and its cost, or its block), and the checks. The cause table of a
-    whole-window view closes with its total, the average, against the
-    calls' mean size."""
+    """Every line of the view, in reading order: the scope, the answer
+    (headline, lever walk, next command), the tables a pin left open (``by
+    DIM`` one whole, or the facts), the ways deeper as commands (``by DIM``,
+    ``-v`` and its cost, or its block), then the checks, no blank between."""
     spec = schema.metric(view.metric)
     facts_by = grammar.FACTS[inv.view]
     shown, body, catch_alls, ways = [], [], [], []
     if by == facts_by:
-        body = leaves.leaves(sel.facts, view.metric, sel.calls, sel.total, [d for d, _ in sel.where], names,
+        pinned = [i for d, v in sel.where for i in (d,) + (grammar.IMPLIES.get(d, ()) if v is not None else ())]
+        body = leaves.leaves(sel.facts, view.metric, sel.calls, sel.total, pinned, names,
                              LIMIT, lambda w: inv.command(by=schema.WINDOW_DIM) if w is None else inv.command(
                                  by=facts_by, add=[(schema.WINDOW_DIM, w)]), tables.tilde(loaded.root)) + [""]
     else:
@@ -72,7 +70,8 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], inv: g
                     grouped, view.metric, None if by else LIMIT,
                     total=_total(view, sel) if dim in (schema.CAUSE_DIM, by) else None, names=names,
                     counts=counts, more=inv.command(by=dim), parts=_parts(sel, dim, view.metric),
-                    glosses=GLOSSES if dim == schema.CAUSE_DIM else None) + (
+                    glosses=GLOSSES if dim == schema.CAUSE_DIM else None,
+                    pin=inv.command(add=[(dim, residual.label(dim))])) + (
                     [WHOLE_WINDOWS] if counts and sel.drill else []) + [""]
         ways = notes.also_by(sel, view, spec.carrier, printed, inv)
     # the glosses beside their commands align; one that goes under its command sets no column
@@ -84,19 +83,21 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], inv: g
              + [""] + body)
     if view.reconciles:  # a trigger's command keeps the pins; none when the cause is pinned already
         closing, worked = checks.context(sel, None if schema.CAUSE_DIM in dict(inv.pins) else (
-            lambda c: inv.command(add=[(schema.CAUSE_DIM, c)])))
+            lambda c: inv.command(add=[(schema.CAUSE_DIM, c)])),
+            said=not sel.drill and any(t.dim == schema.CAUSE_DIM for t, _ in shown))
     else:
-        closing, worked = checks.spend(sel, None if by == facts_by else [t for t, _ in shown])
+        closing, worked = checks.spend(sel, [t for t, _ in shown])
     lines, terms = notes.footnote(above + closing)
     figures = notes.figures(view, sel, shown, by == facts_by, names)
-    block = notes.block(figures, terms, catch_alls, {glossary.printed(view.metric): view.notes})
+    block = notes.block(figures, terms, catch_alls, {glossary.printed(view.metric): view.notes},
+                        "%s=%s" % (schema.WINDOW_DIM, schema.window_value(sel.facts[0].window)) if sel.facts else "")
     catch_alls = [d for d in catch_alls if residual.RESIDUAL_NOTES.get(d, ("", []))[1]]  # a case list to tell
     deeper = []
     for _ in range(2):  # -v's cost, exactly: its lines less the pointer's own, which it replaces
         deeper = notes.pointer(inv.command(by=by, verbose=True), notes.footer(
             bool(terms or catch_alls), len(block) + len(worked) - max(len(deeper), 1)), pad)
     tail = [line for c, gloss in ways for line in notes.pointer(c, gloss, pad)] + (block if verbose else deeper)
-    sep = [""] if tail or above[-1] else []  # the ways deeper share a section
+    sep = [""] if not tail and above[-1] else []  # the ways deeper and the checks share a section
     return lines[:len(above)] + tail + sep + lines[len(above):] + (worked if verbose else [])
 
 
@@ -125,7 +126,7 @@ def window_counts(sel: Selection, dim: str, metric: str) -> Optional[tables.Coun
     the residual's under ``None``), then those calls' own average size
     (``tables.AVG_CALL``, a mean: never summed), which the row's part of
     the average is not; None for any other table, which counts its
-    carrier. A windows column of one window a row prints no column."""
+    carrier. One window a row: no windows column."""
     per_call = schema.metric(metric).aggregation == schema.PER_CALL
     if dim != schema.PEAK_DIM and not (per_call and dim in schema.WINDOW_DIMENSIONS):
         return None
@@ -207,15 +208,14 @@ ORPHAN = ("its copy counts as its own", "their copies count as their own")
 
 def population(view: View, sel: Selection, loaded: Corpus, since_default: bool = False,
                forest: Iterable[Fact] = (), names: Optional[Dict[str, str]] = None) -> List[str]:
-    """The scope, first: the read, one line (the files its ``--since``
-    kept, named with that window and the root, then what the read skipped
-    or excluded, corpus-wide) and what the window pins kept: the windows (the files with
-    a call; a compaction a call follows starts another) and the facts
-    the view's metric is read from, its carrier's. The compactions read
-    print as one line when there are any: every one is unpriced; the forks in
-    view that inherited nothing, under the kept, a line per reason, when
-    there are any (``query.orphan_forks``). A drill pin is named on the headline,
-    the one line that counts what it narrows."""
+    """The scope, first: the read, one line (the files ``--since`` kept, its
+    window and the root; then what it skipped or set aside, corpus-wide,
+    and the files with no call, so no window; a long root on its own line,
+    those on the next), and what the window pins kept: the windows and the
+    facts of the view's carrier. Under them, when there are any, the
+    compactions read (unpriced) and the forks in view that inherited
+    nothing, a line per reason (``query.orphan_forks``). A drill pin is
+    named on the headline, the one line that counts what it narrows."""
     carrier, _window = schema.metric(view.metric).carrier, schema.WINDOW_DIM
     since = ("of any age" if loaded.since_days is None else "modified in the last %gd%s"
              % (loaded.since_days, " (default)" if since_default else ""))
@@ -226,13 +226,15 @@ def population(view: View, sel: Selection, loaded: Corpus, since_default: bool =
     plural = schema.PLURAL[carrier]
     head = "read: %s %s under " % (count(len(loaded.files), "file"), since.replace("modified in the", "from the")
                                    if loaded.since_days is not None else since)
+    callless = len({f.name for f in loaded.files} - {f.window.file for f in forest})  # read, but no window
     cut = [text for n, text in ((loaded.skipped_lines, count(loaded.skipped_lines, "line") + " skipped"),
-                                (loaded.duplicate_records, count(loaded.duplicate_records, "duplicate"))) if n]
+                                (loaded.duplicate_records, count(loaded.duplicate_records, "duplicate")),
+                                (callless, "%s with no call" % num(callless))) if n]
     root = tables.tilde(loaded.root)  # a value: a directory named like a term is not the term
     tail = root + ("; " + ", ".join(cut) if cut else "")  # what the read skipped, said when there is any
     if len(head + tail) > tables.WIDTH:  # a long root on its own line, whole, so it opens as printed
         read = [head.rstrip()] + [style.tag(part, "", values=((2, 2 + len(root)),))
-                                  for part in leaves.broken("  " + tail)]
+                                  for part in leaves.broken("  " + root)] + ["  " + ", ".join(cut)] * bool(cut)
     else:
         read = [style.tag(head + tail, "", values=((len(head), len(head) + len(root)),))]
     orphaned = [" " * (len(KEPT) + 2) + "%s whose %s: %s" % (count(n, schema.FORK), why[n > 1], ORPHAN[n > 1])

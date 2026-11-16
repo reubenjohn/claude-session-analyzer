@@ -8,16 +8,18 @@ when that arithmetic, redone from the printed operands, holds.
 
 A row stays within the line budget: the window's file and dimensions
 print once above its rows, the locator is ``:line`` in it (a physical
-line is unique in its file, so no uuid), and a dimension every row
-shares, or a pin, prints no column."""
+line is unique in its file, so no uuid), and a row's dimensions print as
+the pins they are (UX_PRINCIPLES 1), each one the fact has but a pin's:
+one layout whatever is pinned, nothing a row has left unsaid."""
 import posixpath
 from typing import Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
-from . import glossary, query, schema, style
+from . import glossary, grammar, query, schema, style
 from .schema import Fact
 from .tables import OK_MARK, BAD_MARK, WIDTH, command_lines, count, num, value
 
-HELD = "held"  # the column of the calls that held a change
+HELD = "calls held"  # the column of the calls that held a change
+DIMENSIONS = "dimensions"  # a row's own, as pins: every one but those pinned, so each pastes as printed
 # The window's own dimensions, named on its header when they vary; the
 # file names its project, session and subagent.
 HEADER_DIMS = (schema.WINDOW_DIM, schema.STARTED_BY_DIM, schema.PEAK_DIM)
@@ -32,6 +34,7 @@ def held(f: Fact) -> Optional[int]:
 
 
 def _varying(facts: Sequence[Fact], dims: Sequence[str], pinned: Sequence[str]) -> List[str]:
+    """The window dimensions its header names: those that vary, unpinned."""
     return [d for d in dims if d not in pinned and len({f.dims.get(d) for f in facts}) > 1]
 
 
@@ -61,7 +64,7 @@ def leaves(facts: List[Fact], metric: str, calls: Optional[int], total: float,
     heads = _varying(carried, HEADER_DIMS, pinned)
     if schema.WINDOW_DIM not in heads:
         heads.insert(0, schema.WINDOW_DIM)
-    dims = _varying(carried, ROW_DIMS, pinned) if spec.carrier == schema.INCREMENT else []
+    dims = [d for d in ROW_DIMS if d not in pinned] if spec.carrier == schema.INCREMENT else []
     names_ = [glossary.printed(metric)] + (["tokens", HELD] if per_call else []) + ["line"]
 
     def figures(f: Fact) -> List[str]:
@@ -69,23 +72,15 @@ def leaves(facts: List[Fact], metric: str, calls: Optional[int], total: float,
         return [num(f.metrics[metric] / divisor)] + (
             [num(f.metrics[schema.CONTEXT_DELTA]), "-" if n is None else num(n)] if per_call else []) + [
             ":%d" % f.locator.line]
-    rows = {id(f): figures(f) + [value(d, f.dims[d], names) if d in f.dims else "-" for d in dims]
-            for f in carried}
-    header = names_ + dims
-    widths = [max([len(h)] + [len(r[i]) for r in rows.values()]) for i, h in enumerate(header)]
+    rows = {id(f): figures(f) + [" ".join(grammar.quote("%s=%s" % (d, value(d, f.dims[d], names)))
+                                          for d in dims if d in f.dims)] for f in carried}
+    header = names_ + ([DIMENSIONS] if dims else [])
+    widths = [max([len(h)] + [len(r[i]) for r in rows.values()]) for i, h in enumerate(names_)]
     lead, figs = 2, len(names_) - 1
-    tagged = lead + sum(w + 2 for w in widths) > WIDTH  # the dimensions as pins, unpadded, when columns overflow
-    if tagged:
-        header = names_ + ["dimensions"]
-        for f in carried:
-            rows[id(f)] = rows[id(f)][:len(names_)] + [" ".join("%s=%s" % (d, value(d, f.dims[d], names))
-                                                                for d in dims if d in f.dims)]
 
-    def line(cells: List[str]) -> str:
-        text = (" " * lead + "  ".join("%*s" % (w, c) for w, c in zip(widths[:figs], cells[:figs]))
-                + "  " + "  ".join(cells[figs:] if tagged else
-                                   ["%-*s" % (w, c) for w, c in zip(widths[figs:], cells[figs:])])).rstrip()
-        return text
+    def line(cells: List[str]) -> str:  # the figures right-aligned, the line left, the dimensions as pins
+        return (" " * lead + "  ".join("%*s" % (w, c) for w, c in zip(widths[:figs], cells[:figs]))
+                + "  " + "  ".join(["%-*s" % (widths[figs], cells[figs])] + cells[len(names_):])).rstrip()
     hidden = order[limit:] if limit is not None else []
     shown = order[:len(order) - len(hidden)]
     title = "by %s" % ("change" if spec.carrier == schema.INCREMENT else "call")

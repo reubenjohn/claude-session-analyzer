@@ -8,22 +8,6 @@ Owner directive: "strive for an elegant simple implementation from which
 powerful capabilities emerge." Opus independently reviewed the brief and the
 ported engine and concurred with the path below.
 
-**D-ENGINE — the ported ranking engine is RETIRED from the build.** RULED.
-`scripts/lib/lib_drill.py` and `scripts/sa_schema.py` are not in the tree
-(they remain in git history and on the `v1-legacy` branch).
-Measured basis: the engine is ~85–90% dimension-ranking machinery (four
-filters, entropy and eta-squared statistics, partition-signature collapse)
-built for v1's many-shape taxonomy; v2 has two fact kinds and about six
-dimensions, which are shown side by side rather than ranked. `sa_schema.py`
-also cannot import standalone (it depends on two unported v1 modules).
-What survives, pinned by v2's own tests: never sum a peak; a peak reports
-no value at a node; signed mass handled explicitly; fail closed on an unknown
-metric; the one residual bucket. What the owner loses: the mutation-tested
-score rule and the eta-squared door for drilling a peak. Mitigation: v2's
-fact shape stays `{attributes, metrics, locator}` so `lib_drill.py` can be
-re-attached if dimensions multiply. `sa/usage.py` keeps the ported function
-bodies; it carries the measured corrections (D-USAGE-DOCSTRINGS).
-
 **R1 — carrier of attributed mass.** RULED: option 1, made structural. Every
 metric declares its single carrier kind in one `METRICS` table (`spend` ->
 call fact, `context_delta` -> increment fact); the query layer reads a metric
@@ -233,23 +217,6 @@ calls, tool_result first (37.0%), starting_context 34.1% -> 16.4% [O]. Rows prin
 the dimension's declared order, fullest first, in every view
 (`schema.ORDERED`). [O] second opinion 2026-11-16: AGREE-WITH-CHANGE, applied.
 
-**D-PEAK-DEFAULT — the default output leads with the band.** RULED.
-`context`'s default tables gain `by peak` (context tokens, windows,
-calls, share; under a drill, whole windows with a matching change),
-before `session` (the path's order). A default table, lever or hint
-opens only when the windows in view carry more than one value, pinned
-or not: one band prints no `by peak`. The hint follows the headline's
-own walk (tool, then command, then `by change`): amended iter2, display
-only, since a band the default screen no longer prints did not motivate
-it (audit F4); `by peak` stays a table away. Tables that repeat one
-table row for row share its one relabel line (`by session, project:`),
-which keeps the fixture output at 46 lines / 2,872 chars, D-OUTPUT-CAP
-unchanged. The "calls holding over 200K" figure (1,860 of 24,563 [O])
-is not printed: it counts calls, not windows, so it has no pin to act
-on (the call filter is deferred, D-OCCUPANCY-FILTER), the 200K+ row's
-calls column already sizes the exposure, and the cap has no room; it
-stays a sweep line. [O] second opinion 2026-11-16: AGREE-WITH-CHANGE, applied.
-
 **D-MISSING-PARENT — a fork without its parent is counted, not
 fixed.** RULED, amended from the proposal (force-reading the parent is
 not built: a deleted parent cannot be read, and the copies cannot be
@@ -322,3 +289,27 @@ second opinion 2026-11-16: AGREE.
 owner 2026-11-16: learnable, legible, trustworthy
 (`references/UX_PRINCIPLES.md`). Rules are instances; one met by breaking
 a principle fails. Per-screen budgets are hard, ratcheting gates.
+
+
+## Rulings — 2026-11-16, screens (iteration 4)
+
+**D-FOLDED-PARTS-POINTER — a catch-all row whose parts fold names its
+pin.** DECIDED (orchestrator, by principle 2; owner to review). When a
+composite row's parts fold into `+N more`, the line under it is the
+command that pins the row (`python3 -m sa context 'command=no command'`),
+whose screen lists every part with its share. Rejected: printing every
+part in place (one line either way, but no shares and no way to drill).
+
+**D-SPEND-ONE-ANSWER — the spend screen drops its average-context
+line.** DECIDED (orchestrator, by principle 2; owner to review). One
+answer a slide: `context` is one command away, and the spend `-v` note
+and `-h` already say so. Rejected: a bridge label on the line.
+
+**D-AMBIGUOUS-SAID-ONCE — the checks' ambiguous share prints only where
+no cause table on screen prints it.** DECIDED (implementer, by principle
+2, one share a figure; owner to review). On an unpinned screen the cause
+table's `ambiguous` row is that share with its base; a drill, `by DIM`
+or `by change` screen still prints the line; the `!` trigger is
+unchanged. With the blank line between the ways deeper and the checks,
+it pays for the two pointer lines above within the 46-line budget.
+Rejected: raising the budget; cutting table rows.
