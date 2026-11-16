@@ -8,7 +8,7 @@ import time
 import pytest
 
 import fixtures as fx
-from sa import cli, corpus, query, render, schema
+from sa import checks, cli, corpus, query, render, schema
 
 CONTEXT = cli.VIEWS["context"]
 CAUSE, TOOL = schema.CAUSE_DIM, schema.TOOL_DIM
@@ -61,7 +61,7 @@ def test_unknown_value_of_a_closed_vocabulary_dimension_is_refused(tmp_path, dim
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=%s" % (dim, value))
     assert code == 0, err  # vacuity guard
     if value == schema.INHERITED:
-        assert re.search(r"^%s: [1-9]" % re.escape(render.INHERITED_LABEL), out, re.M)
+        assert re.search(r"^%s: [1-9]" % re.escape(checks.INHERITED_LABEL), out, re.M)
         return
     assert re.search(r"^%s-?[1-9]" % re.escape(fx.total_line(CONTEXT.metric)), fx.headline(out))  # shrink's total is negative
 

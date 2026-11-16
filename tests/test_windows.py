@@ -8,7 +8,7 @@ import re
 import time
 
 import fixtures as fx
-from sa import corpus, glossary, query, render, schema, tables, walk, windows
+from sa import checks, corpus, glossary, query, schema, tables, walk, windows
 from sa.schema import CALL, INCREMENT, WindowKey
 
 CAUSE = schema.CAUSE_DIM
@@ -125,7 +125,7 @@ def test_the_inherited_breakdown_is_the_parent_window_through_the_branch_call(tm
 
 def test_the_cli_states_inherited_once_on_the_total_row_and_the_footer(tmp_path):
     root = fx.window_corpus(tmp_path)
-    label, mass = render.INHERITED_LABEL, format(sum(fx.W_INHERITED.values()), ",d")
+    label, mass = checks.INHERITED_LABEL, format(sum(fx.W_INHERITED.values()), ",d")
     code, out, err = fx.run_cli("context", "--root", str(root), "--limit", "1")
     assert code == 0, err
     assert re.search(r"^%s .* final window sizes less %s %s$" % (tables.TOTAL_LABEL, mass, re.escape(label)),

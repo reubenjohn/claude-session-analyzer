@@ -14,7 +14,8 @@ capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
 
 Package `sa/`, one module per stage (`corpus` read+dedup, `windows`
 the cut, `walk` attribution, `heads`, `schema` METRICS, vocabularies,
-`glossary`, `query`, `headline`, `tables`, `render`, `cli`, `usage` ported); each
+`glossary`, `query`, `headline`, `tables`, `render`, `checks`, `cli`,
+`usage` ported); each
 docstring is its spec. The parser IS the product: `sa.sweep` imports it.
 
 One data model, `Fact`, specified in `schema.py`: `kind` is `call` or
@@ -75,8 +76,8 @@ exit 1.
 
 `sa/usage.py` docstrings carry these (D-USAGE-DOCSTRINGS);
 `tests/test_usage.py` pins the bodies. An engine-level choice changes
-only by a logged ruling (`references/DECISION_LOG.md`: argument or
-measurement, plus an opus second opinion). Display labels, phrasing and
+only by a logged ruling (argument or measurement, plus an opus
+second opinion). Display labels, phrasing and
 styling need no ruling. The recorded failure mode: a confident in-place
 "improvement" that deletes a measured correction.
 
