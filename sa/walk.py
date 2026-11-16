@@ -60,12 +60,28 @@ class Contributor(NamedTuple):
     cause: str
     tool: Optional[str]
     head: Optional[str]
+    size: Tuple[int, int] = (0, 0)  # ``recorded_size`` of its tool_result block or its text
 
     @property
     def dims(self) -> dict:
         """What an exact increment books for it: the dimensions that are set."""
         named = {schema.CAUSE_DIM: self.cause, schema.TOOL_DIM: self.tool, schema.COMMAND_DIM: self.head}
         return {dim: value for dim, value in named.items() if value is not None}
+
+
+def recorded_size(content) -> Tuple[int, int]:
+    """A contributor's size as recorded: the characters of its text, and
+    its non-text parts (an image), uncounted. Characters, never tokens: the
+    transcript records no token count per contributor."""
+    if isinstance(content, str):
+        return len(content), 0
+    chars = other = 0
+    for part in content if isinstance(content, list) else []:
+        if isinstance(part, str) or (isinstance(part, dict) and part.get("type") == "text"):
+            chars += len(part if isinstance(part, str) else part.get("text") or "")
+        else:
+            other += 1
+    return chars, other
 
 
 def contributors(records: List[Record], uses: ToolUses) -> Iterator[Contributor]:
@@ -88,10 +104,12 @@ def contributors(records: List[Record], uses: ToolUses) -> Iterator[Contributor]
             continue
         results = [block for block in blocks(record.data) if block.get("type") == "tool_result"]
         if not results:
-            yield Contributor(record, schema.USER_TEXT, None, None)
+            yield Contributor(record, schema.USER_TEXT, None, None,
+                              recorded_size(_message(record.data).get("content")))
         for block in results:
             tool, tool_input = uses.get(block.get("tool_use_id"), (None, None))
-            yield Contributor(record, schema.TOOL_RESULT, tool, heads.head_of(tool, tool_input))
+            yield Contributor(record, schema.TOOL_RESULT, tool, heads.head_of(tool, tool_input),
+                              recorded_size(block.get("content")))
 
 
 def shared_dims(found: List[Contributor]) -> dict:
@@ -189,7 +207,7 @@ def _window(source: SourceFile, live: List[Record], uses: ToolUses, win: Window,
         yield increment(
             remainder, current.record, cause=schema.AMBIGUOUS,
             reason=schema.SEVERAL if found else schema.UNEXPLAINED,
-            evidence={schema.CANDIDATES: [Candidate(locator(c.record), c.dims) for c in found]},
+            evidence={schema.CANDIDATES: [Candidate(locator(c.record), c.dims, *c.size) for c in found]},
             **shared_dims(found))
 
     previous = None

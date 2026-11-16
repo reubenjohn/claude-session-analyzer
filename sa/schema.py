@@ -202,10 +202,15 @@ class Fact(NamedTuple):
 
 
 class Candidate(NamedTuple):
-    """Evidence of one contributor of an ambiguous increment: where it is
-    and the dimensions it would have booked."""
+    """Evidence of one contributor of an ambiguous increment: where it is,
+    the dimensions it would have booked, and its size as the transcript
+    records it: the characters of its text and its non-text parts (an
+    image), uncounted. No token count is recorded per contributor, and none
+    is estimated."""
     locator: Locator
     dims: dict
+    chars: Optional[int] = None
+    other: int = 0
 
 
 def fact(kind: str, dims: dict, metrics: dict, locator: Locator,

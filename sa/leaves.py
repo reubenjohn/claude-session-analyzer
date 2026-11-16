@@ -34,15 +34,26 @@ def leaves(facts: List[Fact], metric: str, limit: int, calls: Optional[int] = No
     return lines
 
 
+def recorded(candidate: schema.Candidate) -> str:
+    """``1,204 characters  `` (``+ 1 non-text`` when an image came too):
+    characters as the transcript records them, never converted to tokens;
+    nothing when the size is unknown."""
+    if candidate.chars is None:
+        return ""
+    other = " + %s non-text" % num(candidate.other) if candidate.other else ""
+    return "%s characters%s  " % (num(candidate.chars), other)
+
+
 def _evidence(evidence: dict) -> Iterator[str]:
     """Each key once; the candidates one per line under theirs, each with
-    its line, uuid and the dimensions it would have booked."""
+    its line, uuid, its size as recorded (``recorded``) and the dimensions
+    it would have booked."""
     for key, value in evidence.items():
         if key == schema.CANDIDATES:
             yield "%18s%s:%s" % ("", key, "" if value else " none")
             for candidate in value:
-                yield "%20s%s %s  %s" % ("", at(candidate.locator), uuid(candidate.locator),
-                                         tags(candidate.dims))
+                yield "%20s%s %s  %s%s" % ("", at(candidate.locator), uuid(candidate.locator),
+                                           recorded(candidate), tags(candidate.dims))
         elif isinstance(value, schema.WindowKey):  # a parent window: its --where value
             yield "%18s%s: %s=%s" % ("", key, schema.WINDOW_DIM, schema.window_value(value))
         elif isinstance(value, schema.Locator):
