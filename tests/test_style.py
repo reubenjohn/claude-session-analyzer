@@ -89,8 +89,9 @@ def test_rows_a_table_never_hides_are_never_dimmed_nor_heated(tmp_path):
     their share, outside the heatmap; so does the total row."""
     root = str(fx.cli_corpus(tmp_path))
     out = fx.run_cli("context", "--root", root, "--color", style.ALWAYS)[1].splitlines()
-    kept = [line for line in out if re.match(r"(\033\[\d+m)?(∅|shrink \(signed\))\s", line)]
-    assert kept  # vacuity guard
+    kept = [line for line in out
+            if re.match(r"(unassigned\*?|shrink \(signed\)|\+\d+ more rows)\s", style.plain(line))]
+    assert any(style.plain(line).startswith("unassigned") for line in kept)  # vacuity guard
     faint, italic = "%s%sm" % (ESC, style.FAINT[0]), "%s%sm" % (ESC, style.ITALIC[0])
     heated = re.compile(r"\033\[(%s)[;m]" % "|".join((style.RED, style.YELLOW, style.GREEN)))
     assert all(line.startswith(italic) and faint not in line and not heated.search(line)
