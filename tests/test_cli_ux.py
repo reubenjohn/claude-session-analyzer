@@ -60,22 +60,28 @@ def test_sections_read_scope_answer_tables_key_checks(tmp_path):
     assert tables_at == list(range(2, 2 + len(tables_at))) and tables_at  # contiguous, non-empty
     for dim in CONTEXT.tables:  # each printed, or relabelled under the table it repeats
         assert re.search(r"^by %s[\s:]" % dim, "\n".join(sum(sections[2:2 + len(tables_at)], [])), re.M), dim
-    assert firsts[-2].startswith("key (") and firsts[-1].startswith(tables.OK_MARK + " checks: ")
+    assert firsts[-2].startswith(tables.KEY_TITLE) and firsts[-1].startswith(tables.OK_MARK + " checks: ")
     assert len(sections) == 4 + len(tables_at)
     for section in sections[2:-2]:  # no note inside a table: every one is in the key
         assert all(not line.startswith(tables.RESIDUAL_LABEL + ":") for line in section)
 
 
-def test_the_key_prints_each_note_once_and_marks_the_irreducible_terms(tmp_path):
+def test_the_key_prints_each_note_once_and_names_the_command_for_its_first_term(tmp_path):
+    """Each label opens with a glossary term, printed bare (``∅ in by
+    tool``), aligned on `` = ``; the header's command explains the first."""
     root = fx.cli_corpus(tmp_path)
-    keyed = fx.key(fx.run_cli("context", "--root", str(root))[1])
+    out = fx.run_cli("context", "--root", str(root))[1]
+    keyed = fx.key(out)
     labels = [label for label, _ in keyed]
     assert len(labels) == len(set(labels)) and labels  # vacuity guard: there is a key
-    marked = [t for t, e in glossary.GLOSSARY.items() if e.marked]
-    assert schema.STARTING_CONTEXT in marked and glossary.RESIDUAL_LABEL in marked
-    for label in labels:  # every label opens with a marked term, marked
-        term = label.split()[0]
-        assert term.endswith(glossary.MARKER) and term[:-1] in marked, label
+    terms = [label.split()[0] for label in labels]
+    assert all(glossary.key_of(t) in glossary.GLOSSARY and glossary.MARKER not in t for t in terms)
+    head = next(line for line in out.splitlines() if line.startswith(tables.KEY_TITLE))
+    command = head.split(": ", 1)[1]
+    assert command == "%s explain %s" % (cli.PROG, terms[0])
+    code, said, err = fx.run_cli(*command.split()[3:])
+    assert code == 0 and said.startswith(glossary.marked(glossary.key_of(terms[0])) + ": "), err
+    assert len({line.index(" = ") for line in out.splitlines() if re.match(r"^  \S.* = ", line)}) == 1
 
 
 def test_the_share_column_names_its_base(tmp_path):
@@ -120,12 +126,12 @@ def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
     assert code == 0, err
     for view, question in cli.QUESTIONS.items():
         assert view in out and question.split(":")[0].split()[0] in out
-    workflow = [set(line.split()) for line in out.splitlines() if line.startswith("  sa context")]
+    workflow = [set(line.split()) for line in out.splitlines() if line.startswith("  %s context" % cli.PROG)]
     assert len(workflow) == 3  # overview, then --where, then --by
     assert [("--where" in w, "--by" in w) for w in workflow] == [(False, False), (True, False), (True, True)]
     for flag in ("--since", "--where", "--by", "--limit", "--root"):
         assert re.search(r"^  %s " % flag, out, re.M), flag
-    assert "sa context --help" in out and "sa explain TERM" in out
+    assert "%s context --help" % cli.PROG in out and "%s explain TERM" % cli.PROG in out
     for term in (t for t, e in glossary.GLOSSARY.items() if e.marked):
         assert term in out  # the marked terms are named where the marker is explained
 

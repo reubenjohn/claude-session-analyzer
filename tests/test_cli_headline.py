@@ -2,7 +2,7 @@
 import re
 
 import fixtures as fx
-from sa import cli, heads, query, schema, tables
+from sa import cli, glossary, heads, query, schema, tables
 from sa.schema import CALL
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
@@ -152,13 +152,13 @@ def test_the_headline_never_names_a_cause(tmp_path):
         ": %s=Read 250 (19.2%%, incl. %s), %s=Read:py 250 (100.0%% of Read, 19.2%%)"
         % (TOOL, schema.AMBIGUOUS, HEAD))  # the tool's figure says it counts the shared ambiguous
     for value in (schema.STARTING_CONTEXT, schema.AMBIGUOUS):
-        assert (tables.marked(value), tables.UNSPLITTABLE[value]) in fx.key(out)
+        assert (glossary.printed(value), tables.UNSPLITTABLE[value]) in fx.key(out)
     # With one result the interval is exact: the same lead, no ambiguous note.
     root = fx.corpus(tmp_path / "exact", {"proj-a/sess-0001.jsonl": records[:2] + records[3:]})
     out = fx.run_cli("context", "--root", str(root), "--by", CAUSE)[1]
     assert ": %s=Read 250 (19.2%%), " % TOOL in fx.headline(out)  # exact: nothing to qualify
-    assert tables.marked(schema.AMBIGUOUS) not in dict(fx.key(out))
-    assert tables.marked(schema.STARTING_CONTEXT) in dict(fx.key(out))  # vacuity guard: the key prints
+    assert schema.AMBIGUOUS not in dict(fx.key(out))
+    assert schema.STARTING_CONTEXT in dict(fx.key(out))  # vacuity guard: the key prints
 
 
 def test_headline_share_is_of_the_added_while_the_table_share_is_of_its_base(tmp_path):

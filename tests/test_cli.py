@@ -58,7 +58,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     for dim in drillable:
         assert not re.search(r"^by %s\s" % dim, out, re.M)
         assert re.search(r"^by %s\s" % dim, fx.run_cli("context", "--root", str(root), "--by", dim)[1], re.M)
-    assert (tables.marked(schema.STARTING_CONTEXT), tables.UNSPLITTABLE[schema.STARTING_CONTEXT]) in fx.key(out)
+    assert (glossary.printed(schema.STARTING_CONTEXT), tables.UNSPLITTABLE[schema.STARTING_CONTEXT]) in fx.key(out)
     assert re.search(r"^%s\s" % schema.AMBIGUOUS, out, re.M)
     assert re.search(r"^%s \(signed\)\s+-300\s" % schema.SHRINK, out, re.M)
     assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+ added$"

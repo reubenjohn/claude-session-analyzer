@@ -33,7 +33,7 @@ def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
     for dim, (meaning, _) in tables.RESIDUAL_NOTES.items():  # a residual row's note is in the key
         noted = tables.notes(table._replace(dim=dim))
         assert noted[-1] == (tables.residual_label(dim), meaning) == (
-            tables.marked(tables.RESIDUAL_LABEL) + " by " + dim, tables.residual_note(dim, ()))
+            tables.RESIDUAL_LABEL + " in by " + dim, tables.residual_note(dim, ()))
         assert noted[-1] not in tables.notes(query.Table(dim, ROWS[:3], 100))  # no residual row
     assert tables.notes(table) == []  # vacuity guard: DIM has no note
 
@@ -170,7 +170,7 @@ def test_the_cause_table_prints_whole_whatever_the_limit(tmp_path):
     out, shown = rows("--limit", "1")
     assert shown == full and "more row" not in out
     for value, note in tables.UNSPLITTABLE.items():
-        assert (tables.marked(value), note) in fx.key(out)
+        assert (glossary.printed(value), note) in fx.key(out)
     grouped = query.Table(DIM, ROWS, 100)
     folded = [l.split() for l in tables.table(grouped, M, limit=1, whole=False)[1:]]
     regular = [r for r in ROWS if r.kind == query.REGULAR]
@@ -190,7 +190,7 @@ def test_a_row_named_like_a_cause_folds_and_gets_no_note_outside_the_cause_table
     kept = tables.table(query.Table(schema.CAUSE_DIM, rows, 80), M, limit=1, whole=False)
     assert [l.split()[0] for l in kept[1:] if l.endswith("%")] == ["a"] + list(tables.UNSPLITTABLE)
     assert tables.notes(query.Table(schema.CAUSE_DIM, rows, 80)) == [
-        (tables.marked(cause), note) for cause, note in tables.UNSPLITTABLE.items()]
+        (glossary.printed(cause), note) for cause, note in tables.UNSPLITTABLE.items()]
     assert tables.notes(query.Table(DIM, rows, 80)) == []
 
 

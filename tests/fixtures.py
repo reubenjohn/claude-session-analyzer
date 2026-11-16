@@ -250,10 +250,9 @@ PEAK_LINE = "largest single-call context "
 
 def key(out):
     """The key's entries as (label, text): the one place notes print."""
-    keyed = [s for s in sections(out) if s[0].startswith("key (")]
+    keyed = [s for s in sections(out) if s[0].startswith(tables_module.KEY_TITLE)]
     assert len(keyed) <= 1
-    entry = re.compile(r"^  (%s%s by \S+|\S+) +(.*)$" % (glossary.RESIDUAL_LABEL, glossary.MARKER))
-    return [entry.match(line).groups() for line in (keyed[0][1:] if keyed else [])]
+    return [re.match(r"^  (.+?) += (.*)$", line).groups() for line in (keyed[0][1:] if keyed else [])]
 
 
 def marker(uuid):

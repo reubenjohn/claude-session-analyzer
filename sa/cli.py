@@ -36,7 +36,8 @@ DEFAULT_DAYS = 7.0
 DEFAULT_LIMIT = 5  # D-PLAIN-TERMS: never more verbose than pre-A1
 ALL = "all"
 
-SPEND_NOTE = "paid per call, so no context share is a cost share; what filled it: sa context"
+PROG = glossary.PROG
+SPEND_NOTE = "paid per call, so no context share is a cost share; what filled it: %s context" % PROG
 
 # ``window`` is one row per context window: a drill target (--by, --where), never a default table.
 VIEWS = {"context": View(metric=schema.CONTEXT_DELTA,
@@ -98,11 +99,11 @@ dimension (a cause, a tool, a command); the row %(residual)s is the part with
 no value for it. Pin a row with --where DIM=VALUE (any row label), then
 show one table whole with --by DIM:
 
-  sa context                                   the overview
-  sa context --where tool=Bash                 pin one row
-  sa context --where tool=Bash --by command    that row, by command
+  %(prog)s context                                   the overview
+  %(prog)s context --where tool=Bash                 pin one row
+  %(prog)s context --where tool=Bash --by command    that row, by command
 
-Flags (all: sa context --help, sa spend --help):
+Flags (all: %(prog)s context --help, %(prog)s spend --help):
   --since 30d|all       files modified in the last N days (default 7d)
   --where DIM=VALUE     pin one value; repeatable
   --by DIM|fact         one table whole; fact: individual changes, one per row
@@ -110,7 +111,7 @@ Flags (all: sa context --help, sa spend --help):
   --root DIR            transcript root (default ~/.claude/projects)
 
 Marked %(marker)s in the output: %(marked)s.
-sa explain TERM says what any term means.""" % {
+%(prog)s explain TERM says what any term means.""" % {"prog": PROG,
     "residual": glossary.RESIDUAL_LABEL, "marker": glossary.MARKER, "limit": DEFAULT_LIMIT,
     "marked": ", ".join(t for t, e in glossary.GLOSSARY.items() if e.marked)}
 
@@ -125,7 +126,7 @@ def _dimensions_help() -> str:
 
 def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
     raw = argparse.RawDescriptionHelpFormatter
-    parser = argparse.ArgumentParser(prog="sa", description=TOP_HELP, formatter_class=raw)
+    parser = argparse.ArgumentParser(prog=PROG, description=TOP_HELP, formatter_class=raw)
     views = parser.add_subparsers(dest="view", title="subcommands",
                                   metavar="|".join(list(VIEWS) + ["explain"]))
     views.required = True
@@ -175,7 +176,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             print("\n".join(explain(args.term)))
         except schema.SchemaError as error:
-            print("sa explain: error: %s" % tables.home_text(str(error)), file=sys.stderr)
+            print("%s explain: error: %s" % (PROG, tables.home_text(str(error))), file=sys.stderr)
             return 2
         return 0
     view = VIEWS[args.view]
@@ -194,7 +195,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         lines = render.report(view, sel, loaded, args.by, args.limit,
                               since_default=args.since is None, forest=forest)
     except schema.SchemaError as error:
-        print("sa %s: error: %s" % (args.view, tables.home_text(str(error))), file=sys.stderr)
+        print("%s %s: error: %s" % (PROG, args.view, tables.home_text(str(error))), file=sys.stderr)
         return 2
     paint = style.Painter(render.tools(view, sel)).paint if _colour(args.color) else str
     print("\n".join(paint(line) for line in lines))

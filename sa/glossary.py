@@ -17,6 +17,7 @@ RESIDUAL_LABEL = "∅"
 EXACT = "exact"
 DRILL = "drill"
 MARKER = "°"
+PROG = "python3 -m sa"  # the real invocation, wherever a runnable command prints
 
 # The output's spelling of a key, where it differs: the column and the
 # total say "context tokens", the counts "changes" and "calls".
@@ -39,7 +40,7 @@ GLOSSARY: Dict[str, Term] = {
         " is read but is no window", True),
     schema.STARTED_BY_DIM: Term("what began the window: " + ", ".join(schema.STARTS),
                                 "a compaction starts a new window in the same file; its starting"
-                                " context re-counts the system prompt; sa explain fork, replayed"),
+                                " context re-counts the system prompt; %s explain fork, replayed" % PROG),
     schema.FORK: Term("a window that began as a copy of another window's context: a forked"
                       " session or subagent, its file opening with the parent's records",
                       "the copy is one inherited change, counted in the parent when the parent"

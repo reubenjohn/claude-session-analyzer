@@ -16,12 +16,14 @@ are a heatmap by its share of the table's base: red from ``HOT``, yellow
 from ``WARM``, green below; brightness repeats it for a colour-blind
 reader (bold from ``HOT``, the row dimmed under ``COLD``). Red, yellow and
 green mean a share and nothing else: the checks are bold on failure only,
-their ``✓``/``✗`` saying the rest. Each of the top three tools gets one
-hue outside the heatmap's, kept wherever its name prints: a table label,
+their ``✓``/``✗`` saying the rest. Each of the top two tools gets one
+hue outside the heatmap's and the cyan of a command the key names, kept wherever its name prints: a table label,
 the ``Bash`` of ``Bash:sed``, the headline's walk."""
 import os
 import re
 from typing import Dict, Optional, Sequence, Tuple
+
+from .glossary import PROG
 
 # Roles a line can carry; ROW is a table row with a share.
 HEADLINE, HEADER, TOTAL, SCOPE, KEY, GOOD, BAD, ROW, OTHER = (
@@ -32,9 +34,11 @@ BOLD, FAINT, ITALIC, UNDERLINE = ("1", "22"), ("2", "22"), ("3", "23"), ("4", "2
 RED, YELLOW, GREEN = "31", "33", "32"
 ROLES = {HEADLINE: BOLD, HEADER: UNDERLINE, TOTAL: BOLD, SCOPE: FAINT, KEY: FAINT, BAD: BOLD,
          OTHER: ITALIC}
-# Tool hues, by rank: cyan, magenta, bright blue (plain blue is too dark on a
-# dark background); never the heatmap's. A tool past the third prints plain.
-TOOL_HUES = ("36", "35", "94")
+# Tool hues, by rank: magenta, bright blue (plain blue is too dark on a dark
+# background); never the heatmap's, nor cyan, a runnable command's. A tool
+# past the second prints plain.
+TOOL_HUES = ("35", "94")
+COMMAND = ("36", "39")  # cyan: a runnable command the key names, to the line's end
 HOT, WARM, COLD = 0.25, 0.05, 0.01  # share thresholds: red and bold, yellow, the row dimmed
 Span = Tuple[int, int]
 
@@ -104,6 +108,8 @@ class Painter:
             for start, end in sorted(getattr(line, "cells", ()), reverse=True):  # right first: offsets hold
                 pad = len(text[start:end]) - len(text[start:end].lstrip())
                 text = text[:start + pad] + sgr(text[start + pad:end], heat(share)) + text[end:]
+        if role == KEY:
+            text = re.sub(r"%s\b.*$" % re.escape(PROG), lambda m: sgr(m.group(0), COMMAND), text)
         if self.tool and role != SCOPE:
             text = self.tool.sub(lambda m: sgr(m.group(1), (self.hues[m.group(1)], "39")), text)
         if role == ROW and share is not None:

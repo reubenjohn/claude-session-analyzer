@@ -39,14 +39,14 @@ replies                      249       12    5.1%
 shrink (signed)             -300        3       -
 = total                    4,560       33  ✓ = final window sizes
 
-key (°: sa explain TERM)
-  starting_context° already in the first call, not assigned to any tool
-  ambiguous°        growth with no one contributor, left undivided
+what these mean · more on each: python3 -m sa explain starting_context
+  starting_context = already in the first call, not assigned to any tool
+  ambiguous        = growth with no one contributor, left undivided
 
 ✓ checks: 18 gaps between calls (21 calls - 3 windows): 6 exact (33.3%), 9 ambiguous (50.0%), 3 shrink (16.7%)
 ```
 
-`--since 30d` or `--since all` widens the window; `sa explain [TERM]`
+`--since 30d` or `--since all` widens the window; `python3 -m sa explain [TERM]`
 says what a term means. `python3 -m sa spend --by subagent`:
 
 <!-- example: spend --by subagent | by subagent -->
@@ -88,7 +88,7 @@ leaves with `file:line  uuid  dimensions`, an ambiguous one's
 On a terminal the output is styled (`--color always|never|auto`,
 `NO_COLOR`, `FORCE_COLOR`); a pipe gets the same text, unstyled. A
 row's figures are a heatmap of its share (red, bold: 25% or more;
-yellow: 5%; green), and each of the top three tools keeps one hue.
+yellow: 5%; green), and each of the top two tools keeps one hue.
 
 A window is one context window: from a session start, subagent, fork,
 replay or compaction to its file's end or the next compaction. A fork's

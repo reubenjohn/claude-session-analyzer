@@ -65,13 +65,17 @@ TOTAL_LABEL = "= total"  # the row a whole-window cause table closes with
 
 def key(entries: List[Tuple[str, str]]) -> List[str]:
     """The one key under the tables, dimmed: each note once, by label, one
-    clause each (the full text is ``sa explain``'s)."""
+    clause each, its header naming the command that says more on the first
+    term listed (the full text is ``sa explain``'s)."""
     if not entries:
         return []
     seen = list(dict.fromkeys(entries))
     width = max(len(label) for label, _ in seen)
-    return [style.tag(line, style.KEY) for line in
-            ["key (%s: sa explain TERM)" % glossary.MARKER] + ["  %-*s %s" % (width, *e) for e in seen]]
+    head = "%s · more on each: %s explain %s" % (KEY_TITLE, glossary.PROG, seen[0][0].split()[0])
+    return [style.tag(line, style.KEY) for line in [head] + ["  %-*s = %s" % (width, *e) for e in seen]]
+
+
+KEY_TITLE = "what these mean"  # the key's header opens with it
 
 Case = Tuple[str, Callable[[dict], bool]]  # a reading of a residual fact, and the dims it holds for
 
@@ -108,7 +112,7 @@ def residual_note(dim: str, residual: Sequence[dict]) -> str:
 
 
 def residual_label(dim: str) -> str:
-    return "%s by %s" % (marked(RESIDUAL_LABEL), dim)
+    return "%s in by %s" % (RESIDUAL_LABEL, dim)
 
 
 def notes(grouped: query.Table) -> List[Tuple[str, str]]:
@@ -116,7 +120,7 @@ def notes(grouped: query.Table) -> List[Tuple[str, str]]:
     meaning, and what its residual row holds."""
     entries = []
     if grouped.dim == schema.CAUSE_DIM:
-        entries += [(marked(r.value), UNSPLITTABLE[r.value]) for r in grouped.rows
+        entries += [(glossary.printed(r.value), UNSPLITTABLE[r.value]) for r in grouped.rows
                     if r.value in UNSPLITTABLE]
     if grouped.dim in RESIDUAL_NOTES and any(r.kind == query.RESIDUAL for r in grouped.rows):
         entries.append((residual_label(grouped.dim), residual_note(grouped.dim, grouped.residual)))
