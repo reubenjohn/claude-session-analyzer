@@ -183,7 +183,9 @@ stated total; line 1: `starting_context` by `started_by`; line 2: growth
 walked down `render.View.levers` whatever `--by` shows, never a cause or
 window row; a `--where` pin omits every table and lever it fixes; signed
 rows out of shares. Starting context is labelled mass that entered,
-never a window size: compaction starts re-count the system prompt. [W][O]
+never a window size: compaction starts re-count the system prompt.
+(Amended by D-PER-CALL: the stated total is the average context per
+call, every line in its unit.) [W][O]
 
 **D-OUTPUT-CAP — default `context` output never exceeds its baseline.**
 RULED. A test caps it at 46 lines, 3,228 chars: the fixture baseline at
@@ -219,7 +221,8 @@ single-call context` line; never phrased "added per call". A FUNCTION,
 metric on every call fact and not a `MEAN` class (the proposal's
 `context_mean` and D-PEAK-NOT-MEAN are not built) [O]. A mean is one
 population's: never summed nor merged; a combined population is
-recomputed from its facts. `query.total` refuses a PEAK metric as
+recomputed from its facts. (Amended by D-PER-CALL: it is the headline's
+first line, and every context figure a part of it.) `query.total` refuses a PEAK metric as
 `query.group` did, closing the hole [O] found. Measured: 110,119 tokens
 over 24,517 calls; main 120,545, subagent 108,309 [M][O].
 
@@ -275,10 +278,37 @@ found, so 0 warned [M]. A replay with its parent absent is known only by
 that parent: it reads as a session start, unwarned (`sa explain
 replayed`). [O] second opinion 2026-11-16: AGREE-WITH-CHANGE, applied.
 
-**Deferred.** D-HELD-WEIGHT (option B: call-weighted tables; corpus-wide
-no top cause, tool or started_by changes rank, max swing 5.8 points, and
-8 of 11 per-session flips are near-ties [M][O]); D-INHERITED-HELD
+**Deferred.** D-HELD-WEIGHT (option B; built by the owner's ruling
+D-PER-CALL below); D-INHERITED-HELD
 (option C: expanding `inherited` by reference in tables, 0.60% of the
 held sum [M]); copy detection for a parentless fork; D-OCCUPANCY-FILTER
 (a call-level `--where`); D-PEAK-SHAPE (window-peak percentiles: they
 are percentiles of the final sizes the total already sums [O]).
+
+## Rulings — 2026-11-16, per call
+
+**D-PER-CALL — every context figure is per call.** RULED by the owner;
+amends D-HEADLINE-TWO-LINES and D-MEAN-CONTEXT, builds D-HELD-WEIGHT.
+Why: the purpose is rot, and a report whose one per-call figure sat
+above tables in summed tokens was judged incomprehensible by two cold
+readers and the owner. Each increment books `context_held`, its delta
+times `walk.held` (its window's calls from the one it is booked at
+through the last); a set of changes is Σ held over the calls of the
+whole windows in view (window pins narrow them, a drill keeps them). The
+headline opens `average context per call* N tokens, over C calls in W
+windows` (a drill adds `, from N changes where … in M of them`);
+starting context, growth, the lever walk, every context table's rows
+(`= average N ✓ = mean call size`) and `--by fact` (its part, then its
+raw delta) are in that unit. Shares are of the average before shrink:
+the signed row stays out of them, so the base is the average itself only
+without shrink. The peak table adds each band's own `avg call`. `PER_CALL`
+is an aggregation class: `query.per` refuses a sum or a table without
+one population's calls, and any other metric given calls; a per-call
+figure is never summed or merged across populations. A fork's calls hold
+its `inherited` copy: a row whenever such a fork is in view (the summed
+selection keeps D-INHERITED-ONCE). The summed total moves to the checks
+line, against the final window sizes, beside Σ delta×held = Σ call
+occupancy, checked per window (`reconciliation`, MISMATCH exit 1). Spend
+unchanged. [M] LOCAL SWEEP 2026-11-16T08:30Z: holds in 619 of 619
+windows, 2,787,153,745 both sides, 25,066 calls, average 111,193; `sa
+context --since all` holds, exit 0. [O] second opinion pending.
