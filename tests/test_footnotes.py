@@ -56,6 +56,17 @@ def test_the_hint_follows_the_headline_levers(tmp_path, args, hint):
         assert fx.sections(out)[1][-1] == hints[0]
 
 
+def test_the_help_path_is_the_hint_chain():
+    """The -h path pins what each hint pins, in order: the view's leads,
+    its levers, then the leaves."""
+    out = fx.run_cli("-h")[1]
+    steps = re.findall(r"^  [a-z :]+?\s{2,}(?:--where (\w+)=\S+|--by (fact))$", out, re.M)
+    view = cli.VIEWS["context"]
+    assert len(steps) == len(view.leads) + len(view.levers) + 1 > 2  # vacuity guard: the path printed
+    assert [where or by for where, by in steps] == list(view.leads + view.levers) + [render.FACT]
+    assert render.NEXT.split(":")[0] in out
+
+
 def test_under_a_pinned_tool_the_hint_names_its_top_command():
     def fact(command, mass):
         return schema.Fact(schema.INCREMENT, {schema.TOOL_DIM: "Bash", schema.COMMAND_DIM: command},

@@ -103,13 +103,13 @@ per call (what a call held) and each table splits it by one dimension (a
 cause, a tool, a command): each change weighs by the calls that held it.
 The row %(residual)s is the part with no value for it. Pin a row with
 --where DIM=VALUE (any row label), then show one table whole with --by
-DIM. The path:
+DIM. The path: run %(prog)s context (is it a problem?), then add what
+each run's "%(next)s" line names, one at a time:
 
-  is it a problem         %(prog)s context
-  what fills the fullest  %(prog)s context --where peak=200K+
-  where                   %(prog)s context --where peak=200K+ --by session
-  what to fix: file:line  %(prog)s context --where peak=200K+ \\
-                            --where command=Bash:cat --by fact
+  the fullest windows     --where peak=200K+
+  their top tool          --where tool=Bash
+  its top command         --where command=Bash:cat
+  what to fix: file:line  --by fact
 
 Flags (all: %(prog)s context --help, %(prog)s spend --help):
   --since 30d|all       files modified in the last N days (default 7d)
@@ -119,7 +119,7 @@ Flags (all: %(prog)s context --help, %(prog)s spend --help):
   --root DIR            transcript root (default ~/.claude/projects)
 
 Marked %(marker)s in the output: %(marked)s.
-%(prog)s explain TERM says what any term means.""" % {"prog": PROG,
+%(prog)s explain TERM says what any term means.""" % {"prog": PROG, "next": render.NEXT.split(":")[0] + ":",
     "residual": glossary.RESIDUAL_LABEL, "marker": glossary.MARKER, "limit": DEFAULT_LIMIT,
     "marked": ", ".join(glossary.printed(t).replace("_", " ") for t, e in glossary.GLOSSARY.items()
                         if e.marked and t not in schema.STARTS and t != schema.SPEND)

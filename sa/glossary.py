@@ -42,7 +42,8 @@ class Term(NamedTuple):
 GLOSSARY: Dict[str, Term] = {
     schema.WINDOW_DIM: Term(
         "one context window: from a session start, subagent, fork, replay or compaction to"
-        " its file's end or the next compaction; named by a short hash",
+        " its file's end or the next compaction; named by the 8 hex characters --by window"
+        " prints: pin one with --where window=<those 8>",
         "a file holds one window per compaction that a call follows; a file with no call"
         " is read but is no window", True,
         "one context window, from its start to its file's end or the next compaction"),

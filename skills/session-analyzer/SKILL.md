@@ -59,7 +59,7 @@ branch call) counts its copy as its own; the scope says so.
 ```bash
 python3 -m sa context                                    # average, by peak
 python3 -m sa context --where peak=200K+                 # what fills them
-python3 -m sa context --where peak=200K+ --by session    # where
+python3 -m sa context --where peak=200K+ --where tool=Bash  # where: top tool
 python3 -m sa context --where peak=200K+ --where command=Bash:cat --by fact  # file:line
 ```
 

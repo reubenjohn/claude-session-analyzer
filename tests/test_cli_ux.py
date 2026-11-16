@@ -130,14 +130,8 @@ def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
     assert code == 0, err
     for view, question in cli.QUESTIONS.items():
         assert view in out and question.split(":")[0].split()[0] in out
-    steps = [line.split(cli.PROG, 1)[1].split() for line in out.replace("\\\n", "").splitlines()
-             if line.startswith("  ") and " %s context" % cli.PROG in line]
-    workflow = [set(step) for step in steps]
-    assert len(workflow) == 4  # is it a problem, what, where, what to fix
-    assert [("--where" in w, "--by" in w) for w in workflow] == [(False, False), (True, False), (True, True),
-                                                                (True, True)]
-    pin = "%s=%s" % (schema.PEAK_DIM, schema.BANDS[-1])
-    assert all(pin in w for w in workflow[1:]) and "%s=Bash:cat" % schema.COMMAND_DIM in workflow[-1]  # kept
+    # the path starts at a bare run; its pins, in order, are the hint chain's (test_footnotes)
+    assert "run %s context (" % cli.PROG in out
     assert "--where %s=%s" % (schema.PEAK_DIM, schema.BANDS[-1]) in out  # the path leads with the fullest band
     for flag in ("--since", "--where", "--by", "--limit", "--root"):
         assert re.search(r"^  %s " % flag, out, re.M), flag
@@ -196,3 +190,10 @@ def test_explain_peak_says_where_to_start_with_no_verdict_number():
     code, out, err = fx.run_cli("explain", schema.PEAK_DIM)
     assert code == 0 and glossary.FULLEST in out, err
     assert glossary.FULLEST and not re.search(r"\d", glossary.FULLEST)
+
+
+def test_explain_window_says_how_to_pin_one(tmp_path):
+    root = fx.cli_corpus(tmp_path)
+    value = next(f.dims[schema.WINDOW_DIM] for f in fx.load_facts(root)[1])
+    assert len(value) == 8 and int(value, 16) >= 0  # vacuity guard: the value is 8 hex characters
+    assert "--where %s=<those 8>" % schema.WINDOW_DIM in fx.run_cli("explain", schema.WINDOW_DIM)[1]
