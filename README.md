@@ -1,11 +1,12 @@
 # claude-session-analyzer
 
 Two questions about your Claude Code sessions, from the JSONL
-transcripts under `~/.claude/projects`: **where is my context going?**
-(`sa context`) and **what did it cost?** (`sa spend`). Every figure names
-its population; `context` reconciles: the changes sum to the windows'
-final sizes. A Claude Code plugin or plain `python3 -m sa`; stdlib,
-Python 3.8+.
+transcripts under `~/.claude/projects`: **what did it cost?**
+(`sa spend`) and, were inference free, **is context hurting my model,
+what fills it, and how do I fix it?** (`sa context`). Every call reasons
+over its whole window: the more a call holds, the more context rot.
+Every figure names its population; `context` reconciles. A Claude Code
+plugin or plain `python3 -m sa`; stdlib, Python 3.8+.
 
 ## Install
 
@@ -16,40 +17,31 @@ claude plugin install claude-session-analyzer@reubenjohn
 
 ## Usage
 
+Is it a problem, what causes it, where, what exactly to fix:
+
 ```
-python3 -m sa context --by cause
+python3 -m sa context                                       # average context per call, by peak
+python3 -m sa context --where peak=200K+                    # what fills the fullest windows
+python3 -m sa context --where peak=200K+ --by session       # which sessions
+python3 -m sa context --where command=Bash:cat --by fact    # file:line of each change
 ```
 
-<!-- example: context --by cause -->
+<!-- example: context | context tokens -->
 ```
-read: 4 files modified in the last 7d (default) under ~/.claude/projects, 0 lines skipped, 0 duplicates excluded
-in view: 3 windows*, 33 changes*
-         1 fork whose parent is missing: its copy counts as its own
-
 context tokens: 254,560 across 3 windows
   starting context*  253,000  99.3%  = session starts 252,000 + forks 1,000
   growth               1,860   0.7%  from Bash 750 → Bash:pytest 750
 average context per call* 84,709 tokens, over 21 calls in 3 windows
 → next: add --where peak=200K+
+```
 
-by cause          context tokens  changes  share of 254,860 added
-starting_context         253,000        3   99.3%
-tool_result                  750        3    0.3%
-ambiguous*                   606        9    0.2%
-user_text                    255        3    0.1%
-replies                      249       12    0.1%
-shrink* (signed)            -300        3       -
-= total                  254,560       33  ✓ = final window sizes
-
-* explained below · more on any of them: python3 -m sa explain window
-  window*                   = one context window, from its start to its file's end or the next compaction
-  changes*                  = one change of a window's context between two calls, booked to its cause
-  starting context*         = what each window's first call already held: system prompt, tools, CLAUDE.md, first message
-  average context per call* = what a call held, averaged over these calls; never added per call, never summed
-  ambiguous*                = growth with no one contributor, left undivided; a tool's row counts it when every candidate is that tool's
-  shrink*                   = the window got smaller (often a compaction); negative, in no share
-
-✓ checks: 254,860 added - 300 shrink = 254,560; 18 gaps between calls (21 calls - 3 windows): 6 to one source (33.3%), 9 ambiguous (50.0%), 3 shrank (16.7%)
+<!-- example: context | by peak -->
+```
+by peak          context tokens  windows  calls  share of 254,860 added
+200K+                   251,620        1      7   98.7%
+0-50K                     3,240        2     14    1.3%
+shrink (signed)            -300        -      -       -
+by session, project: the rows above, labelled sess-0002 / ~-work-lib, sess-0001 / ~-work-app
 ```
 
 `--since 30d` or `--since all` widens the window; `python3 -m sa explain [TERM]`
@@ -75,8 +67,8 @@ python3 -m sa context --where cause=ambiguous --by fact --limit 2
 ```
 
 `--where DIM=VALUE` pins (project, session, subagent, window,
-started_by, cause, tool, command, reason), repeatable, exact: the first
-five keep whole windows (`window=<hex>` isolates one; `--by window`
+started_by, peak, cause, tool, command, reason), repeatable, exact: the
+first six keep whole windows (`window=<hex>` isolates one; `--by window`
 lists them); the rest drill, named on the headline with the windows
 hit. `cause=bogus` or `tool=bash` (absent) exits 2, naming what is
 declared or present. A command is a Bash call's first command word
@@ -98,9 +90,14 @@ row's figures are a heatmap of its share, green to red on a log scale
 each of the top two tools keeps one hue.
 
 A window is one context window: from a session start, subagent, fork,
-replay or compaction to its file's end or the next compaction. A fork's
+replay or compaction to its file's end or the next compaction. Its
+`peak` is the band of its largest call: `0-50K`, `50-100K`, `100-200K`,
+`200K+`, lower edge inclusive. The average context per call is what a
+call held, averaged over the calls in view; never summed. A fork's
 copied context is one `inherited` change, left out of the total when
-its parent window is kept.
+its parent window is kept; with the parent's file missing (deleted, or
+outside `--since`) the copy counts as the fork's own, and the scope
+says how many forks.
 
 ## Layout
 

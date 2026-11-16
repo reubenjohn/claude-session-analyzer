@@ -88,22 +88,25 @@ def _rows(text: str) -> int:
     return int(text)
 
 
-QUESTIONS = {"context": "what filled your context windows: by cause, tool, command, subagent,"
-                       " session, project",
+QUESTIONS = {"context": "is context a problem, what filled your windows: by cause, tool, command,"
+                       " subagent, peak, session, project",
              "spend": "what the calls cost, by project, session, subagent (never dollars)"}
 
 TOP_HELP = """\
-Where did my Claude Code context go, and what did it cost? Reads the
-transcripts under ~/.claude/projects, the last 7 days unless --since.
+Were inference free, is context hurting your model (every call reasons
+over its whole window), what fills it, and how do you fix it? And what did
+it cost? Reads the transcripts under ~/.claude/projects, the last 7 days
+unless --since.
 
 Subcommands: context, spend, explain. Each table splits one total by one
 dimension (a cause, a tool, a command); the row %(residual)s is the part with
 no value for it. Pin a row with --where DIM=VALUE (any row label), then
-show one table whole with --by DIM:
+show one table whole with --by DIM. The path:
 
-  %(prog)s context                                   the overview
-  %(prog)s context --where tool=Bash                 pin one row
-  %(prog)s context --where tool=Bash --by command    that row, by command
+  %(prog)s context                                     is it a problem
+  %(prog)s context --where peak=200K+                  what fills the fullest
+  %(prog)s context --where peak=200K+ --by session     where
+  %(prog)s context --where command=Bash:cat --by fact  what to fix: file:line
 
 Flags (all: %(prog)s context --help, %(prog)s spend --help):
   --since 30d|all       files modified in the last N days (default 7d)

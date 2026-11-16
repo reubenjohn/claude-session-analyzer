@@ -127,8 +127,10 @@ def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
     for view, question in cli.QUESTIONS.items():
         assert view in out and question.split(":")[0].split()[0] in out
     workflow = [set(line.split()) for line in out.splitlines() if line.startswith("  %s context" % cli.PROG)]
-    assert len(workflow) == 3  # overview, then --where, then --by
-    assert [("--where" in w, "--by" in w) for w in workflow] == [(False, False), (True, False), (True, True)]
+    assert len(workflow) == 4  # is it a problem, what, where, what to fix
+    assert [("--where" in w, "--by" in w) for w in workflow] == [(False, False), (True, False), (True, True),
+                                                                (True, True)]
+    assert "--where %s=%s" % (schema.PEAK_DIM, schema.BANDS[-1]) in out  # the path leads with the fullest band
     for flag in ("--since", "--where", "--by", "--limit", "--root"):
         assert re.search(r"^  %s " % flag, out, re.M), flag
     assert "%s context --help" % cli.PROG in out and "%s explain TERM" % cli.PROG in out
