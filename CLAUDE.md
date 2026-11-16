@@ -15,7 +15,7 @@ capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
 Package `sa/`, one module per stage (`corpus` read+dedup, `windows`
 the cut, `walk` attribution, `heads`, `schema` METRICS, vocabularies,
 `glossary`, `query`, `headline`, `tables`, `render`, `cli`, `usage` the ported helpers); each
-docstring is its spec. The parser IS the product: `sa.sweep` imports it, never copies it.
+docstring is its spec. The parser IS the product: `sa.sweep` imports it.
 
 One data model, `Fact`, specified in `schema.py`: `kind` is `call` or
 `increment`; `metrics`; `dims`; `locator` `file:line:uuid` with `file`
@@ -27,8 +27,8 @@ double-counting. A window is ONE CONTEXT WINDOW (D-CONTEXT-WINDOW): from
 a session start, subagent, fork, replay or a compaction a call follows, to
 its file's end or the next compaction; cut after dedup, never by marking
 records; identity (file, start line). Window dimensions `project`,
-`session`, `subagent` (none on a main window), `window` (8 hex of the key:
-display and `--where` only) and `started_by` are on both kinds; `cause`,
+`session`, `subagent` (none on a main window, else `<type> <8 hex>`),
+`window` (8 hex of its key) and `started_by` are on both kinds; `cause`,
 `tool`, `command`, `reason` on increments only. An increment prints as
 a change. A command is `<tool>:<summary>`: a
 Bash command's first COMMAND word (past keywords, wrappers, builtins) as
@@ -41,12 +41,13 @@ increment, counted once (D-INHERITED-ONCE).
 
 CLI: `python3 -m sa -h`. Order: scope (`read:`, `in view:`; `--since` 7d
 unless `all`), answer, tables, one dimmed key, `✓ checks`. Under one
-total (D-HEADLINE-TWO-LINES): starting context by `started_by`, then
-growth down `View.levers` (context `tool`, `command`; spend `subagent`)
-whatever `--by` shows; shares of the mass added. A `--where` pin omits
+total, a block (D-HEADLINE-TWO-LINES): starting context as a sum by
+`started_by`, then growth down `View.levers` (context `tool`, `command`;
+spend `subagent`) whatever `--by` shows; shares of the mass added. `*`
+marks terms, not values. A `--where` pin omits
 every table and lever whose facts share one value (a command implies
 its tool); a drill pin is named on the headline. D-OUTPUT-CAP caps the
-default output. `glossary.GLOSSARY` drives `sa explain`, `*`, `--help`.
+default output. `glossary.GLOSSARY` drives `explain`, `*`, `-h`.
 The reconciliation holds by construction (`walk`): MISMATCH is a bug,
 exit 1.
 
@@ -110,7 +111,7 @@ another file? STOP AND ASK.
 
 ## Repo gates
 
-Pre-commit warns on `.py` > 15,000 bytes and `.md` > 20,000. Privacy gate
+Pre-commit warns: `.py` > 15,000 bytes, `.md` > 20,000. Privacy gate
 FAILS CLOSED (`tests/test_privacy.py`): no literal `/home/...` or
 `/Users/...` paths, no real-looking UUIDs, no transcript text in any tracked
 file. `.githooks/pre-push` does not fire (global `core.hooksPath`): run
