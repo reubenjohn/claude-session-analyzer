@@ -60,3 +60,15 @@ once, `--limit 5`, the cause table whole). Cold-reader check passed twice
   DECISION_LOG*.md near 20,000; schema-adjacent tests near 15,000.
 - Fork/compaction/`/branch` counts are small (10/9/0): re-measure before
   pinning; `replayed` is declared with 0 observed.
+
+## Follow-ups filed 2026-11-16 (owner-approved to file, not built)
+
+| Filed | Item |
+|---|---|
+| 2026-11-16 | Tables print full 36-char session ids. |
+| 2026-11-16 | Project names print encoded (`~-workspace-…`), not as paths. |
+| 2026-11-16 | `--by fact` lines run very wide; the uuid column is opaque. |
+| 2026-11-16 | Subagent starts are not named by task type (`started_by=subagent_start` only). |
+| 2026-11-16 | The `-h` star list is hardcoded, not derived from what prints. |
+| 2026-11-16 | The drill note (`windows, calls, avg call: whole windows …`) sits between the peak table and its relabel line. |
+| 2026-11-16 | One test literal, "no tool", is not derived from `residual.RESIDUAL_NOTES`. |
