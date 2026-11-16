@@ -140,6 +140,22 @@ def fork_heads(loaded: Corpus, cuts: Dict[str, List[windows.Window]]) -> Tuple[i
     return len(found), "%.3f" % min(ratios or [0]), "%.3f" % max(ratios or [0])
 
 
+def fork_marks(loaded: Corpus, cuts: Dict[str, List[windows.Window]]) -> Tuple[int, ...]:
+    """Fork windows (``windows.file_start``); those the file marks itself
+    (``windows.marked_fork``), by an api-request and by a fork-context-ref;
+    those replaying a prefix; those whose parent was found (``inherits``),
+    so ``query.orphan_forks`` would count the rest."""
+    forks = [s for s in loaded.files if cuts.get(s.name) and cuts[s.name][0].start == schema.FORK]
+    def has(s, kind: str, **fields) -> bool:
+        return any(r.data.get("type") == kind and all(r.data.get(k) == v for k, v in fields.items())
+                   for r in s.records)
+    found = windows.inherits(loaded, cuts)
+    return (len(forks), sum(map(windows.marked_fork, forks)),
+            sum(has(s, "api-request", querySource=windows.FORK_SOURCE) for s in forks),
+            sum(has(s, windows.FORK_REF) for s in forks), sum(map(windows.replays, forks)),
+            sum(s.name in found for s in forks))
+
+
 def report(loaded: Corpus) -> List[str]:
     """Every count as one line, each beside the population it was taken over."""
     facts = walk.forest(loaded)
@@ -165,6 +181,8 @@ def report(loaded: Corpus) -> List[str]:
         ("files replaying another after a live record: %s of %s", continuations(loaded)),
         ("inheriting windows: %s; first call / inherited occupancy: min %s, max %s",
          fork_heads(loaded, cuts)),
+        ("fork windows %s: marked by the file %s (api-request %s, fork-context-ref %s), replaying"
+         " a prefix %s, parent found %s", fork_marks(loaded, cuts)),
     ]
     return [text % tuple(c if isinstance(c, str) else format(int(round(c)), ",d") for c in counts)
             for text, counts in lines] + sweep_mean.report(loaded, facts, cuts)

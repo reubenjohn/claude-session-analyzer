@@ -93,8 +93,8 @@ def marked_fork(source: SourceFile) -> bool:
     """The file says it is a fork, whether or not its parent was read: a
     ``fork-context-ref`` record, or an ``api-request`` record (no uuid, so
     never a duplicate) whose ``querySource`` is ``FORK_SOURCE``. LOCAL SWEEP
-    2026-11-16T02:30Z: 10 of 10 fork windows marked (9 by the api-request,
-    1 by the ref, none by both), 0 other windows."""
+    2026-11-16T02:29Z: 10 of 10 fork windows marked (9 by the api-request,
+    1 by the ref), each with its parent found (``sweep.fork_marks``)."""
     return any(r.data.get("type") == FORK_REF or (
         r.data.get("type") == "api-request" and r.data.get("querySource") == FORK_SOURCE)
         for r in source.records)

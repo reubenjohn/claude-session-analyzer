@@ -15,8 +15,9 @@ def test_counts_over_the_cli_corpus(tmp_path):
     assert sweep.cross_file_parents(loaded) == (0, 0)
     lines = sweep.report(loaded)
     assert lines[0] == "4 files, 3 windows, 21 calls, 18 intervals"
-    assert lines[11:] == sweep_mean.report(loaded, facts, sweep.cut(loaded))
-    assert "holds in 3 of 3 windows" in lines[11]
+    assert lines[12:] == sweep_mean.report(loaded, facts, sweep.cut(loaded))
+    assert "holds in 3 of 3 windows" in lines[12]
+    assert sweep.fork_marks(loaded, sweep.cut(loaded)) == (1, 1, 0, 1, 0, 0)  # by its ref, parent absent
 
 
 def test_each_zero_count_is_non_zero_on_the_corpus_built_for_it(tmp_path):
@@ -47,6 +48,7 @@ def test_window_counts_over_the_window_corpus(tmp_path):
     assert sweep.compacting(loaded) == (1, 2, 0, 0)  # E's marker ends its file
     assert sweep.continuations(loaded) == (0, 5)
     assert sweep.fork_heads(loaded, cuts) == (2, "%.3f" % (1400 / 1300), "%.3f" % (1650 / 1500))
+    assert sweep.fork_marks(loaded, cuts) == (1, 0, 0, 0, 1, 1)  # F: unmarked, known by its replay
 
 
 def test_the_zero_window_counts_are_non_zero_on_a_corpus_built_for_them(tmp_path):
@@ -59,3 +61,7 @@ def test_the_zero_window_counts_are_non_zero_on_a_corpus_built_for_them(tmp_path
                                                    "proj-a/sess-0002.jsonl": own + parent[:1] + [request]}))
     assert sweep.continuations(loaded) == (1, 2)
     assert sweep.compacting(loaded)[2:] == (1, 1)
+    fork = {"type": "api-request", "querySource": "agent:builtin:fork"}  # a fork's request, its parent absent
+    sub = [dict(r, agentId="agent-fake1") for r in fx.window_records("s-")] + [fork]
+    loaded, _ = fx.load_facts(fx.corpus(tmp_path / "fork", {"proj-a/sess-0001/subagents/agent-fake1.jsonl": sub}))
+    assert sweep.fork_marks(loaded, sweep.cut(loaded)) == (1, 1, 1, 0, 0, 0)
