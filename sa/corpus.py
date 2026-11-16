@@ -69,6 +69,7 @@ class Corpus(NamedTuple):
     usages: Dict[str, List[dict]]  # message.id -> every usage dict the forest carries under it
     skipped_lines: int        # blank, unparseable, or not a JSON object
     duplicate_records: int    # marked because their uuid or message.id was already seen
+    agent_types: Dict[str, str] = {}  # file name -> the subagent type its sidecar records
 
 
 COMPACT = "compact_boundary"
@@ -100,6 +101,19 @@ def find_files(root: Path, since_days: Optional[float] = None) -> Iterator[Tuple
         relative = path.relative_to(root)
         if cutoff is None or path.stat().st_mtime >= cutoff:
             yield path, relative.as_posix(), relative.parts[0]
+
+
+def agent_type(path: Path) -> Optional[str]:
+    """The subagent type a transcript's sidecar records: Claude Code writes
+    ``agent-<id>.meta.json`` beside ``agent-<id>.jsonl`` with its
+    ``agentType`` (``Explore``, ``general-purpose``; on this machine,
+    2026-11-15: 526 of 526 subagent files). A label only, never a dimension."""
+    try:
+        data = json.loads(path.with_suffix(".meta.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    kind = data.get("agentType") if isinstance(data, dict) else None
+    return kind if isinstance(kind, str) and kind else None
 
 
 def read_lines(path: Path) -> Iterator[Tuple[int, Optional[dict]]]:
@@ -183,4 +197,5 @@ def load(root: Path, since_days: Optional[float] = None) -> Corpus:
                 seen.add(uuid)
             records.append(Record(line_no, data, duplicate))
         files.append(SourceFile(f.path, f.name, f.project, records))
-    return Corpus(root, since_days, files, usages, skipped, duplicates)
+    types = {f.name: t for f in files for t in [agent_type(f.path)] if t}
+    return Corpus(root, since_days, files, usages, skipped, duplicates, types)
