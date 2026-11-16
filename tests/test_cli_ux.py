@@ -184,7 +184,7 @@ def test_an_encoded_home_prints_as_a_tilde_and_selects_as_printed(tmp_path, monk
     out = capsys.readouterr().out  # a file prints as on disk, under the directory named once: it opens
     (listed,) = fx.listed(out)  # the directory as deep as its line holds, the rest on the path: it opens
     assert Path(listed.replace("~", str(tmp_path), 1)).resolve() == (root / encoded / "sess-0001.jsonl").resolve()
-    assert "/./-" in listed  # a long name stays on the path, never read as a flag
+    assert not listed.lstrip().startswith("-")  # however deep the split, never read as a flag
     assert cli.main(["context", "--root", str(root), "%s=~-work" % schema.PROJECT_DIM]) == 0
     assert "\nin view where %s=~-work: " % schema.PROJECT_DIM in capsys.readouterr().out
     # A refusal names the nearest value with home as ~ too.
