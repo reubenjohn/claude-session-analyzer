@@ -1,8 +1,8 @@
 # Proposal: average context per call
 
 Status: RULED 2026-11-16 as amended (`DECISION_LOG.md`: D-MEAN-CONTEXT,
-D-PEAK-BAND, D-PEAK-DEFAULT, D-MISSING-PARENT; B, C deferred); this text
-is the proposal as made. Measurements: `python3 -m sa.sweep` (its average-context lines come
+D-PEAK-BAND, D-PEAK-DEFAULT, D-MISSING-PARENT); the proposal as made
+follows. Measurements: `python3 -m sa.sweep` (its average-context lines come
 from `sa/sweep_mean.py`), stamp `LOCAL SWEEP 2026-11-16T01:14Z`: this
 machine's live corpus, 619 files, 610 windows, 24,517 calls (3,626 in main
 windows, 20,891 in subagent windows). Every figure below is from that run
