@@ -124,8 +124,10 @@ def population(view: View, sel: Selection, loaded: Corpus, since_default: bool =
     or excluded, corpus-wide) and what the window pins kept: the windows (the files with
     a call; a compaction a call follows starts another) and the facts
     the view's metric is read from, its carrier's. The compactions read
-    print as one line when there are any: every one is unpriced. A drill pin
-    is named on the headline, the one line that counts what it narrows."""
+    print as one line when there are any: every one is unpriced; the forks in
+    view whose parent was not read, as one line under the kept, when there
+    are any (``query.orphan_forks``). A drill pin is named on the headline,
+    the one line that counts what it narrows."""
     carrier, _window = schema.metric(view.metric).carrier, schema.WINDOW_DIM
     since = ("of any age" if loaded.since_days is None else "modified in the last %gd%s"
              % (loaded.since_days, " (default)" if since_default else ""))
@@ -139,10 +141,15 @@ def population(view: View, sel: Selection, loaded: Corpus, since_default: bool =
     read = style.tag(head + root + ", %s skipped, %s excluded" % (
         count(loaded.skipped_lines, "line"), count(loaded.duplicate_records, "duplicate")), "",
         values=((len(head), len(head) + len(root)),))
+    orphans = query.orphan_forks(sel.window_facts)
+    orphaned = [" " * (len(KEPT) + 2) + (
+        "%s whose parent is missing: its copy counts as its own" if orphans == 1 else
+        "%s whose parents are missing: their copies count as their own") % count(orphans, schema.FORK)
+        ] if orphans else []
     return [read] + compacted + [
             "%s%s: %s, %s"
             % (KEPT, headline.pins(sel.window_where), count(sel.n_windows, _window),
-               count(sum(f.kind == carrier for f in sel.window_facts), plural[:-1], plural))]
+               count(sum(f.kind == carrier for f in sel.window_facts), plural[:-1], plural))] + orphaned
 
 
 def _status(holds: bool) -> str:

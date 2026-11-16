@@ -19,7 +19,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     loaded, facts = fx.load_facts(root)
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
-    (read, kept), answer = fx.sections(out)[:2]
+    (read, kept, orphan), answer = fx.sections(out)[:2]
     first, peak = fx.headline(out), fx.peaks(out)[0]
     # starting_context is the largest cause (3,000 of 4,560) but cause is no
     # lever: it is the starting context, by started_by; the growth walks down
@@ -43,6 +43,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
                     " 0 duplicates excluded" % (len(loaded.files), root))
     assert kept == "in view: 3 windows%s, %d %s%s" % (
         glossary.MARKER, sum(f.kind == INCREMENT for f in facts), schema.PLURAL[INCREMENT], glossary.MARKER)
+    assert orphan == " " * len("in view: ") + "1 fork whose parent is missing: its copy counts as its own"
     assert out.count(str(root)) == 1  # locators are root-relative
     # The cause table closes with its total against the final sizes; the
     # intervals collapse to one checks line, last.

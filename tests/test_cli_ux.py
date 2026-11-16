@@ -54,7 +54,7 @@ def test_sections_read_scope_answer_tables_key_checks(tmp_path):
     root = fx.cli_corpus(tmp_path)
     sections = fx.sections(fx.run_cli("context", "--root", str(root))[1])
     firsts = [s[0] for s in sections]
-    assert firsts[0].startswith("read: ") and sections[0][-1].startswith("in view: ")
+    assert firsts[0].startswith("read: ") and sections[0][1].startswith("in view: ")
     assert firsts[1].startswith(fx.total_line(CONTEXT.metric))
     tables_at = [i for i, line in enumerate(firsts) if line.startswith("by ")]
     assert tables_at == list(range(2, 2 + len(tables_at))) and tables_at  # contiguous, non-empty

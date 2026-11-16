@@ -24,6 +24,7 @@ python3 -m sa context --by cause
 ```
 read: 4 files modified in the last 7d (default) under ~/.claude/projects, 0 lines skipped, 0 duplicates excluded
 in view: 3 windows*, 33 changes*
+         1 fork whose parent is missing: its copy counts as its own
 
 context tokens: 4,560 across 3 windows
   starting context*  3,000  61.7%  = session starts 2,000 + forks 1,000

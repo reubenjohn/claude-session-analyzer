@@ -86,6 +86,21 @@ def window_count(facts: Iterable[Fact]) -> int:
     return len({f.window for f in facts})
 
 
+def orphan_forks(facts: Iterable[Fact]) -> int:
+    """The fork windows among ``facts`` with no ``inherited`` increment: a
+    marked fork (``windows.file_start``) whose parent file was not read,
+    deleted or outside ``--since``. Its copied records are then live, so
+    its copy counts as its own calls and changes (D-MISSING-PARENT); the
+    copies are not detected, only counted here."""
+    forks, inheriting = set(), set()
+    for f in facts:
+        if f.dims.get(schema.STARTED_BY_DIM) == schema.FORK:
+            forks.add(f.window)
+        if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED:
+            inheriting.add(f.window)
+    return len(forks - inheriting)
+
+
 def through(facts: List[Fact], key: schema.WindowKey, call: schema.Locator) -> List[Fact]:
     """The facts of window ``key`` up to the call at ``call`` and the
     increments it closes: an inherited increment's breakdown, by reference

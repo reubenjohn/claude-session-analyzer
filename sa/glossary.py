@@ -45,11 +45,14 @@ GLOSSARY: Dict[str, Term] = {
     schema.FORK: Term("a window that began as a copy of another window's context: a forked"
                       " session or subagent, its file opening with the parent's records",
                       "the copy is one inherited change, counted in the parent when the parent"
-                      " is in view"),
+                      " is in view; with the parent's file missing (deleted, or outside --since)"
+                      " the copy is not detected and counts as the fork's own calls and changes,"
+                      " which the scope warns of"),
     schema.REPLAYED: Term("a main window whose file opens by repeating another file's records"
                           " (a branched or continued session), then goes on",
                           "the repeated records count once, in the file that holds them first;"
-                          " the copy is one inherited change", True,
+                          " the copy is one inherited change; without that file it reads as a"
+                          " session start, its copy its own, unwarned: only the parent shows it", True,
                           "a session that opens by repeating another's records (resumed or branched)"),
     schema.CALL: Term("one assistant message, its split records merged: what spend is read from",
                       "a message written as several records counts once"),

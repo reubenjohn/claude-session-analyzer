@@ -2,12 +2,13 @@
 D-INHERITED-ONCE): cut after dedup, keyed by (file, start line), every one
 telescoping, inherited mass counted once. The corpus is
 ``fixtures.window_corpus``, whose arithmetic is written out there."""
+import json
 import os
 import re
 import time
 
 import fixtures as fx
-from sa import corpus, glossary, query, render, schema, tables, walk
+from sa import corpus, glossary, query, render, schema, tables, walk, windows
 from sa.schema import CALL, INCREMENT, WindowKey
 
 CAUSE = schema.CAUSE_DIM
@@ -219,3 +220,30 @@ def test_segmenting_leaves_the_duplicate_count_unchanged(tmp_path):
     cut = corpus.load(root)
     assert cut.duplicate_records == uncut.duplicate_records == fx.W_DUPLICATES
     assert query.window_count(walk.forest(cut)) > query.window_count(walk.forest(uncut))  # guard
+
+
+def _fork_alone(tmp_path, marked):
+    """The window corpus's fork, its parent file absent, with and without
+    the api-request record a fork writes (``windows.marked_fork``)."""
+    lines = (fx.window_corpus(tmp_path / "all") / fx.W_FORK).read_text(encoding="utf-8").splitlines()
+    mark = [{"type": "api-request", "querySource": windows.FORK_SOURCE, "agentId": "agent-fork1"}]
+    return fx.corpus(tmp_path / "alone", {fx.W_FORK: [json.loads(l) for l in lines] + mark * marked})
+
+
+def test_a_marked_fork_without_its_parent_is_counted_and_named_on_the_scope(tmp_path):
+    """D-MISSING-PARENT: the copy is not detected; the fork keeps its label
+    and the scope says how many forks count their copy as their own."""
+    warning = "1 fork whose parent is missing: its copy counts as its own"
+    root = _fork_alone(tmp_path, True)
+    _, facts = fx.load_facts(root)
+    assert {f.dims[schema.STARTED_BY_DIM] for f in facts} == {schema.FORK}
+    assert query.orphan_forks(facts) == 1 and not [f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED]
+    code, out, err = fx.run_cli("context", "--root", str(root))
+    assert code == 0, err
+    assert fx.sections(out)[0][-1] == " " * len("in view: ") + warning
+    unmarked = fx.load_facts(_fork_alone(tmp_path / "bare", False))[1]  # the limitation: no mark, no fork
+    assert {f.dims[schema.STARTED_BY_DIM] for f in unmarked} == {schema.SUBAGENT_START}
+    whole = fx.window_corpus(tmp_path / "whole")  # vacuity guard: with its parent, no warning
+    _, facts = fx.load_facts(whole)
+    assert query.orphan_forks(facts) == 0 and [f for f in facts if f.dims.get(schema.STARTED_BY_DIM) == schema.FORK]
+    assert "missing" not in fx.run_cli("context", "--root", str(whole), "--since", "all")[1]

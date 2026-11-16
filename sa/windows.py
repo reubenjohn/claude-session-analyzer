@@ -89,13 +89,29 @@ def replays(source: SourceFile) -> bool:
     return False
 
 
+def marked_fork(source: SourceFile) -> bool:
+    """The file says it is a fork, whether or not its parent was read: a
+    ``fork-context-ref`` record, or an ``api-request`` record (no uuid, so
+    never a duplicate) whose ``querySource`` is ``FORK_SOURCE``. LOCAL SWEEP
+    2026-11-16T02:30Z: 10 of 10 fork windows marked (9 by the api-request,
+    1 by the ref, none by both), 0 other windows."""
+    return any(r.data.get("type") == FORK_REF or (
+        r.data.get("type") == "api-request" and r.data.get("querySource") == FORK_SOURCE)
+        for r in source.records)
+
+
+FORK_SOURCE = "agent:builtin:fork"
+
+
 def file_start(source: SourceFile) -> str:
     """What began the file's first window (D-START-CAUSE): a fork (a
-    ``fork-context-ref``, or a subagent replaying a prefix) beats a
-    subagent_start; a main file replaying a prefix is ``replayed``."""
+    ``marked_fork``, or a subagent replaying a prefix) beats
+    subagent_start; a main file replaying a prefix is ``replayed``. A
+    marked fork stays one with its parent missing; a replay is known only
+    by its parent's records."""
     agent = first_value(source.live, "agentId")
     copied = replays(source)
-    if any(r.data.get("type") == FORK_REF for r in source.records) or (copied and agent):
+    if marked_fork(source) or (copied and agent):
         return schema.FORK
     if copied:
         return schema.REPLAYED
