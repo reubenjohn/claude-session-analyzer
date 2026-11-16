@@ -2,8 +2,7 @@
 
 ``window_records`` is the shared fixture: one window whose six intervals
 exercise every cause and every ambiguity reason of the walk, and whose
-arithmetic is written out so a test can assert exact figures rather than
-re-derive them.
+arithmetic is written out, so tests assert exact figures.
 """
 import json
 import re
@@ -235,9 +234,8 @@ def sections(out):
 
 
 def headline(out):
-    """The answer as one string: the total line, then each line of the
-    block under it, its column padding collapsed, ``; ``-joined in reading
-    order."""
+    """The answer as one string: the total line, then the block's lines,
+    padding collapsed, ``; ``-joined in reading order."""
     first, *rest = sections(out)[1]
     return "; ".join([first] + [re.sub(r" +", " ", line.strip()) for line in rest if line.startswith("  ")])
 
@@ -253,8 +251,8 @@ def key(out):
     """The key's entries as (label, text): the one place notes print."""
     keyed = [s for s in sections(out) if s[0].startswith(tables_module.KEY_TITLE)]
     assert len(keyed) <= 1
-    entries = [re.match(r"^  (.+?)\*? += (.*)$", line).groups() for line in (keyed[0][1:] if keyed else [])]
-    return [(label.replace(" ", "_"), text) for label, text in entries]  # keyed as first printed
+    return [(m.group(1).replace(" ", "_"), m.group(2)) for m in
+            (re.match(r"^  (.+?)\*? += (.*)$", line) for line in (keyed[0][1:] if keyed else []))]
 
 
 def marker(uuid):
