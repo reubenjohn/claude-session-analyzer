@@ -47,7 +47,7 @@ def headline(view, sel: Selection, forest: List[Fact] = ()) -> List[str]:
     mass = query.total(starting, view.metric)
     if starting and added:
         text = "%s %s (%s) at window start" % (
-            glossary.marked(schema.STARTING_CONTEXT), num(mass), pct(mass / added))
+            glossary.printed(schema.STARTING_CONTEXT), num(mass), pct(mass / added))
         if open_dims(sel, (view.starts,), spec.carrier):
             text += ": " + ", ".join("%s %s" % (r.value, num(r.mass)) for r in
                                      query.group(starting, view.starts, view.metric).rows

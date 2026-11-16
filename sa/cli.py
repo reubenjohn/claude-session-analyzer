@@ -144,7 +144,7 @@ def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
                          help="a dimension's table, or '%s': individual %s, one per row,"
                               " with locators" % (render.FACT, schema.PLURAL[schema.metric(view.metric).carrier]))
         sub.add_argument("--limit", type=_rows, default=DEFAULT_LIMIT,
-                         help="rows per table (default %d); the cause table, ∅ and"
+                         help="rows per table (default %d); the cause table, unassigned and"
                               " rows that can be negative (shrink) always show" % DEFAULT_LIMIT)
         sub.add_argument("--color", choices=(style.AUTO, style.ALWAYS, style.NEVER), default=style.AUTO,
                          help="auto (default): on a terminal, unless NO_COLOR is set")
@@ -163,6 +163,8 @@ def explain(term: Optional[str]) -> List[str]:
         entry = glossary.explain(name)
         lines += ["%s: %s" % (glossary.marked(name), entry.meaning),
                   "  surprise: " + entry.surprise]
+        if name == glossary.RESIDUAL_LABEL:  # what it holds in each table
+            lines += ["  by %s: %s" % (d, tables.residual_cases(d)) for d in tables.RESIDUAL_NOTES]
     return lines
 
 

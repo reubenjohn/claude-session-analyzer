@@ -23,25 +23,27 @@ python3 -m sa context --by cause
 <!-- example: context --by cause -->
 ```
 read: 4 files modified in the last 7d (default) under ~/.claude/projects, 0 lines skipped, 0 duplicates excluded
-in view: 3 windows°, 33 changes
+in view: 3 windows*, 33 changes
 
 context tokens: 4,560 = the 3 windows' final sizes summed (% of the 4,860 added)
-  starting_context° 3,000 (61.7%) at window start: session_start 2,000, fork 1,000
+  starting_context* 3,000 (61.7%) at window start: session_start 2,000, fork 1,000
   growth 1,860 (38.3%): tool=Bash 750 (15.4%), command=Bash:pytest 750 (100.0% of Bash, 15.4%)
 largest single-call context 1,520 tokens (of 3 windows), window=aadeccf6
+→ next: add --where tool=Bash
 
 by cause          context tokens  changes  share of 4,860 added
 starting_context           3,000        3   61.7%
 tool_result                  750        3   15.4%
-ambiguous                    606        9   12.5%
+ambiguous*                   606        9   12.5%
 user_text                    255        3    5.2%
 replies                      249       12    5.1%
 shrink (signed)             -300        3       -
 = total                    4,560       33  ✓ = final window sizes
 
-what these mean · more on each: python3 -m sa explain starting_context
-  starting_context = already in the first call, not assigned to any tool
-  ambiguous        = growth with no one contributor, left undivided
+* explained below · more on any of them: python3 -m sa explain window
+  window*           = one context window, from its start to its file's end or the next compaction
+  starting_context* = already in the first call, not assigned to any tool
+  ambiguous*        = growth with no one contributor, left undivided
 
 ✓ checks: 18 gaps between calls (21 calls - 3 windows): 6 exact (33.3%), 9 ambiguous (50.0%), 3 shrink (16.7%)
 ```
@@ -51,9 +53,9 @@ says what a term means. `python3 -m sa spend --by subagent`:
 
 <!-- example: spend --by subagent | by subagent -->
 ```
-by subagent  spend  calls  share of 988 (all but ∅)
+by subagent  spend  calls  share of 988 (all but unassigned)
 agent-fake1    988      7  100.0%
-∅            1,976     14       -
+unassigned*  1,976     14       -
 ```
 
 Spend weights cache reads 0.1x, 5m writes 1.25x, 1h writes 2x; never
@@ -81,7 +83,7 @@ not a window size), then the growth: the top tool, its largest command
 top subagent), whatever `--by` shows, never a cause or window row;
 shares are of the mass added. A pin omits what it implies; a table that
 repeats the one above row for row prints as one line. `--limit` (5)
-never folds the cause table, `∅` or a signed row. `--by fact` lists the
+never folds the cause table, `unassigned` or a signed row. `--by fact` lists the
 leaves with `file:line  uuid  dimensions`, an ambiguous one's
 `candidates:` under it.
 

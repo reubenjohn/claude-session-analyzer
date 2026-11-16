@@ -20,7 +20,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
     (read, kept), answer = fx.sections(out)[:2]
-    first, peak = fx.headline(out), answer[-1]
+    first, peak = fx.headline(out), fx.peaks(out)[0]
     # starting_context is the largest cause (3,000 of 4,560) but cause is no
     # lever: it is the starting context, by started_by; the growth walks down
     # the top tool and its top command. Every share is of the 4,860 added
@@ -59,7 +59,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
         assert not re.search(r"^by %s\s" % dim, out, re.M)
         assert re.search(r"^by %s\s" % dim, fx.run_cli("context", "--root", str(root), "--by", dim)[1], re.M)
     assert (glossary.printed(schema.STARTING_CONTEXT), tables.UNSPLITTABLE[schema.STARTING_CONTEXT]) in fx.key(out)
-    assert re.search(r"^%s\s" % schema.AMBIGUOUS, out, re.M)
+    assert re.search(r"^%s\*?\s" % schema.AMBIGUOUS, out, re.M)
     assert re.search(r"^%s \(signed\)\s+-300\s" % schema.SHRINK, out, re.M)
     assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+ added$"
                      % (CAUSE, fx.printed(CONTEXT.metric), fx.count_column(CONTEXT.metric)), out, re.M)
@@ -84,7 +84,7 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
         assert re.search(r"^%s: [\d,]+ %s over 14 calls in 2 windows$"
                          % (name, fx.unit(name)), out, re.M)
     assert "\nin view where project=proj-a: 2 windows%s, 14 calls\n" % glossary.MARKER in out  # spend reads calls only
-    assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+ \(all but ∅\)$"
+    assert re.search(r"^by %s\s+%s\s+%s\s+share of [\d,]+ \(all but unassigned\)$"
                      % (schema.SUBAGENT_DIM, fx.printed(SPEND.metric), fx.count_column(SPEND.metric)),
                      out, re.M)
     assert fx.count_column(SPEND.metric) != fx.count_column(CONTEXT.metric)  # each view names its carrier
@@ -102,8 +102,8 @@ def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
     assert code == 0, err
     assert re.search(r"; largest %s=agent-fake1 [\d,]+ \(33\.3%%\)$"
                      % schema.SUBAGENT_DIM, fx.headline(out))  # one of three like windows
-    assert re.search(r"^%s\s+[\d,]+\s+14\s+-$" % re.escape(tables.RESIDUAL_LABEL), out, re.M)
-    assert (tables.residual_label(schema.SUBAGENT_DIM), tables.residual_note(schema.SUBAGENT_DIM, ())) in fx.key(out)
+    assert re.search(r"^%s\s+[\d,]+\s+14\s+-$" % re.escape(tables.RESIDUAL_ROW), out, re.M)
+    assert (tables.RESIDUAL_LABEL, glossary.brief(tables.RESIDUAL_LABEL)) in fx.key(out)
     assert "%s=main" % schema.SUBAGENT_DIM not in out
     facts = fx.load_facts(root)[1]
     by_file = {f.locator.file: f.dims.get(schema.SUBAGENT_DIM) for f in facts}

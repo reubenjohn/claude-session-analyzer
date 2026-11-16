@@ -30,27 +30,11 @@ def test_a_drill_prints_a_table_that_has_only_a_residual_row(tmp_path):
                           "%s=%s" % (CAUSE, schema.STARTING_CONTEXT), "--by", TOOL)
     assert code == 0, err
     assert re.search(r"^by %s\s" % TOOL, out, re.M)
-    assert re.search(r"^%s\s+%s\s+3\s+-$" % (re.escape(tables.RESIDUAL_LABEL), format(3000, ",d")),
+    assert re.search(r"^%s\s+%s\s+3\s+-$" % (re.escape(tables.RESIDUAL_ROW), format(3000, ",d")),
                      out, re.M)
     assert "; largest" not in fx.headline(out)
     assert re.search(r"^by %s\s.*\s+%s\s+share$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
     assert "share of" not in out
-
-
-def test_a_pinned_table_notes_only_the_cases_its_residual_row_holds(tmp_path):
-    """Two Read results batched in one record: under ``--where tool=Read``
-    the head table's residual is one ambiguous increment sharing the tool,
-    so its note names that case alone, not ``no tool`` or a headless tool."""
-    root = fx.batched_corpus(tmp_path)
-    code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=Read" % TOOL,
-                                "--by", HEAD)
-    assert code == 0, err
-    notes = [text for label, text in fx.key(out) if label == tables.residual_label(HEAD)]
-    assert notes == [tables.residual_note(HEAD, ({CAUSE: schema.AMBIGUOUS, TOOL: "Read"},))]
-    assert schema.AMBIGUOUS in notes[0] and "no tool" not in notes[0] and "any but" not in notes[0]
-    code, out, err = fx.run_cli("context", "--root", str(root), "--by", HEAD)
-    unpinned = [text for label, text in fx.key(out) if label == tables.residual_label(HEAD)]
-    assert code == 0 and "no tool" in unpinned[0]  # vacuity guard: the pin removed the case
 
 
 def test_a_drill_prints_the_whole_window_checks_with_their_mass(tmp_path):
@@ -134,7 +118,7 @@ def test_a_main_window_is_selected_by_its_window_value_alone(tmp_path):
                                 "--where", "%s=%s" % (schema.WINDOW_DIM, main))
     assert code == 0, err
     assert "= the 1 window's final size (" in fx.headline(out)
-    assert "\nin view where %s=%s: 1 window°, 11 changes\n" % (schema.WINDOW_DIM, main) in out
+    assert "\nin view where %s=%s: 1 window*, 11 changes\n" % (schema.WINDOW_DIM, main) in out
     assert re.search(r"^%s\s+%s\s.*%s = final window sizes$" % (
         tables.TOTAL_LABEL, format(fx.FINAL_OCCUPANCY, ",d"), tables.OK_MARK), out, re.M)
     assert out.splitlines()[-1].startswith("%s checks: 6 gaps between calls (7 calls - 1 window): " % tables.OK_MARK)
@@ -165,7 +149,7 @@ def test_an_asked_for_table_prints_its_labels_whole_so_they_copy_into_where(tmp_
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (schema.PROJECT_DIM, project))
     assert code == 0, err
-    assert "\nin view where %s=%s: 2 windows°, " % (schema.PROJECT_DIM, project) in out
+    assert "\nin view where %s=%s: 2 windows*, " % (schema.PROJECT_DIM, project) in out
 
 
 def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
@@ -182,7 +166,7 @@ def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
     assert population == [l for l in unpinned.splitlines() if l.startswith(("read: ", "in view"))] == [
         "read: 4 files modified in the last 7d (default) under %s, 0 lines skipped,"
         " 0 duplicates excluded" % root,
-        "in view where %s: 2 windows°, 22 changes" % window]
+        "in view where %s: 2 windows*, 22 changes" % window]
     assert drill not in "".join(population)
     assert fx.headline(out).startswith("%s%s over 2 changes where %s in 2 windows" % (
         fx.total_line(CONTEXT.metric), format(2 * fx.EXACT_FIRST_DELTA, ",d"), drill))

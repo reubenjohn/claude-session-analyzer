@@ -22,7 +22,7 @@ Pin, then drill:
 | `--where DIM=VALUE` | a pin, repeatable, exact; dims: project, session, subagent, window, started_by, cause, tool, command, reason |
 | `--by DIM` | one dimension's table |
 | `--by fact` | one change (spend: call) per row: `<metric>  file:line  uuid  dims`, evidence under |
-| `--limit N` | rows per table (5); the rest fold to `+k more rows`, never causes, `∅` or negative (shrink) rows |
+| `--limit N` | rows per table (5); the rest fold to `+k more rows`, never causes, `unassigned` or negative (shrink) rows |
 
 ## What each command answers
 
@@ -39,7 +39,7 @@ session, project (`reason` and `window` via `--by`).
 input, cache writes (1h at 2.0x, 5m at 1.25x) and cache reads at 0.1x;
 output tokens are excluded, totalled apart at the end. Default tables:
 project, session, subagent; `--by subagent` answers "which subagent was
-expensive", its `∅` row being the main windows. Context shares are not
+expensive", its `unassigned` row the main windows. Context shares are not
 cost shares.
 
 Whatever `--by` shows, the `context` headline states one total (`% of
@@ -83,12 +83,11 @@ duplicates excluded: corpus-wide) and `in view where <window pins>:`
 a compaction a call follows starts one (`N compactions unpriced`). Quote both with a figure: a
 number without its population is no finding. Table columns: the metric
 (`context tokens`, `spend`), its count (`changes`, `calls`) and `share
-of <base>`, naming its base (`total`, `N added`, `N (all but ∅)`). Tables end with the
-residual row `∅` (facts lacking the grouped dimension) and any `(signed)`
-rows; neither has a share. A default table cuts a label over 40 chars
-to `…tail`; `--by` prints it whole. One dimmed
-`key` says in one clause what each `∅` and unsplittable row holds; a `°`
-term is in full in `python3 -m sa explain TERM`.
+of <base>`, naming its base. Tables end with `unassigned*` (facts
+lacking the grouped dimension) and any `(signed)` rows; neither has a
+share. A default table cuts a label over 40 chars to `…tail`; `--by`
+prints it whole. A `*` term is explained in one clause below the tables,
+in full by `python3 -m sa explain TERM`.
 
 Unnarrowed, the `context` cause table ends with `= total N  ✓ = final
 window sizes`, and the last line is this run's attribution

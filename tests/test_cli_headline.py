@@ -150,14 +150,15 @@ def test_the_headline_never_names_a_cause(tmp_path):
     assert _largest_shown(out) == 1000 > 250  # vacuity guard: the cause rows are the larger
     assert fx.headline(out).endswith(
         ": %s=Read 250 (19.2%%, incl. %s), %s=Read:py 250 (100.0%% of Read, 19.2%%)"
-        % (TOOL, schema.AMBIGUOUS, HEAD))  # the tool's figure says it counts the shared ambiguous
+        % (TOOL, glossary.marked(schema.AMBIGUOUS), HEAD))  # the tool's figure says it counts the shared ambiguous
     for value in (schema.STARTING_CONTEXT, schema.AMBIGUOUS):
         assert (glossary.printed(value), tables.UNSPLITTABLE[value]) in fx.key(out)
     # With one result the interval is exact: the same lead, no ambiguous note.
     root = fx.corpus(tmp_path / "exact", {"proj-a/sess-0001.jsonl": records[:2] + records[3:]})
     out = fx.run_cli("context", "--root", str(root), "--by", CAUSE)[1]
     assert ": %s=Read 250 (19.2%%), " % TOOL in fx.headline(out)  # exact: nothing to qualify
-    assert schema.AMBIGUOUS not in dict(fx.key(out))
+    assert fx.key(out)[-1][0] == schema.AMBIGUOUS  # footnoted where first printed: the checks
+    assert " 0 %s (0.0%%)" % glossary.marked(schema.AMBIGUOUS) in out.splitlines()[-1]
     assert schema.STARTING_CONTEXT in dict(fx.key(out))  # vacuity guard: the key prints
 
 
@@ -169,11 +170,11 @@ def test_headline_share_is_of_the_added_while_the_table_share_is_of_its_base(tmp
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", TOOL)
     assert code == 0, err
-    assert re.search(r"^%s\s+4,110\s+\d+\s+-$" % re.escape(tables.RESIDUAL_LABEL), out, re.M)
+    assert re.search(r"^%s\s+4,110\s+\d+\s+-$" % re.escape(tables.RESIDUAL_ROW), out, re.M)
     assert re.search(r"^%s \(signed\)\s+-300\s" % schema.SHRINK, out, re.M)
     assert "(% of the 4,860 added); " in fx.headline(out) and " (61.7%) " in fx.headline(out)
     assert ": %s=Bash 750 (15.4%%)" % TOOL in fx.headline(out)
-    assert re.search(r"^by %s\s.*\s+%s\s+share of 750 \(all but ∅\)$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
+    assert re.search(r"^by %s\s.*\s+%s\s+share of 750 \(all but unassigned\)$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
     assert re.search(r"^Bash\s+750\s+3\s+100\.0%$", out, re.M)
 
 

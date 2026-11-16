@@ -46,7 +46,7 @@ growth down `View.levers` (context `tool`, `command`; spend `subagent`)
 whatever `--by` shows; shares of the mass added. A `--where` pin omits
 every table and lever whose facts share one value (a command implies
 its tool); a drill pin is named on the headline. D-OUTPUT-CAP caps the
-default output. `glossary.GLOSSARY` drives `sa explain`, `°`, `--help`.
+default output. `glossary.GLOSSARY` drives `sa explain`, `*`, `--help`.
 The reconciliation holds by construction (`walk`): MISMATCH is a bug,
 exit 1.
 
@@ -66,7 +66,7 @@ exit 1.
   literals); every negative assertion has a vacuity guard.
 - Never sum a peak; a peak reports no value at a node. Never quote dollars.
 - Shrink is a signed row: excluded from shares, always in the reconciliation
-  footer. `∅`, signed rows and cause rows never hide behind `--limit`;
+  footer. `unassigned`, signed rows and cause rows never hide behind `--limit`;
   a table with no base prints `share` alone.
 
 ## Measured corrections — stay pinned by tests

@@ -100,7 +100,7 @@ def test_a_declared_value_no_fact_carries_is_a_measured_zero(tmp_path):
         assert code == 0, err
         assert fx.headline(out).startswith("%s0 over 0 changes where %s=%s in 0 of 1 window" % (
             fx.total_line(CONTEXT.metric), schema.REASON_DIM, reason))
-        assert "\nin view: 1 window°, " in out
+        assert "\nin view: 1 window*, " in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=bogus" % schema.REASON_DIM)
     assert code == 2 and not out and "unknown %s" % schema.REASON_DIM in err  # a typo is still refused
 
@@ -119,10 +119,10 @@ def test_since_selects_files_by_mtime_and_zero_days_selects_none(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "0d")
     assert code == 0, err
-    assert "read: 0 files modified in the last 0d under " in out and "\nin view: 0 windows°, 0 changes" in out
+    assert "read: 0 files modified in the last 0d under " in out and "\nin view: 0 windows*, 0 changes" in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "1d")
     assert code == 0, err
-    assert "read: 4 files modified in the last 1d under " in out and "\nin view: 3 windows°, " in out
+    assert "read: 4 files modified in the last 1d under " in out and "\nin view: 3 windows*, " in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since=-1d")
     assert code == 2 and not out and "number of days" in err
 

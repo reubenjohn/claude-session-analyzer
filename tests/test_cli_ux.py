@@ -94,7 +94,7 @@ def test_the_share_column_names_its_base(tmp_path):
     out = fx.run_cli("spend", "--root", str(root), "--by", schema.SESSION_DIM)[1]
     assert re.search(r"^by %s\s.*share of total$" % schema.SESSION_DIM, out, re.M)
     out = fx.run_cli("spend", "--root", str(root), "--by", schema.SUBAGENT_DIM)[1]
-    assert re.search(r"^by %s\s.*share of [\d,]+ \(all but ∅\)$" % schema.SUBAGENT_DIM,
+    assert re.search(r"^by %s\s.*share of [\d,]+ \(all but unassigned\)$" % schema.SUBAGENT_DIM,
                      out, re.M)
 
 
@@ -116,7 +116,7 @@ def test_explain_prints_one_term_or_all_and_refuses_an_unknown_one():
     assert out.splitlines() == ["%s: %s" % (tables.marked(schema.STARTING_CONTEXT), entry.meaning),
                                 "  surprise: " + entry.surprise]
     code, out, err = fx.run_cli("explain")
-    assert code == 0 and len(out.splitlines()) == 2 * len(glossary.GLOSSARY)
+    assert code == 0 and len(out.splitlines()) == 2 * len(glossary.GLOSSARY) + len(tables.RESIDUAL_NOTES)
     code, out, err = fx.run_cli("explain", "bogus")
     assert code == 2 and not out and "unknown term 'bogus'" in err and schema.STARTING_CONTEXT in err
 

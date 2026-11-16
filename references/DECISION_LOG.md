@@ -269,3 +269,12 @@ than pre-A1: default `--limit` 10 -> 5, the cause table always whole,
 `∅` and signed rows never hidden; key entries one clause, the full text
 in `sa explain`. Unchanged: ambiguous, ∅, window, inherited, replayed,
 shrink, exact, tool_result, user_text, spend, drill.
+
+**D-UNASSIGNED — the residual row prints `unassigned*`; `*` footnotes.**
+RULED, owner directive, 2026-11-16. A display rename only: the residual
+row (was `∅`) means what it meant, never in a share, never hidden. `*`
+replaces `°` and marks a glossary term at its first appearance (every
+residual row carries it); the key lists exactly the marked terms, one
+clause each. The per-table `∅ by X` lines go; `sa explain unassigned`
+gives each table's cases. `--where` never took `∅` as a value, nor
+takes `unassigned`. Amends D-PLAIN-TERMS' markers; no second opinion yet.

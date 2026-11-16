@@ -13,10 +13,10 @@ from typing import Dict, NamedTuple
 from . import schema
 from .schema import SchemaError
 
-RESIDUAL_LABEL = "∅"
+RESIDUAL_LABEL = "unassigned"  # was ∅ (D-UNASSIGNED): a display rename only
 EXACT = "exact"
 DRILL = "drill"
-MARKER = "°"
+MARKER = "*"  # a footnote: the term is explained below
 PROG = "python3 -m sa"  # the real invocation, wherever a runnable command prints
 
 # The output's spelling of a key, where it differs: the column and the
@@ -37,7 +37,8 @@ GLOSSARY: Dict[str, Term] = {
         "one context window: from a session start, subagent, fork, replay or compaction to"
         " its file's end or the next compaction; named by a short hash",
         "a file holds one window per compaction that a call follows; a file with no call"
-        " is read but is no window", True),
+        " is read but is no window", True,
+        "one context window, from its start to its file's end or the next compaction"),
     schema.STARTED_BY_DIM: Term("what began the window: " + ", ".join(schema.STARTS),
                                 "a compaction starts a new window in the same file; its starting"
                                 " context re-counts the system prompt; %s explain fork, replayed" % PROG),
@@ -62,7 +63,7 @@ GLOSSARY: Dict[str, Term] = {
     schema.SPEND: Term("what the calls billed, as input tokens weighted by price: cache reads"
                        " x0.1, cache writes x1.25 (5-minute) or x2.0 (1-hour); output excluded",
                        "every call re-reads its whole context, so spend grows with context times"
-                       " calls; it is never quoted in dollars"),
+                       " calls; it is never quoted in dollars", True),
     schema.CONTEXT_TOKENS: Term("one call's context size; a peak, so only its largest call is shown",
                                 "never summed: a sum counts a token once per call that re-read it"),
     "output_tokens": Term("tokens the calls generated",
@@ -77,11 +78,11 @@ GLOSSARY: Dict[str, Term] = {
     schema.SESSION_DIM: Term("a session id: its main window and every subagent window",
                              "--where session= keeps the subagents too; --where window= isolates one"),
     schema.SUBAGENT_DIM: Term("a subagent's id; a main window has none",
-                              "main windows are the ∅ row of by subagent"),
+                              "main windows are the unassigned row of by subagent"),
     schema.CAUSE_DIM: Term("what kind of thing put the tokens in the context",
                            "starting_context is often the largest and cannot be split further"),
     schema.TOOL_DIM: Term("the tool whose result put the tokens there",
-                          "context the model wrote or you typed has no tool: it is ∅"),
+                          "context the model wrote or you typed has no tool: it is unassigned"),
     schema.COMMAND_DIM: Term("<tool>:<summary>: a Bash command's first command word (Bash:git) or"
                              " a file tool's file extension (Read:py)",
                              "never a path; python3 x.py is Bash:python3"),
@@ -118,9 +119,9 @@ GLOSSARY: Dict[str, Term] = {
                                  "rare; the whole change stays ambiguous"),
     schema.UNEXPLAINED: Term("the context grew with nothing recorded to explain it",
                              "declared so it is labelled should it appear"),
-    RESIDUAL_LABEL: Term("the part of a table's total with no value for its dimension;"
-                         " the key says why, per table",
-                         "often most of the total: starting_context has no tool", True),
+    RESIDUAL_LABEL: Term("the part of a table's total with no value for its dimension",
+                         "often most of the total: starting_context has no tool", True,
+                         "not attributable to this table's dimension; excluded from share"),
     EXACT: Term("a gap between two calls with one contributor that grew by at least the"
                 " previous call's reply: booked to it after subtracting that reply",
                 "exact given that model; bookkeeping attachments fold into the remainder"),

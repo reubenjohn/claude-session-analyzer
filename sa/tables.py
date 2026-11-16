@@ -12,6 +12,7 @@ from . import glossary, heads, query, schema, style
 from .schema import Fact
 
 RESIDUAL_LABEL = glossary.RESIDUAL_LABEL  # the row for facts that lack the grouped dimension
+RESIDUAL_ROW = RESIDUAL_LABEL + glossary.MARKER  # as every table labels it
 LABEL_WIDTH = 40      # a default table keeps a longer label's tail behind "…"; --by prints it whole
 
 # Cause rows whose mass is not splittable by content: each prints its
@@ -64,18 +65,39 @@ TOTAL_LABEL = "= total"  # the row a whole-window cause table closes with
 
 
 def key(entries: List[Tuple[str, str]]) -> List[str]:
-    """The one key under the tables, dimmed: each note once, by label, one
-    clause each, its header naming the command that says more on the first
-    term listed (the full text is ``sa explain``'s)."""
+    """The one key under the tables, dimmed: each footnoted term once, as
+    marked in the body, one clause each, its header naming the command
+    that says more (the full text is ``sa explain``'s)."""
     if not entries:
         return []
-    seen = list(dict.fromkeys(entries))
-    width = max(len(label) for label, _ in seen)
-    head = "%s · more on each: %s explain %s" % (KEY_TITLE, glossary.PROG, seen[0][0].split()[0])
-    return [style.tag(line, style.KEY) for line in [head] + ["  %-*s = %s" % (width, *e) for e in seen]]
+    width = max(len(term) for term, _ in entries) + len(glossary.MARKER)
+    head = "%s · more on any of them: %s explain %s" % (KEY_TITLE, glossary.PROG, entries[0][0])
+    return [style.tag(line, style.KEY) for line in [head] + [
+        "  %-*s = %s" % (width, term + glossary.MARKER, text) for term, text in entries]]
 
 
-KEY_TITLE = "what these mean"  # the key's header opens with it
+KEY_TITLE = glossary.MARKER + " explained below"  # the key's header opens with it
+
+
+def footnote(lines: List[str]) -> Tuple[List[str], List[str]]:
+    """Each marked glossary term, at its first appearance in ``lines`` (a
+    table's header aside: its rows carry the mark, the residual's always),
+    takes the marker (a table row gives up one space of its padding, so
+    its columns hold); the terms marked, in the order they first appear."""
+    found = []
+    for term in (glossary.printed(t) for t, e in glossary.GLOSSARY.items() if e.marked):
+        word = re.compile(r"(?<![\w=*-])%s(s?)(?![\w=-])" % re.escape(term))
+        for i, line in enumerate(lines):
+            m = None if getattr(line, "role", "") == style.HEADER else word.search(line)
+            if m:
+                found.append((i, m.start(), term))
+                if line[m.end():m.end() + 1] != glossary.MARKER:
+                    rest = line[m.end():]
+                    lines[i] = style.retag(line, line[:m.end()] + glossary.MARKER
+                                           + (rest[1:] if rest.startswith("  ") else rest))
+                break
+    return lines, [term for _, _, term in sorted(found)]
+
 
 Case = Tuple[str, Callable[[dict], bool]]  # a reading of a residual fact, and the dims it holds for
 
@@ -84,10 +106,8 @@ def _cause(cause: str) -> Callable[[dict], bool]:
     return lambda dims: dims.get(schema.CAUSE_DIM) == cause
 
 
-# Printed under a table that shows the residual row: what the row means,
-# then the cases that some fact in it satisfies, read from their dimensions
-# so a drill (``--where tool=Bash --by command``) names no case it cannot
-# hold. An ambiguous change is residual when its candidates share no one
+# What the residual row of a table by each dimension can hold, printed by
+# ``sa explain unassigned``. An ambiguous change is residual when its candidates share no one
 # tool (by tool) or no one command (by command); a tool_result, when its
 # tool_use did not resolve (by tool) or its tool has no command (by command).
 RESIDUAL_NOTES: Dict[str, Tuple[str, List[Case]]] = {
@@ -106,25 +126,18 @@ RESIDUAL_NOTES: Dict[str, Tuple[str, List[Case]]] = {
 
 
 def residual_note(dim: str, residual: Sequence[dict]) -> str:
+    """What the residual row of a table by ``dim`` holds: the cases some of
+    the ``residual`` facts' dimensions satisfy."""
     meaning, cases = RESIDUAL_NOTES[dim]
     held = [text for text, holds in cases if any(holds(dims) for dims in residual)]
     return meaning + (": " + ", ".join(held) if held else "")
 
 
-def residual_label(dim: str) -> str:
-    return "%s in by %s" % (RESIDUAL_LABEL, dim)
-
-
-def notes(grouped: query.Table) -> List[Tuple[str, str]]:
-    """The key entries a table's rows call for: an unsplittable cause row's
-    meaning, and what its residual row holds."""
-    entries = []
-    if grouped.dim == schema.CAUSE_DIM:
-        entries += [(glossary.printed(r.value), UNSPLITTABLE[r.value]) for r in grouped.rows
-                    if r.value in UNSPLITTABLE]
-    if grouped.dim in RESIDUAL_NOTES and any(r.kind == query.RESIDUAL for r in grouped.rows):
-        entries.append((residual_label(grouped.dim), residual_note(grouped.dim, grouped.residual)))
-    return entries
+def residual_cases(dim: str) -> str:
+    """Every case the residual row of a table by ``dim`` can hold: for
+    ``sa explain unassigned``."""
+    meaning, cases = RESIDUAL_NOTES[dim]
+    return meaning + (": " + ", ".join(text for text, _ in cases) if cases else "")
 
 
 def share_header(grouped: query.Table) -> str:
@@ -168,7 +181,7 @@ def tags(dims: dict) -> str:
 
 
 def _label(row: query.Row, whole: bool) -> str:
-    label = RESIDUAL_LABEL if row.kind == query.RESIDUAL else (
+    label = RESIDUAL_ROW if row.kind == query.RESIDUAL else (
         home(row.value) + (" (signed)" if row.kind == query.SIGNED else ""))
     return label if whole else cut(label)
 

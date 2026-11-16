@@ -36,7 +36,7 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
     for, and the checks. The cause table of a whole-window view closes with
     its total against the windows' final sizes."""
     spec = schema.metric(view.metric)
-    notes: List[Tuple[str, str]] = [(view.metric, n) for n in view.notes]
+    notes = {glossary.printed(view.metric): n for n in view.notes}  # a view's own clause for a term
     totalled = False  # whether a cause table printed its total row
     if by == FACT:
         body = leaves(sel.facts, view.metric, limit) + [""]
@@ -53,11 +53,29 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
                 total = _total(view, sel) if dim == schema.CAUSE_DIM else None
                 totalled = totalled or total is not None
                 body += table(grouped, view.metric, limit, whole=bool(by), total=total) + [""]
-                notes += tables.notes(grouped)
-    keyed = tables.key(notes)
     scope = [style.tag(line, style.SCOPE) for line in population(view, sel, loaded, since_default)]
-    return (scope + [""] + headline.headline(view, sel, forest) + [""]
-            + body + keyed + ([""] if keyed else []) + footer(view, sel, totalled))
+    above = scope + [""] + headline.headline(view, sel, forest) + next_step(view, sel, by) + [""] + body
+    lines, terms = tables.footnote(above + footer(view, sel, totalled))
+    keyed = tables.key([(t, notes.get(t) or glossary.brief(glossary.key_of(t))) for t in terms])
+    return lines[:len(above)] + keyed + ([""] if keyed else []) + lines[len(above):]
+
+
+NEXT = "→ next: add "
+
+
+def next_step(view: View, sel: Selection, by: Optional[str]) -> List[str]:
+    """One line under the headline: the pin that follows its own levers
+    (the top value of the first lever a pin left open: the top tool, then
+    within a pinned tool its top command), or ``--by fact`` once none is
+    open; none when the leaves already print or there is nothing to show."""
+    carrier = schema.metric(view.metric).carrier
+    if by == FACT or not any(f.kind == carrier for f in sel.facts):
+        return []
+    for dim in headline.open_dims(sel, view.levers, carrier):
+        top = next((r for r in query.group(sel.facts, dim, view.metric).rows if r.kind == query.REGULAR), None)
+        if top is not None:
+            return [style.tag("%s--where %s=%s" % (NEXT, dim, top.value), style.HINT)]
+    return [style.tag("%s--by %s" % (NEXT, FACT), style.HINT)]
 
 
 def tools(view: View, sel: Selection) -> List[str]:
@@ -101,8 +119,7 @@ def population(view: View, sel: Selection, loaded: Corpus, since_default: bool =
                count(loaded.skipped_lines, "line"), count(loaded.duplicate_records, "duplicate"))
             ] + compacted + [
             "%s%s: %s, %s"
-            % (KEPT, headline.pins(sel.window_where), count(sel.n_windows, tables.marked(_window), _window + "s"
-                                              + glossary.MARKER),
+            % (KEPT, headline.pins(sel.window_where), count(sel.n_windows, _window),
                count(sum(f.kind == carrier for f in sel.window_facts), plural[:-1], plural))]
 
 

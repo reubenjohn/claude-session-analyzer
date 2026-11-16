@@ -25,17 +25,14 @@ def _top(*args, **kwargs):
 def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
     table = query.Table(DIM, ROWS, 100)
     lines = tables.table(table, M, limit=1, whole=False)
-    assert lines[0].startswith("by " + DIM) and lines[0].endswith("share of 100 (all but ∅)")
-    assert [l.split()[0] for l in lines[1:]] == ["a", "+2", tables.RESIDUAL_LABEL, schema.SHRINK]
+    assert lines[0].startswith("by " + DIM) and lines[0].endswith("share of 100 (all but %s)" % tables.RESIDUAL_LABEL)
+    assert [l.split()[0] for l in lines[1:]] == ["a", "+2", tables.RESIDUAL_ROW, schema.SHRINK]
     assert re.match(r"\+2 more rows\s+40\s+2\s+40\.0%", lines[2])
     assert [l.split()[0] for l in tables.table(table, M, limit=3, whole=False)[1:]] == [
-        "a", "b", "c", tables.RESIDUAL_LABEL, schema.SHRINK]
-    for dim, (meaning, _) in tables.RESIDUAL_NOTES.items():  # a residual row's note is in the key
-        noted = tables.notes(table._replace(dim=dim))
-        assert noted[-1] == (tables.residual_label(dim), meaning) == (
-            tables.RESIDUAL_LABEL + " in by " + dim, tables.residual_note(dim, ()))
-        assert noted[-1] not in tables.notes(query.Table(dim, ROWS[:3], 100))  # no residual row
-    assert tables.notes(table) == []  # vacuity guard: DIM has no note
+        "a", "b", "c", tables.RESIDUAL_ROW, schema.SHRINK]
+    for dim, (meaning, cases) in tables.RESIDUAL_NOTES.items():  # sa explain unassigned says each
+        assert tables.residual_cases(dim).startswith(meaning) and all(
+            text in tables.residual_cases(dim) for text, _ in cases)
 
 
 def test_every_dimension_a_view_can_group_with_a_residual_row_has_a_note(tmp_path):
@@ -62,7 +59,7 @@ def test_the_mass_column_is_the_metric_and_the_count_column_its_carrier_kind():
     table = query.Table(DIM, ROWS, 100)
     for name, spec in schema.METRICS.items():  # the metric as printed heads the mass column
         header = tables.table(table, name, limit=3, whole=False)[0]
-        assert re.match(r"by %s +%s +%s +share of 100 \(all but ∅\)$" % (
+        assert re.match(r"by %s +%s +%s +share of 100 \(all but unassigned\)$" % (
             DIM, re.escape(glossary.printed(name)), schema.PLURAL[spec.carrier]), header), header
         assert "count" not in header
     assert {spec.carrier for spec in schema.METRICS.values()} == set(schema.KINDS)  # both kinds seen
@@ -181,7 +178,7 @@ def test_the_cause_table_prints_whole_whatever_the_limit(tmp_path):
 
 def test_a_row_named_like_a_cause_folds_and_gets_no_note_outside_the_cause_table():
     """A project called ``ambiguous`` is an ordinary row: ``--limit 1`` folds
-    it and no cause note prints; the same rows as the cause table keep it."""
+    it; the same rows as the cause table keep it."""
     rows = [query.Row("a", 60, 2, query.REGULAR)] + [
         query.Row(cause, 10, 1, query.REGULAR) for cause in tables.UNSPLITTABLE]
     assert DIM != schema.CAUSE_DIM and len(rows) > 2  # vacuity guard
@@ -189,9 +186,6 @@ def test_a_row_named_like_a_cause_folds_and_gets_no_note_outside_the_cause_table
     assert [l.split()[0] for l in lines[1:]] == ["a", "+%d" % len(tables.UNSPLITTABLE)]
     kept = tables.table(query.Table(schema.CAUSE_DIM, rows, 80), M, limit=1, whole=False)
     assert [l.split()[0] for l in kept[1:] if l.endswith("%")] == ["a"] + list(tables.UNSPLITTABLE)
-    assert tables.notes(query.Table(schema.CAUSE_DIM, rows, 80)) == [
-        (glossary.printed(cause), note) for cause, note in tables.UNSPLITTABLE.items()]
-    assert tables.notes(query.Table(DIM, rows, 80)) == []
 
 
 def test_the_ambiguous_entry_names_every_declared_reason_and_the_key_none():

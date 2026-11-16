@@ -52,7 +52,7 @@ def printed(metric):
 
 def total_line(metric):
     """The prefix of the headline's total line."""
-    return "%s: " % printed(metric)
+    return "%s: " % glossary.marked(metric)
 
 
 def usage(context, output, cache_write_1h=0, cache_write_5m=0):
@@ -252,7 +252,7 @@ def key(out):
     """The key's entries as (label, text): the one place notes print."""
     keyed = [s for s in sections(out) if s[0].startswith(tables_module.KEY_TITLE)]
     assert len(keyed) <= 1
-    return [re.match(r"^  (.+?) += (.*)$", line).groups() for line in (keyed[0][1:] if keyed else [])]
+    return [re.match(r"^  (.+?)\*? += (.*)$", line).groups() for line in (keyed[0][1:] if keyed else [])]
 
 
 def marker(uuid):
