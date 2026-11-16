@@ -3,7 +3,7 @@
 Reads your Claude Code transcripts (`~/.claude/projects`) and helps
 answer two questions. **What did my sessions cost?** (`sa spend`):
 each call pays for the context it sends, the cache deciding what is
-paid again (reads discounted), so the calls' costs add up. Then, cost
+paid again (reads discounted), so totals are true sums. Then, cost
 aside (were inference free), **is context degrading the model?**
 (`sa context`): every call reasons over its whole window, and a fuller
 window reasons worse (context rot), so it shows what calls held (the

@@ -60,7 +60,9 @@ def test_the_help_path_is_the_hint_chain():
     """The -h path pins what each hint pins, in order: the view's leads,
     its levers, then the leaves."""
     out = fx.run_cli("-h")[1]
-    steps = re.findall(r"^  [a-z :]+?\s{2,}(?:--where (\w+)=\S+|--by (fact))$", out, re.M)
+    steps = re.findall(r"^\s+\d\. [\w :,]+?\s{2,}(?:--where (\w+)=\S+|--by (fact))$", out, re.M)
+    numbers = re.findall(r"^\s+(?:context  )?(\d)\. ", out[out.index("  context  1. "):], re.M)
+    assert numbers == [str(i) for i in range(1, len(steps) + 2)]  # numbered, run in order
     view = cli.VIEWS["context"]
     assert len(steps) == len(view.leads) + len(view.levers) + 1 > 2  # vacuity guard: the path printed
     assert [where or by for where, by in steps] == list(view.leads + view.levers) + [render.FACT]

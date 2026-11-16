@@ -136,22 +136,23 @@ def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
     assert [q.group(1) for q in sorted(questions, key=lambda q: q.start())] == ["spend", "context"]
     asked = {q.group(1): q.group(0) for q in questions}
     assert "Cost aside" in asked["context"] and "aside" not in asked["spend"]  # the premise is context's
+    assert "--where filter (a pin)" in out  # pin is defined at its first use
     # a start for each view; the context path's pins, in order, are the hint chain's (test_footnotes)
     for view in cli.VIEWS:
-        assert re.search(r" %s %s  " % (re.escape(cli.PROG), view), out), view
+        assert re.search(r"1\. %s %s\b" % (re.escape(cli.PROG), view), out), view
     assert "--where %s=%s" % (schema.PEAK_DIM, schema.BANDS[-1]) in out  # the path leads with the fullest band
     assert out.index("broadly") < out.index(render.NEXT.split(":")[0]) < out.index("Start here")  # expectation first
-    for flag in ("--since", "--where", "--by"):
+    for flag in ("--since", "--by"):
         assert re.search(r"^  %s " % flag, out, re.M), flag
     assert "%s context --help" % cli.PROG in out
-    # the starred terms are not listed: one pointer to explain names the marker instead
+    # the starred terms are not listed: one pointer to explain instead
     marked = [t for t, e in glossary.GLOSSARY.items() if e.marked]
     assert marked  # vacuity guard: the output does mark terms
-    (pointer,) = [line for line in out.splitlines() if glossary.MARKER in line]
-    assert "%s explain TERM" % cli.PROG in pointer
+    assert out.splitlines()[-1] == "Unfamiliar word in the output? %s explain TERM" % cli.PROG
+    assert not any(glossary.printed(t).replace("_", " ") + "; " in out for t in marked)
     # argparse's own blocks would repeat the subcommands
     assert "optional arguments" not in out and "positional arguments" not in out and "subcommands:" not in out
-    assert len(out.splitlines()) <= 25
+    assert len(out.splitlines()) <= 26
 
 
 @pytest.mark.parametrize("view", list(cli.VIEWS))

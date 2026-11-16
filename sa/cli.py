@@ -99,26 +99,27 @@ Reads your Claude Code transcripts (~/.claude/projects, the last 7 days
 unless --since) and helps answer two questions:
 
   spend    What did my sessions cost? Each call pays for the context it
-           sends, cache reads discounted, so the calls' costs add up.
-  context  Cost aside, is context degrading the model? Every call reasons
-           over its whole window, a fuller one reasons worse (context rot):
-           context shows what an average call held and what put it there.
+           sends, cache reads discounted, so totals are true sums.
+  context  Cost aside, is context degrading the model? Cache reads make a
+           call cheap, but it still reasons over all it holds, and a fuller
+           window reasons worse (context rot). context shows what an
+           average call held and what put it there.
 
-Each first answers broadly (everything in view), then its "%(next)s" line
-suggests one pin that narrows it, run by run, to something you can fix:
-Start here:  %(prog)s spend    then its top subagent, then its calls
-             %(prog)s context  then, one pin at a time:
-    the fullest windows     --where peak=200K+
-    their top tool          --where tool=Bash
-    its top command         --where command=Bash:cat
-    what to fix: file:line  --by fact
+Each command first answers broadly, then its "%(next)s" line suggests one
+--where filter (a pin) that narrows it, run by run, to something to fix.
+Start here, adding each step's flag to the run before:
+  spend    1. %(prog)s spend   2. its top subagent   3. its calls
+  context  1. %(prog)s context
+           2. windows that peaked over 200K  --where peak=200K+
+           3. their top tool                 --where tool=Bash
+           4. its top command                --where command=Bash:cat
+           5. the exact calls, file:line     --by fact
 
 Flags (all of them: %(prog)s context --help):
-  --since 30d|all    files modified in the last N days (default 7d)
-  --where DIM=VALUE  pin one value; repeatable
-  --by DIM|fact      one table whole; fact: one change per row
-Words marked %(marker)s in the output: %(prog)s explain TERM.""" % {
-    "prog": PROG, "next": render.NEXT.split(":")[0] + ":", "marker": glossary.MARKER}
+  --since 30d|all  files modified in the last N days (default 7d)
+  --by DIM|fact    one table whole; fact: one change (spend: call) per row
+Unfamiliar word in the output? %(prog)s explain TERM""" % {
+    "prog": PROG, "next": render.NEXT.split(":")[0] + ":"}
 
 
 def _dimensions_help() -> str:
