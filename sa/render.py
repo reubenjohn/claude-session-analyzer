@@ -89,10 +89,9 @@ def subagent_names(loaded_types: Dict[str, str], facts: Iterable[Fact]) -> Dict[
 
 
 def window_counts(sel: Selection, dim: str) -> Optional[tables.Counts]:
-    """The count columns of a table by ``peak``: per band, the windows the
-    view's facts come from and the calls those whole windows hold; None
-    for any other table, which counts its carrier facts. A window has one
-    band, so each column adds up to the view's windows and calls."""
+    """A ``peak`` table's count columns: per band, the windows the view's
+    facts come from and the calls they hold (a window has one band, so
+    each adds up); None for any other table, which counts its carrier."""
     if dim != schema.PEAK_DIM:
         return None
     shown = {f.window for f in sel.facts}
@@ -111,9 +110,8 @@ NEXT = "→ next: add "
 
 def next_step(view: View, sel: Selection, by: Optional[str],
               names: Optional[Dict[str, str]] = None) -> List[str]:
-    """One line under the headline: while the windows in view span more
-    than one ``peak`` band (the view's ``leads``), the fullest band: is
-    context a problem, then what fills those windows. Then the pin that
+    """One line under the headline: the fullest ``peak`` band while the
+    windows in view span several (the view's ``leads``), then the pin that
     follows its own levers (the top value of the first lever a pin left
     open: the top tool, then within a pinned tool its top command), or
     ``--by fact`` once none is open; none when the leaves already print or

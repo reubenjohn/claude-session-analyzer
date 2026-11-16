@@ -166,3 +166,17 @@ def test_relabels_maps_only_dimensions_that_split_the_facts_alike(tmp_path):
     assert "\nby %s, %s: the rows above, labelled sess-0002 / proj-b, sess-0001 / proj-a\n" % (
         schema.SESSION_DIM, schema.PROJECT_DIM) in out
     assert not re.search(r"^by %s\s" % schema.PROJECT_DIM, out, re.M)  # guard: no table besides
+
+
+def test_a_window_peak_band_includes_its_lower_edge_and_is_whole_window(tmp_path):
+    """D-PEAK-BAND: a call of exactly an edge is in the band above it; a
+    window's band is its largest call's, on every fact of the window, its
+    first small calls too, and the bands are declared in order."""
+    assert [schema.band(e) for e in schema.BAND_EDGES] == list(schema.BANDS)
+    assert [schema.band(e - 1) for e in schema.BAND_EDGES[1:]] == list(schema.BANDS[:-1])
+    _, facts = fx.load_facts(fx.every_corpus(tmp_path))
+    assert {f.dims[schema.PEAK_DIM] for f in facts} == set(schema.BANDS)  # vacuity guard: every band
+    for key in {f.window for f in facts}:
+        mine = [f for f in facts if f.window == key]
+        top = max(f.metrics[fx.PEAK] for f in mine if f.kind == schema.CALL)
+        assert {f.dims[schema.PEAK_DIM] for f in mine} == {schema.band(top)}
