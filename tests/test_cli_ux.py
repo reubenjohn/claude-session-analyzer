@@ -126,23 +126,31 @@ def test_explain_prints_one_term_or_all_and_refuses_an_unknown_one():
 
 
 def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
+    """-h layers: the two questions, spend first, then context with its
+    premise (cost aside); a start for each view; a few flags; the explain
+    pointer in place of a list of starred terms."""
     code, out, err = fx.run_cli("-h")
     assert code == 0, err
-    for view, question in cli.QUESTIONS.items():
-        assert view in out and question.split(":")[0].split()[0] in out
-    # the path starts at a bare run; its pins, in order, are the hint chain's (test_footnotes)
-    assert "run %s context (" % cli.PROG in out
+    questions = [re.search(r"^  (%s)  .+\?" % v, out, re.M) for v in cli.QUESTIONS]
+    assert all(questions) and len(questions) == len(cli.VIEWS) == 2  # vacuity guard: both asked
+    assert [q.group(1) for q in sorted(questions, key=lambda q: q.start())] == ["spend", "context"]
+    asked = {q.group(1): q.group(0) for q in questions}
+    assert "Cost aside" in asked["context"] and "aside" not in asked["spend"]  # the premise is context's
+    # a start for each view; the context path's pins, in order, are the hint chain's (test_footnotes)
+    for view in cli.VIEWS:
+        assert re.search(r"^  %s %s  " % (re.escape(cli.PROG), view), out, re.M), view
     assert "--where %s=%s" % (schema.PEAK_DIM, schema.BANDS[-1]) in out  # the path leads with the fullest band
-    for flag in ("--since", "--where", "--by", "--limit", "--root"):
+    for flag in ("--since", "--where", "--by"):
         assert re.search(r"^  %s " % flag, out, re.M), flag
-    assert "%s context --help" % cli.PROG in out and "%s explain TERM" % cli.PROG in out
-    (named,) = [line for line in out.splitlines() if line.startswith("Marked %s" % glossary.MARKER)]
+    assert "%s context --help" % cli.PROG in out
+    # the starred terms are not listed: one pointer to explain names the marker instead
     marked = [t for t, e in glossary.GLOSSARY.items() if e.marked]
-    starts = [t for t in marked if t in schema.STARTS]
-    assert starts  # vacuity guard: a start value is a marked term, never named here as printed
-    for term in marked:  # each as printed, spaces for underscores, as the key spells it
-        spelt = glossary.printed(term).replace("_", " ")
-        assert (re.search(r"[ :]%s[,;.]" % re.escape(spelt), named) is None) == (term in starts), term
+    assert marked  # vacuity guard: the output does mark terms
+    (pointer,) = [line for line in out.splitlines() if glossary.MARKER in line]
+    assert "%s explain TERM" % cli.PROG in pointer
+    # argparse's own blocks would repeat the subcommands
+    assert "optional arguments" not in out and "positional arguments" not in out and "subcommands:" not in out
+    assert len(out.splitlines()) <= 26
 
 
 @pytest.mark.parametrize("view", list(cli.VIEWS))

@@ -26,6 +26,7 @@ colours only when stdout is a TTY or ``FORCE_COLOR`` is set, never while
 """
 import argparse
 import sys
+import textwrap
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -88,42 +89,37 @@ def _rows(text: str) -> int:
     return int(text)
 
 
-QUESTIONS = {"context": "is context a problem, what filled your windows: by cause, tool, command,"
-                       " subagent, peak, session, project",
-             "spend": "what the calls cost, by project, session, subagent (never dollars)"}
+QUESTIONS = {"spend": "what did your sessions cost: each call's price-weighted input, by project,"
+                     " session, subagent (never dollars)",
+             "context": "cost aside, is context degrading the model: what an average call held,"
+                        " by cause, tool, command, subagent, peak, session, project"}
 
 TOP_HELP = """\
-Were inference free, is context hurting your model (every call reasons
-over its whole window), what fills it, and how do you fix it? And what did
-it cost? Reads the transcripts under ~/.claude/projects, the last 7 days
-unless --since.
+Reads your Claude Code transcripts (~/.claude/projects, the last 7 days
+unless --since) and helps answer two questions:
 
-Subcommands: context, spend, explain. context states the average context
-per call (what a call held) and each table splits it by one dimension (a
-cause, a tool, a command): each change weighs by the calls that held it.
-The row %(residual)s is the part with no value for it. Pin a row with
---where DIM=VALUE (any row label), then show one table whole with --by
-DIM. The path: run %(prog)s context (is it a problem?), then add what
-each run's "%(next)s" line names, one at a time:
+  spend    What did my sessions cost? Each call pays for the context it
+           sends, cache reads discounted, so the calls' costs add up.
+  context  Cost aside, is context degrading the model? Every call reasons
+           over its whole window, and a fuller window reasons worse
+           (context rot). context shows what an average call held, what
+           put it there, and leads you to what to cut.
 
-  the fullest windows     --where peak=200K+
-  their top tool          --where tool=Bash
-  its top command         --where command=Bash:cat
-  what to fix: file:line  --by fact
+Both start broad and narrow down. Start here:
+  %(prog)s spend      what it cost, by project, session, subagent
+  %(prog)s context    is it a problem? Then add what each run's
+    "%(next)s" line names, one at a time:
+    the fullest windows     --where peak=200K+
+    their top tool          --where tool=Bash
+    its top command         --where command=Bash:cat
+    what to fix: file:line  --by fact
 
-Flags (all: %(prog)s context --help, %(prog)s spend --help):
-  --since 30d|all       files modified in the last N days (default 7d)
-  --where DIM=VALUE     pin one value; repeatable
-  --by DIM|fact         one table whole; fact: individual changes, one per row
-  --limit N             rows per table (default %(limit)d; causes print whole)
-  --root DIR            transcript root (default ~/.claude/projects)
-
-Marked %(marker)s in the output: %(marked)s.
-%(prog)s explain TERM says what any term means.""" % {"prog": PROG, "next": render.NEXT.split(":")[0] + ":",
-    "residual": glossary.RESIDUAL_LABEL, "marker": glossary.MARKER, "limit": DEFAULT_LIMIT,
-    "marked": ", ".join(glossary.printed(t).replace("_", " ") for t, e in glossary.GLOSSARY.items()
-                        if e.marked and t not in schema.STARTS and t != schema.SPEND)
-              + "; in spend's, " + glossary.printed(schema.SPEND)}  # as printed: a start is a value
+Flags (all of them: %(prog)s context --help):
+  --since 30d|all    files modified in the last N days (default 7d)
+  --where DIM=VALUE  pin one value; repeatable
+  --by DIM|fact      one table whole; fact: one change per row
+Words marked %(marker)s in the output: %(prog)s explain TERM.""" % {
+    "prog": PROG, "next": render.NEXT.split(":")[0] + ":", "marker": glossary.MARKER}
 
 
 def _dimensions_help() -> str:
@@ -136,12 +132,16 @@ def _dimensions_help() -> str:
 
 def parse_args(argv: Optional[List[str]]) -> argparse.Namespace:
     raw = argparse.RawDescriptionHelpFormatter
-    parser = argparse.ArgumentParser(prog=PROG, description=TOP_HELP, formatter_class=raw)
-    views = parser.add_subparsers(dest="view", title="subcommands",
-                                  metavar="|".join(list(VIEWS) + ["explain"]))
+    names = "spend|context|explain"  # TOP_HELP's order: cost first, then cost aside
+    parser = argparse.ArgumentParser(prog=PROG, description=TOP_HELP, formatter_class=raw,
+                                     usage="%s %s [flags]" % (PROG, names), add_help=False)
+    parser.add_argument("-h", "--help", action="help", help=argparse.SUPPRESS)
+    # TOP_HELP lists the subcommands; argparse's own blocks would repeat it.
+    views = parser.add_subparsers(dest="view", metavar=names, help=argparse.SUPPRESS,
+                                  prog=PROG)
     views.required = True
     for name, view in VIEWS.items():
-        sub = views.add_parser(name, help=QUESTIONS[name], description=QUESTIONS[name] + ".",
+        sub = views.add_parser(name, help=QUESTIONS[name], description=textwrap.fill(QUESTIONS[name] + ".", 76),
                                epilog=_dimensions_help(), formatter_class=raw)
         sub.add_argument("--root", type=_directory, default=str(corpus.default_root()),
                          help="transcript root (default: ~/.claude/projects)")
