@@ -21,7 +21,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 EVALS = REPO / "evals"
-SA_CMD = re.compile(r"^\s*(sa|python3 -m sa)(\s|$)")
+SA_CMD = re.compile(r"(^|[;&|]\s*)\s*(sa|python3 -m sa)(\s|$)")  # after any `cd X;` prefix
 ISOLATE = ["--setting-sources", "", "--strict-mcp-config",
            "--disable-slash-commands", "--no-session-persistence"]
 MEASURES = ["verdict", "sa_cmds", "error_exits", "denied", "source_reads",
@@ -46,14 +46,19 @@ def load_tasks(args):
     return jobs
 
 
+def snapshot(home, snap, days):
+    """Recent files, mtimes kept; no `-tmp-` project (eval runs' own)."""
+    cutoff = time.time() - days * 86400
+    for f in home.rglob("*"):
+        rel = f.relative_to(home)
+        if f.is_file() and not rel.parts[0].startswith("-tmp-") and f.stat().st_mtime >= cutoff:
+            (snap / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, snap / rel)
+
+
 def setup(tmp, args):
     snap, src, bin_ = tmp / "corpus", tmp / "src", tmp / "bin"
-    cutoff = time.time() - args.days * 86400
-    home = Path.home() / ".claude" / "projects"
-    for f in home.rglob("*"):
-        if f.is_file() and f.stat().st_mtime >= cutoff:
-            (snap / f.relative_to(home)).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(f, snap / f.relative_to(home))
+    snapshot(Path.home() / ".claude" / "projects", snap, args.days)
     if args.rev:
         subprocess.run(["git", "worktree", "add", "--detach", str(src), args.rev],
                        cwd=REPO, check=True, capture_output=True)
@@ -108,14 +113,17 @@ def measure(events, src, log):
              max_width=max([r["width"] for r in runs] or [0]),
              gates=["sa %s: %s" % (" ".join(r["argv"]), g) for r in runs for g in r["gates"]])
     for e in events:
-        content = (e.get("message") or {}).get("content")
+        msg = e.get("message") if isinstance(e, dict) else None
+        content = msg.get("content") if isinstance(msg, dict) else None
         for c in content if isinstance(content, list) else []:
+            if not isinstance(c, dict):
+                continue
             if c.get("type") == "tool_use":
                 uses[c["id"]] = (c["name"], c.get("input", {}))
                 if c["name"] == "Read":
                     p = c["input"].get("file_path", "")
                     m["reads"].append(p)
-                    m["source_reads"] += p.startswith(str(src)) and "/sa/" in p
+                    m["source_reads"] += "/sa/" in p and p.endswith(".py")
             elif c.get("type") == "tool_result" and c.get("tool_use_id") in uses:
                 name, inp = uses[c["tool_use_id"]]
                 out, cmd = text_of(c.get("content", "")), inp.get("command", "")
@@ -124,7 +132,7 @@ def measure(events, src, log):
                 if m["first"] is None:
                     m["first"] = {"cmd": cmd, "got": out.splitlines()[:3]}
                 session.append("$ %s\n%s" % (cmd, "\n".join(out.splitlines()[:60])))
-                if c["tool_use_id"] in denied or not SA_CMD.match(cmd):
+                if c["tool_use_id"] in denied or not SA_CMD.search(cmd):
                     continue
                 m["sa_cmds"] += 1
                 m["piped"] += bool(re.search(r"[|>]", cmd))
@@ -247,15 +255,15 @@ def main():
     ap.add_argument("--personas", default="hurried,scientific")
     ap.add_argument("--tasks", help="ids, comma-separated (named held-out ones run)")
     ap.add_argument("--include-held-out", action="store_true")
-    ap.add_argument("--days", type=int, default=7, help="snapshot: files modified in N days")
+    ap.add_argument("--days", type=int, default=7, help="snapshot: last N days")
     ap.add_argument("--rev", help="run sa from a worktree of REV")
     ap.add_argument("--baseline", help="a previous run dir")
-    ap.add_argument("--model", help="agent model (default: claude's)")
-    ap.add_argument("--grader-model", help="grader model (default: claude's)")
+    ap.add_argument("--model", help="agent model")
+    ap.add_argument("--grader-model", help="grader model")
     ap.add_argument("--budget", type=float, default=2.0, help="max USD per agent run")
-    ap.add_argument("--repeat", type=int, default=1, help="runs per cell, side by side")
+    ap.add_argument("--repeat", type=int, default=1, help="runs per cell")
     ap.add_argument("--jobs", type=int, default=3, choices=(1, 2, 3))
-    ap.add_argument("--keep", action="store_true", help="keep the temp dir")
+    ap.add_argument("--keep", action="store_true", help="keep temp dir")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     jobs = load_tasks(args)

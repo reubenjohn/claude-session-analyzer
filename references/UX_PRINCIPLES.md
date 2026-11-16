@@ -1,4 +1,4 @@
-# UX principles — binding on every screen the CLI prints
+# UX principles — binding on every screen the CLI prints and every file the repo holds
 
 Ruled by the owner (D-UX-PRINCIPLES). Three principles; every UX rule, test and
 grader finding is an INSTANCE of one. A rule met by breaking a principle is a
@@ -39,7 +39,7 @@ raises one: new text is paid for by removing text.
 
 | Screen | Budget |
 |---|---|
-| default `context` (fixture) | 46 lines, 3,228 chars (D-OUTPUT-CAP) |
+| default `context`, `spend` (fixture and `tests/corpora.realistic`) | 46 lines, 3,228 chars (D-OUTPUT-CAP) |
 | `-h` | 25 lines |
 | one term's explanation | 6 lines |
 | an error | 2 lines |
@@ -47,6 +47,28 @@ raises one: new text is paid for by removing text.
 
 Also measured, never grown without a ruling: lines repeated on every run,
 coined terms per screen.
+
+## The project is a screen too
+
+The same three principles bind the repo: its files, modules and docs are
+what the next agent or contributor reads.
+1. Learnable: one concept lives in one place; `AGENTS.md` is the manual and
+   every other file is reachable from it; modules compose (a stage takes
+   facts and returns facts) rather than special-casing.
+2. Legible: a file earns its place. Superseded proposals, feedback logs and
+   one-off designs are folded into the ruling they produced, then deleted
+   (git keeps them). File-size caps are budgets; fewer files is progress.
+3. Trustworthy: every claim in a doc is pinned by a test or a dated
+   measurement; a stale doc is a bug.
+
+## Smell tests (how the owner reads a screen)
+- "How would a user even know that?" It must be visible on screen, not in a doc.
+- "That's a wall." More than one idea per line, or a block nobody reads.
+- "That's a new concept." It must retire one; patches per complaint are rejected.
+- "You're hiding it." Depth is an invitation: one announced, learnable step away.
+  The curious user's details (how a number is checked) are what make the tool
+  worth learning; lay them out to be learned, never cut them.
+- "Is it a slide?" One message, then its evidence, then the way deeper.
 
 ## Tensions to expect
 1 vs 3: fewer concepts vs a path to every figure.

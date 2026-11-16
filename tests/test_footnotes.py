@@ -1,72 +1,82 @@
 """The ``*`` footnotes and the next-step hint: every term the body marks is
-in the key, every key term is marked once in the body, and the hint follows
-the headline's levers down to ``--by fact``."""
+defined under ``-v``, every term ``-v`` defines is marked once in the body,
+and the hint follows the headline's levers down to ``by change``."""
 import re
 from types import SimpleNamespace
 
 import pytest
 
 import fixtures as fx
-from sa import cli, glossary, render, residual, schema, tables
+from sa import cli, glossary, grammar, notes, render, residual, schema
 
 STAR = re.escape(glossary.MARKER)
+CATCH_ALL = re.compile(r" \(%s \w+\)$" % grammar.BY)  # a catch-all row's entry: ``no tool (by tool)``
 
 
 def _split(out):
-    lines = out.splitlines()
-    at = next(i for i, line in enumerate(lines) if line.startswith(tables.KEY_TITLE))
-    end = lines.index("", at)
-    return lines[:at] + lines[end:], lines[at + 1:end]
+    """The body and the ``-v`` block's marked words, as -v prints them."""
+    block = fx.verbose(out)
+    body = out.replace("\n".join(block), "")
+    at = [i for i, line in enumerate(block) if line.startswith(notes.HEAD)][-1]
+    words = fx.key("\n".join(block[at:]))
+    return body, [label for label, _ in words if not CATCH_ALL.search(label)]
 
 
-@pytest.mark.parametrize("args", [("context",), ("spend",), ("context", "--where", "tool=Bash"),
-                                  ("context", "--by", "fact"), ("spend", "--by", "subagent")])
-def test_the_marked_terms_and_the_key_terms_are_one_set(tmp_path, args):
-    out = fx.run_cli(*args, "--root", str(fx.cli_corpus(tmp_path)))[1]
-    body, key = _split(out)
-    keyed = [re.match(r"^  (\S+(?: \S+)*?)%s +=" % STAR, line).group(1) for line in key]
+@pytest.mark.parametrize("args", [("context",), ("spend",), ("context", "tool=Bash"),
+                                  ("context", "by", "change"), ("spend", "by", "subagent")])
+def test_the_marked_terms_and_the_defined_terms_are_one_set(tmp_path, args):
+    out = fx.run_cli(*args, "--root", str(fx.cli_corpus(tmp_path)), "-v")[1]
+    body, keyed = _split(out)
     known = {glossary.printed(t) for t in glossary.GLOSSARY}
     spelt = sorted(known | {t.replace("_", " ") for t in known}, key=len, reverse=True)  # as printed
-    marked = re.findall(r"(?<![\w-])(%s)s?%s" % ("|".join(map(re.escape, spelt)), STAR), "\n".join(body))
+    marked = re.findall(r"(?<![\w-])(%s)s?%s" % ("|".join(map(re.escape, spelt)), STAR), body)
     assert keyed and marked  # vacuity guard
-    assert len(re.findall(STAR, "\n".join(body))) == len(marked)  # every marker is on a term
+    assert len(re.findall(STAR, body)) == len(marked)  # every marker is on a term
     assert set(marked) == set(keyed) and len(keyed) == len(set(keyed))
     assert all(glossary.key_of(t) in glossary.GLOSSARY for t in keyed)
-    once = [t for t in keyed if t != tables.RESIDUAL_LABEL]  # every table labels its residual row
-    assert all(len(re.findall(r"(?<!\w)%ss?%s" % (t, STAR), "\n".join(body))) == 1 for t in once)
-    assert re.search(r"explain %s$" % re.escape(keyed[0]), next(
-        line for line in out.splitlines() if line.startswith(tables.KEY_TITLE)))
+    assert all(len(re.findall(r"(?<!\w)%ss?%s" % (re.escape(t), STAR), body)) == 1 for t in keyed)
 
 
-@pytest.mark.parametrize("args, hint", [
-    (("context",), "--where %s=%s" % (schema.PEAK_DIM, schema.BANDS[-1])),  # the fullest band first
-    (("context", "--where", "peak=0-50K"), "--where %s=Bash" % schema.TOOL_DIM),  # one band: no lead
-    (("context", "--where", "tool=Bash"), "--by fact"),  # past a drill pin, no band: its command is implied
-    (("context", "--where", "command=Bash:pytest"), "--by fact"),  # a command pinned: the leaves next
-    (("context", "--where", "peak=200K+", "--where", "tool=Bash"), "--by fact"),  # its command is implied
-    (("context", "--where", "peak=200K+", "--where", "command=Bash:pytest"), "--by fact"),
-    (("spend",), "--where %s=agent-fake1" % schema.SUBAGENT_DIM),
-    (("spend", "--where", "subagent=agent-fake1"), "--by fact"),
-    (("context", "--by", "fact"), None)])
-def test_the_hint_follows_the_headline_levers(tmp_path, args, hint):
-    out = fx.run_cli(*args, "--root", str(fx.cli_corpus(tmp_path)))[1]
+def _next(view, root, by=None, add=(), pins=()):
+    return render.NEXT + grammar.Invocation(view, tuple(pins), None, str(root)).command(by=by, add=add)
+
+
+CHANGE = grammar.FACTS["context"]
+
+
+@pytest.mark.parametrize("args, by, add", [
+    (("context",), None, [(schema.PEAK_DIM, schema.BANDS[-1])]),  # the fullest band first
+    (("context", "peak=0-50K"), None, [(schema.TOOL_DIM, "Bash")]),  # one band: no lead
+    (("context", "tool=Bash"), CHANGE, []),  # past a drill pin, no band: its command is implied
+    (("context", "command=Bash:pytest"), CHANGE, []),  # a command pinned: the leaves next
+    (("context", "peak=200K+", "tool=Bash"), CHANGE, []),  # its command is implied
+    (("context", "peak=200K+", "command=Bash:pytest"), CHANGE, []),
+    (("spend",), None, [(schema.SUBAGENT_DIM, "agent-fake1")]),
+    (("spend", "subagent=agent-fake1"), grammar.FACTS["spend"], []),
+    (("context", "by", CHANGE), None, None)])
+def test_the_hint_follows_the_headline_levers(tmp_path, args, by, add):
+    root = fx.cli_corpus(tmp_path)
+    out = fx.run_cli(*args, "--root", str(root))[1]
     hints = [line for line in out.splitlines() if line.startswith(render.NEXT)]
-    assert hints == ([render.NEXT + hint] if hint else [])
-    if hint:  # the last line of the answer, before the tables
+    pins = [tuple(a.split("=", 1)) for a in args[1:] if "=" in a]
+    assert hints == ([_next(args[0], root, by, add, pins)] if add is not None else [])
+    if add is not None:  # the last line of the answer, before the tables; it pastes and runs
         assert fx.sections(out)[1][-1] == hints[0]
+        assert fx.run_cli(*hints[0][len(render.NEXT + grammar.PROG) + 1:].split())[0] == 0
 
 
 def test_the_help_path_is_the_hint_chain():
     """The -h path pins what each hint pins, in order: the view's leads,
-    its levers, then the leaves."""
-    out = fx.run_cli("-h")[1]
-    steps = re.findall(r"^\s+\d\. [\w :,]+?\s{2,}(?:--where (\w+)=\S+|--by (fact))$", out, re.M)
-    numbers = re.findall(r"^\s+(?:context  )?(\d)\. ", out[out.index("  context  1. "):], re.M)
-    assert numbers == [str(i) for i in range(1, len(steps) + 2)]  # numbered, run in order
+    then its levers, then the facts."""
     view = cli.VIEWS["context"]
-    assert len(steps) == len(view.leads) + len(view.levers) + 1 > 2  # vacuity guard: the path printed
-    assert [where or by for where, by in steps] == list(view.leads + view.levers) + [render.FACT]
-    assert render.NEXT.split(":")[0] in out
+    path = [line.split("  ")[1] for line in grammar.HELP.splitlines()
+            if line.startswith("  %s context" % grammar.PROG)]
+    pinned = []
+    for step in path:
+        pinned += [w.split("=")[0] for w in step.split() if "=" in w and w.split("=")[0] not in pinned]
+    chain = list(view.leads + view.levers)
+    assert len(pinned) >= 2 and pinned == chain[:len(pinned)]  # vacuity guard: the path pins
+    assert any("%s %s" % (grammar.BY, CHANGE) in step for step in path)
 
 
 def test_under_a_pinned_tool_the_hint_names_its_top_command():
@@ -75,25 +85,26 @@ def test_under_a_pinned_tool_the_hint_names_its_top_command():
                            {cli.VIEWS["context"].metric: mass}, None, {}, None)
     sel = SimpleNamespace(facts=[fact("Bash:sed", 30), fact("Bash:cat", 20), fact("Bash:sed", 5)],
                           where=[(schema.TOOL_DIM, "Bash")], drill=[(schema.TOOL_DIM, "Bash")], calls=1)
-    assert render.next_step(cli.VIEWS["context"], sel, None) == [render.NEXT + "--where command=Bash:sed"]
+    inv = grammar.Invocation("context", ((schema.TOOL_DIM, "Bash"),))
+    assert render.next_step(cli.VIEWS["context"], sel, None, inv) == [
+        render.NEXT + inv.command(add=[(schema.COMMAND_DIM, "Bash:sed")])]
 
 
-def test_explain_unassigned_says_what_it_holds_in_each_table():
-    code, out, err = fx.run_cli("explain", tables.RESIDUAL_LABEL)
-    assert code == 0, err
-    for dim in residual.RESIDUAL_NOTES:
-        assert "  by %s: %s" % (dim, residual.residual_cases(dim)) in out.splitlines()
+@pytest.mark.parametrize("dim", [d for d, (_, cases) in residual.RESIDUAL_NOTES.items() if cases])
+def test_v_says_what_a_catch_all_row_can_hold(tmp_path, dim):
+    out = fx.run_cli("context", "--root", str(fx.cli_corpus(tmp_path)), grammar.BY, dim, "-v")[1]
+    assert re.search(r"^%s%s?\s" % (re.escape(residual.label(dim)), STAR), out, re.M)  # vacuity guard: it prints
+    assert dict(fx.key(out))["%s (%s %s)" % (residual.label(dim), grammar.BY, dim)] == residual.residual_cases(dim)
 
 
 def test_a_value_named_like_a_term_is_never_marked(tmp_path):
-    """Projects named ``unassigned`` and ``ambiguous`` are values: their
-    rows take no marker, while the term ``ambiguous`` is still marked
-    where the checks print it, and the key holds only what is marked."""
-    root = fx.cli_corpus(tmp_path, projects=(tables.RESIDUAL_LABEL, schema.AMBIGUOUS))
-    out = fx.run_cli("context", "--root", str(root), "--by", schema.PROJECT_DIM)[1]
+    """Projects named ``window`` and ``ambiguous`` are values: their rows
+    take no marker, while the term ``ambiguous`` is still marked where the
+    cause table prints it."""
+    root = fx.cli_corpus(tmp_path, projects=(schema.WINDOW_DIM, schema.AMBIGUOUS))
+    out = fx.run_cli("context", "--root", str(root), grammar.BY, schema.PROJECT_DIM, "-v")[1]
     rows = [line for line in out.splitlines()
-            if line.split()[:1] in ([tables.RESIDUAL_LABEL], [schema.AMBIGUOUS])]
+            if line.split()[:1] in ([schema.WINDOW_DIM], [schema.AMBIGUOUS])]
     assert len(rows) == 2 and not any(glossary.MARKER in row for row in rows)  # vacuity guard: both print
-    assert glossary.marked(schema.AMBIGUOUS) in out.splitlines()[-1]  # the term, where it is one
-    keyed = [label for label, _ in fx.key(out)]
-    assert schema.AMBIGUOUS in keyed and tables.RESIDUAL_LABEL not in keyed
+    default = fx.run_cli("context", "--root", str(root))[1]
+    assert re.search(r"^%s\s" % re.escape(glossary.marked(schema.AMBIGUOUS)), default, re.M)  # the term, a cause

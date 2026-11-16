@@ -1,11 +1,11 @@
-"""``--by fact``: an ambiguous change's candidates each carry their size as
+"""``by change``: an ambiguous change's candidates each carry their size as
 the transcript records it, characters of text, never tokens."""
 import re
 
 import pytest
 
 import fixtures as fx
-from sa import leaves, schema, walk
+from sa import leaves, query, schema, walk
 
 
 def _records(typed=7):
@@ -27,11 +27,10 @@ def test_each_candidate_carries_its_recorded_characters(tmp_path):
     (ambiguous,) = [f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.AMBIGUOUS]
     sizes = [(c.chars, c.other) for c in ambiguous.evidence[schema.CANDIDATES]]
     assert sizes == [(1234, 0), (45, 1), (7, 0)]  # one per tool_result block, then the typed text
-    code, out, err = fx.run_cli("context", "--root", str(root), "--by", "fact", "--where",
-                                "%s=%s" % (schema.CAUSE_DIM, schema.AMBIGUOUS))
+    code, out, err = fx.run_cli("context", "--root", str(root), "by", "change", "%s=%s" % (schema.CAUSE_DIM, schema.AMBIGUOUS))
     assert code == 0, err
     lines = out.splitlines()
-    at = lines.index(next(l for l in lines if l.strip() == schema.CANDIDATES + ":" + leaves.HEAVIEST))
+    at = lines.index(next(l for l in lines if l.strip() == "%s: %s" % (schema.CANDIDATES, leaves.HEAVIEST)))
     assert [re.search(r"  ([\d,]+ characters(?: \+ \d+ non-text)?)  ", l).group(1)
             for l in lines[at + 1:at + 4]] == ["1,234 characters", "45 characters + 1 non-text", "7 characters"]
     assert "token" not in "".join(lines[at:at + 4])  # never converted
@@ -43,8 +42,7 @@ def test_candidates_print_largest_first(tmp_path):
     root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": _records(typed=5000)})
     (ambiguous,) = [f for f in fx.load_facts(root)[1] if f.dims.get(schema.CAUSE_DIM) == schema.AMBIGUOUS]
     assert [c.chars for c in ambiguous.evidence[schema.CANDIDATES]] == [1234, 45, 5000]
-    out = fx.run_cli("context", "--root", str(root), "--by", "fact", "--where",
-                     "%s=%s" % (schema.CAUSE_DIM, schema.AMBIGUOUS))[1]
+    out = fx.run_cli("context", "--root", str(root), "by", "change", "%s=%s" % (schema.CAUSE_DIM, schema.AMBIGUOUS))[1]
     assert re.findall(r"  ([\d,]+) characters", out) == ["5,000", "1,234", "45"]
 
 
@@ -58,6 +56,7 @@ def test_a_per_call_leaf_without_its_population_raises(tmp_path):
     """The part of the average divides by ``query.per``: no calls, no figure."""
     facts = fx.load_facts(fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": _records()}))[1]
     calls = sum(f.kind == schema.CALL for f in facts)
-    assert len(leaves.leaves(facts, fx.HELD, 5, calls)) > 1  # vacuity guard: with them, lines
+    total = query.total(facts, fx.HELD, calls)
+    assert len(leaves.leaves(facts, fx.HELD, calls, total)) > 1  # vacuity guard: with them, lines
     with pytest.raises(schema.SchemaError):
-        leaves.leaves(facts, fx.HELD, 5)
+        leaves.leaves(facts, fx.HELD, None, total)

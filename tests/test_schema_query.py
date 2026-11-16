@@ -5,7 +5,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import query, schema
+from sa import grammar, query, schema
 from sa.schema import Locator
 
 
@@ -143,23 +143,21 @@ def test_narrow_refuses_an_undeclared_value_and_an_open_one_no_fact_carries(fact
         assert query.narrow(without, [(dim, vocabulary[0])], fx.DELTA) == []  # declared: a zero, answered
     with pytest.raises(schema.SchemaError) as refused:
         query.narrow(facts, [(schema.TOOL_DIM, "bogus")], fx.DELTA)
-    assert str(refused.value).endswith("present: Bash")  # the one tool an exact increment carries
+    assert refused.value.present == ["Bash"]  # the one tool an exact increment carries
     assert not query.select(facts, [(schema.TOOL_DIM, "bogus")])  # the plain filter just matches nothing
 
 
-def test_a_refusal_names_the_first_values_present_and_counts_the_rest():
-    def booked(tool):
+def test_a_refusal_carries_every_value_present_by_mass_for_the_cli_to_word():
+    def booked(tool, mass):
         return schema.fact(schema.INCREMENT, {schema.CAUSE_DIM: schema.TOOL_RESULT, schema.TOOL_DIM: tool},
-                           {fx.DELTA: 1}, Locator("f", 1, None))
-    many = [booked("t%02d" % i) for i in range(query.LISTED + 3)]
-    with pytest.raises(schema.SchemaError) as refused:
+                           {fx.DELTA: mass}, Locator("f", 1, None))
+    many = [booked("t%02d" % i, 100 - i) for i in range(12)]
+    with pytest.raises(query.NoMatch) as refused:
         query.narrow(many, [(schema.TOOL_DIM, "bogus")], fx.DELTA)
-    message = str(refused.value)  # what the cli prints: the text, never a repr
-    assert message.endswith("t%02d (+3 more; --by %s lists them all)" % (query.LISTED - 1, schema.TOOL_DIM))
-    assert "t%02d" % query.LISTED not in message
-    with pytest.raises(schema.SchemaError) as refused:
-        query.narrow(many[:query.LISTED], [(schema.TOOL_DIM, "bogus")], fx.DELTA)
-    assert str(refused.value).endswith("t%02d" % (query.LISTED - 1))  # at the cap, every value is named
+    assert refused.value.dim == schema.TOOL_DIM and refused.value.value == "bogus"
+    assert refused.value.present == ["t%02d" % i for i in range(12)]  # every one, largest first
+    message = grammar.no_match("context", schema.TOOL_DIM, "t00x", refused.value.present, "x", given=True)
+    assert "nearest: %s=t00" % schema.TOOL_DIM in str(message) and "pins before it" in str(message)
 
 
 def test_select_matches_every_pair_regardless_of_order(facts):
@@ -182,12 +180,10 @@ def test_relabels_maps_only_dimensions_that_split_the_facts_alike(tmp_path):
     assert query.relabels(facts, schema.SUBAGENT_DIM, schema.SESSION_DIM, fx.DELTA) is None
     assert query.relabels(facts, schema.CAUSE_DIM, schema.TOOL_DIM, fx.DELTA) is None
     out = fx.run_cli("context", "--root", str(fx.cli_corpus(tmp_path / "cli")))[1]
-    # Session and project both repeat the peak table (its 200K+ band is
-    # proj-b's one window): they share its one line, labels per row.
-    assert query.relabels(facts, schema.PEAK_DIM, schema.SESSION_DIM, fx.DELTA)  # vacuity guard
-    assert "\nby %s, %s: the rows above, labelled sess-0002 / proj-b, sess-0001 / proj-a\n" % (
-        schema.SESSION_DIM, schema.PROJECT_DIM) in out
-    assert not re.search(r"^by %s\s" % schema.PROJECT_DIM, out, re.M)  # guard: no table besides
+    # The command table repeats the tool table row for row: one line, its labels per row.
+    assert "\nby %s: the rows above, labelled Bash:pytest\n" % schema.COMMAND_DIM in out
+    assert not re.search(r"^by %s\s" % schema.COMMAND_DIM, out, re.M)  # guard: no table besides
+    assert re.search(r"^by %s\s" % schema.TOOL_DIM, out, re.M)  # vacuity guard: the table it repeats
 
 
 def test_a_window_peak_band_includes_its_lower_edge_and_is_whole_window(tmp_path):

@@ -6,34 +6,48 @@ from .reconciliation import Reconciliation, reconcile
 from .schema import Fact
 
 Where = Iterable[Tuple[str, str]]
-LISTED = 20  # values a refusal names before counting the rest
 
 
 def select(facts: Iterable[Fact], where: Where) -> List[Fact]:
     """Facts whose dimensions equal every ``(dim, value)`` pair. The plain
-    filter; ``narrow`` is the checked one."""
+    filter; ``narrow`` is the checked one. A value of None selects the
+    catch-all row: the facts that lack ``dim``, a shrink aside unless
+    ``dim`` keeps whole windows (a shrink is its own row in every table)."""
     pairs = list(where)
-    return [f for f in facts if all(f.dims.get(dim) == value for dim, value in pairs)]
+    return [f for f in facts if all(_holds(f, dim, value) for dim, value in pairs)]
+
+
+def _holds(f: Fact, dim: str, value: Optional[str]) -> bool:
+    if value is not None:
+        return f.dims.get(dim) == value
+    return dim not in f.dims and (dim in schema.WINDOW_DIMENSIONS
+                                  or f.dims.get(schema.CAUSE_DIM) != schema.SHRINK)
+
+
+class NoMatch(schema.SchemaError):
+    """A pin no fact carries given the pins before it: its dimension, its
+    value and the values present (``grammar.no_match`` words it)."""
+
+    def __init__(self, dim: str, value: Optional[str], present: List[str]):
+        super().__init__("no fact carries %s=%s given the pins before it" % (dim, value))
+        self.dim, self.value, self.present = dim, value, present
 
 
 def narrow(facts: List[Fact], where: Where, metric: str) -> List[Fact]:
     """Select pair by pair, refusing any pair that would print a confident
     zero: an undeclared dimension or value, a dimension the metric's carrier
-    never has, or an open-vocabulary value no fact still carries, named
-    with the values present by descending |mass| (the data's own
-    vocabulary, given the pairs before it). A declared value no fact
+    never has, or an open-vocabulary value no fact still carries
+    (``NoMatch``, with the values present by descending |mass|: the
+    data's own vocabulary, given the pairs before it). A declared value no fact
     carries is a measured zero, not a typo, and is answered."""
     carrier = schema.metric(metric).carrier
     for dim, value in where:
-        schema.check_value(schema.check_dimension(dim, carrier), value)
+        schema.check_dimension(dim, carrier)
+        if value is not None:
+            schema.check_value(dim, value)
         kept = select(facts, [(dim, value)])
-        if dim not in schema.VOCABULARY and not any(f.kind == carrier for f in kept):
-            present = values(facts, dim, metric)  # built for the refusal only
-            listed = ", ".join(present[:LISTED]) or "none"
-            if len(present) > LISTED:
-                listed += " (+%d more; --by %s lists them all)" % (len(present) - LISTED, dim)
-            raise schema.SchemaError("no %s carry %s=%s; present: %s"
-                                     % (schema.PLURAL[carrier], dim, value, listed))
+        if (dim not in schema.VOCABULARY or value is None) and not any(f.kind == carrier for f in kept):
+            raise NoMatch(dim, value, values(facts, dim, metric))
         facts = kept
     return facts
 

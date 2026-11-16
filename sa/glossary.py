@@ -1,10 +1,10 @@
 """The glossary: every term the output prints, in plain words, and why its
-number might surprise. It drives ``sa explain``, the key
-under the tables, the ``*`` markers and ``--help``; a test holds that every
-declared term has an entry.
+number might surprise. It drives ``-v`` (``notes``), the ``*`` markers
+and a cause row's gloss; a test holds that every declared term has an
+entry. It shrinking is progress (UX_PRINCIPLES 2).
 
 A term is its internal key (``schema``'s spelling); ``PRINTED`` names the
-few the output spells otherwise, and ``explain`` accepts either. ``marked``
+few the output spells otherwise, and ``key_of`` accepts either. ``marked``
 terms, the irreducible concepts, print with ``MARKER``; ``brief`` is the
 one clause the key prints for an entry, the full text staying here.
 """
@@ -13,9 +13,6 @@ from typing import Dict, NamedTuple
 from . import schema
 from .schema import SchemaError
 
-RESIDUAL_LABEL = "unassigned"  # the residual row: never in a share, never hidden
-EXACT = "exact"
-DRILL = "drill"
 GROWTH = "growth"  # the headline's line for what the windows added after their start
 GAP = "gap"  # the checks' unit: one call to the next
 AVERAGE = "average_context_per_call"  # the headline's level: what a call held, averaged
@@ -36,20 +33,21 @@ class Term(NamedTuple):
     meaning: str
     surprise: str
     marked: bool = False
-    brief: str = ""  # the key's one clause; the meaning when empty
+    brief: str = ""  # one clause; the meaning when empty
+    gloss: str = ""  # a cause's few words beside its row, where the line has room
 
 
 GLOSSARY: Dict[str, Term] = {
     schema.WINDOW_DIM: Term(
         "one context window: from a session start, subagent, fork, replay or compaction to"
-        " its file's end or the next compaction; named by the 8 hex characters --by window"
-        " prints: pin one with --where window=<those 8>",
+        " its file's end or the next compaction; named by the 8 hex characters by window"
+        " prints: pin one with window=<those 8>",
         "a file holds one window per compaction that a call follows; a file with no call"
         " is read but is no window", True,
         "one context window, from its start to its file's end or the next compaction"),
     schema.STARTED_BY_DIM: Term("what began the window: " + ", ".join(schema.STARTS),
                                 "a compaction starts a new window in the same file; its starting"
-                                " context re-counts the system prompt; %s explain fork, replayed" % PROG),
+                                " context re-counts the system prompt"),
     schema.PEAK_DIM: Term("how full the window got: the band its largest call's context fell in, "
                           + ", ".join(schema.BANDS) + " tokens (K = 1,000; a band includes its lower"
                           " edge, so 200,000 is 200K+)",
@@ -112,16 +110,16 @@ GLOSSARY: Dict[str, Term] = {
                                   "each call writes one cache tier only"),
     schema.PROJECT_DIM: Term("the project directory the session ran in, path-encoded (/ as -),"
                              " home printed as ~",
-                             "a long name prints as its tail in a default table; --by prints it whole"),
+                             "a long name widens its table"),
     schema.SESSION_DIM: Term("a session id: its main window and every subagent window",
-                             "--where session= keeps the subagents too; --where window= isolates one"),
+                             "session= keeps the subagents too; window= isolates one"),
     schema.SUBAGENT_DIM: Term("a subagent: its type and the first 8 of its id where the transcripts"
-                              " record the type, else its id; --where takes either; a main window has none",
-                              "main windows are the unassigned row of by subagent"),
+                              " record the type, else its id; a pin takes either; a main window has none",
+                              "main windows are the catch-all row of by subagent"),
     schema.CAUSE_DIM: Term("what kind of thing put the tokens in the context",
                            "starting_context is often the largest and cannot be split further"),
     schema.TOOL_DIM: Term("the tool whose result put the tokens there",
-                          "context the model wrote or you typed has no tool: it is unassigned"),
+                          "context the model wrote or you typed has no tool: its row is no tool"),
     schema.COMMAND_DIM: Term("<tool>:<summary>: a Bash command's first command word (Bash:git) or"
                              " a file tool's file extension (Read:py)",
                              "never a path; python3 x.py is Bash:python3"),
@@ -133,43 +131,39 @@ GLOSSARY: Dict[str, Term] = {
         "it is not split by content: the transcript records no size for each part. The lever is"
         " how many windows start (subagent starts are usually most of it) and what each start"
         " loads", True, "what a window held at its first call: system prompt, tools, CLAUDE.md,"
-        " first message or summary"),
+        " first message or summary", gloss="held at a window's first call"),
     schema.INHERITED: Term("what a fork or replayed window copied: its parent window's size at"
                            " the branch call",
                            "every fork call held it, so the average counts it per fork call, as the"
                            " parent's own calls count theirs; a row only when such a fork is in"
-                           " view; its breakdown is the parent's up to that call"),
+                           " view; its breakdown is the parent's up to that call", gloss="a fork's copy of its parent"),
     schema.REPLIES: Term("Claude's replies, tool-call inputs included, read back by the next call",
-                         "it is what the model wrote, not what a tool returned"),
+                         "it is what the model wrote, not what a tool returned",
+                         gloss="Claude's replies, read back"),
     schema.TOOL_RESULT: Term("a tool's output, booked exactly to its tool and command",
-                             "the part you can act on: drill it with --where tool="),
+                             "the part you can act on: pin it with tool=", gloss="tools' output"),
     schema.USER_TEXT: Term("text typed into the window (by you or a hook)",
-                           "usually small: typing rarely fills a window"),
+                           "usually small: typing rarely fills a window", gloss="typed by you or a hook"),
     schema.AMBIGUOUS: Term(
         "the growth between two calls not booked to one contributor: " + ", ".join(
             "%s (%s)" % r for r in ((schema.SEVERAL, "more than one entered"),
                                     (schema.LESS_THAN_REPLY, "grew by less than the previous call's reply"),
                                     (schema.UNEXPLAINED, "none did")))
         + "; never spread over them",
-        "it still names a tool when every candidate came from one; --by fact lists the"
+        "it still names a tool when every candidate came from one; by change lists the"
         " candidates", True, "growth with no one contributor, left undivided; a tool's row"
-        " counts it when every candidate is that tool's"),
+        " counts it when every candidate is that tool's", gloss="no one contributor: undivided"),
     schema.SHRINK: Term("a window that got smaller between two calls (often, not always, a"
                         " compaction): a negative row",
                         "excluded from every share, always in the checks", True,
-                        "the window got smaller (often a compaction); negative, in no share"),
+                        "the window got smaller (often a compaction); negative, in no share",
+                        gloss="the window got smaller; in no share"),
     schema.SEVERAL: Term("several results or texts entered between two calls",
                          "the tokens are not split between them"),
     schema.LESS_THAN_REPLY: Term("the window grew by less than the previous call's reply",
                                  "rare; the whole change stays ambiguous"),
     schema.UNEXPLAINED: Term("the context grew with nothing recorded to explain it",
                              "declared so it is labelled should it appear"),
-    RESIDUAL_LABEL: Term("the part of a table's total with no value for its dimension",
-                         "often most of the total: starting_context has no tool", True,
-                         "no value for this table's dimension (what it holds ends its row); in no share"),
-    EXACT: Term("a gap between two calls with one contributor that grew by at least the"
-                " previous call's reply: booked to it after subtracting that reply",
-                "exact given that model; bookkeeping attachments fold into the remainder"),
     GROWTH: Term("what the windows added after their start: every change between two calls,"
                  " shrinks aside. Its line names the largest tool and its tokens, then (→) the"
                  " largest command within that tool; '; top command' names a larger one elsewhere",
@@ -179,10 +173,6 @@ GLOSSARY: Dict[str, Term] = {
               " gap's growth is booked to one source (exact), left ambiguous, or shrank",
               "a gap can book two changes (the previous reply, then the rest) and each window's"
               " start is one more, so changes outnumber gaps"),
-    DRILL: Term("a --where pin on cause, tool, command or reason: narrows the changes inside"
-                " the windows kept",
-                "its figure is still per call of the whole windows in view, as their tables'"
-                " rows are; the checks cover those windows, not the drill"),
 }
 
 _KEYS = {printed: key for key, printed in PRINTED.items()}
@@ -195,7 +185,7 @@ def key_of(term: str) -> str:
     return term if term in GLOSSARY else term.replace(" ", "_")  # ``starting context`` as printed
 
 
-def explain(term: str) -> Term:
+def entry(term: str) -> Term:
     try:
         return GLOSSARY[key_of(term)]
     except KeyError:
@@ -208,7 +198,7 @@ def printed(term: str) -> str:
 
 
 def marked(term: str) -> str:
-    """The term as printed, with the explain marker when the glossary marks it."""
+    """The term as printed, with the marker when the glossary marks it."""
     entry = GLOSSARY.get(term)
     return printed(term) + MARKER if entry and entry.marked else printed(term)
 

@@ -4,15 +4,14 @@ checks. The tables are grouped here from the selection's facts; its total
 and reconciliation come with it, so nothing here decides the exit status."""
 from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
 
-from . import checks, glossary, headline, query, schema, style, tables, windows
+from . import checks, glossary, grammar, headline, leaves, notes, query, residual, schema, style, tables, windows
 from .corpus import Corpus
 from .query import Selection
 from .schema import Fact
-from .leaves import leaves
-from .tables import count, num, table
+from .tables import count, num
 
-FACT = "fact"  # the ``--by`` that prints the leaves, not a table
 KEPT = "in view"  # the population line: the windows the time filter and pins kept
+LIMIT = 5  # a default table's rows; ``by DIM`` prints every one
 
 
 class View(NamedTuple):
@@ -23,27 +22,32 @@ class View(NamedTuple):
     tables: Tuple[str, ...]  # printed by default
     levers: Tuple[str, ...]  # the headline walks down these; a value lies under one of the lever above
     reconciles: bool
-    notes: Tuple[str, ...]   # printed in the key, under the view's metric
+    notes: Tuple[str, ...]   # printed under ``-v``, for the view's metric
     starts: Optional[str] = None  # the dimension the starting context splits by; None: no such line
     leads: Tuple[str, ...] = ()  # ``schema.ORDERED`` dimensions the hint pins, at their first value, before the levers
+    also: Tuple[str, ...] = ()  # the ``also by:`` line's order, any other open dimension after them
 
 
-def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit: int,
-           since_default: bool = False, forest: List[Fact] = (),
+def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], inv: grammar.Invocation,
+           verbose: bool = False, forest: List[Fact] = (),
            names: Optional[Dict[str, str]] = None) -> List[str]:
     """Every line of the view, in reading order: the scope (what was read
-    and kept), the answer (the headline and its lever walk, the peak), the
-    tables a pin left open (``--by`` one dimension's table with its labels
-    whole, or the leaves for ``fact``), one key for every note they call
-    for, and the checks. The cause table of a whole-window view closes with
-    its total, the average, against the calls' mean size."""
+    and kept), the answer (the headline and its lever walk, the next
+    command), the tables a pin left open (``by DIM`` that one table whole,
+    or the facts themselves), ``also by:`` the tables not shown, the
+    ``-v`` footer (or its block), and the checks. The cause table of a
+    whole-window view closes with its total, the average, against the
+    calls' mean size."""
     spec = schema.metric(view.metric)
-    notes = {glossary.printed(view.metric): n for n in view.notes}  # a view's own clause for a term
-    if by == FACT:
-        body = leaves(sel.facts, view.metric, limit, sel.calls) + [""]
+    facts_by = grammar.FACTS[inv.view]
+    shown, body, catch_alls = [], [], []
+    if by == facts_by:
+        body = leaves.leaves(sel.facts, view.metric, sel.calls, sel.total, [d for d, _ in sel.where], names,
+                             LIMIT, lambda w: inv.command(by=schema.WINDOW_DIM) if w is None else inv.command(
+                                 by=facts_by, add=[(schema.WINDOW_DIM, w)])) + [""]
     else:
         dims = [by] if by else headline.open_dims(sel, view.tables, spec.carrier)
-        body, above, repeats = [], None, []
+        above, repeats, printed = None, [], []
         for dim in dims:
             grouped = query.group(sel.facts, dim, view.metric, sel.calls)
             if dim in schema.ORDERED:  # bands read fullest first, not by mass
@@ -51,7 +55,8 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
                 grouped = grouped._replace(rows=sorted(grouped.rows, key=lambda r: (
                     r.kind != query.REGULAR, order.index(r.value) if r.kind == query.REGULAR else 0)))
             labels = above and query.relabels(sel.facts, above.dim, dim, view.metric)
-            if labels and len(labels) <= limit:  # the table would repeat the one above
+            printed.append(dim)
+            if labels and len(labels) <= LIMIT and not by:  # the table would repeat the one above
                 repeats.append((dim, labels))
                 line = tables.relabelled(above, repeats, names)
                 if len(repeats) > 1:  # the tables repeating one table share its line
@@ -60,31 +65,81 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
                     body.insert(-1, line)
             elif grouped.rows:
                 above, repeats = grouped, []
-                total = _total(view, sel) if dim == schema.CAUSE_DIM else None
                 counts = window_counts(sel, dim, view.metric)
-                body += table(grouped, view.metric, limit, whole=bool(by), total=total, names=names,
-                              counts=counts) + ([WHOLE_WINDOWS] if counts and sel.drill else []) + [""]
+                shown.append((grouped, counts))
+                if any(r.kind == query.RESIDUAL for r in grouped.rows):
+                    catch_alls.append(dim)
+                body += tables.table(
+                    grouped, view.metric, None if by else LIMIT,
+                    total=_total(view, sel) if dim == schema.CAUSE_DIM else None, names=names,
+                    counts=counts, more=inv.command(by=dim), parts=_parts(sel, dim, view.metric),
+                    glosses=GLOSSES if dim == schema.CAUSE_DIM else None) + (
+                    [WHOLE_WINDOWS] if counts and sel.drill else []) + [""]
+        if not by:
+            body += other_totals(view, sel, names) + also_by(sel, view, spec.carrier, printed)
     scope = [style.tag(line, style.SCOPE, values=getattr(line, "values", ()))
-             for line in population(view, sel, loaded, since_default, forest)]
-    above = (scope + [""] + headline.headline(view, sel, forest, names) + next_step(view, sel, by, names)
+             for line in population(view, sel, loaded, inv.since_text is None, forest, names)]
+    above = (scope + [""] + headline.headline(view, sel, forest, names) + next_step(view, sel, by, inv, names)
              + [""] + body)
-    lines, terms = tables.footnote(above + checks.footer(view, sel))
-    keyed = tables.key([(t, notes.get(t) or glossary.brief(glossary.key_of(t))) for t in terms])
-    return lines[:len(above)] + keyed + ([""] if keyed else []) + lines[len(above):]
+    if view.reconciles:
+        whole = inv._replace(pins=tuple(p for p in inv.pins if p[0] in schema.WINDOW_DIMENSIONS))
+        closing, worked = checks.context(sel, lambda c: whole.command(by=facts_by, add=[(schema.CAUSE_DIM, c)]))
+    else:
+        closing, worked = checks.spend(sel, [] if by == facts_by else [t for t, _ in shown])
+    lines, terms = notes.footnote(above + closing)
+    figures = notes.figures(view, sel, shown, by == facts_by, names)
+    block = notes.block(figures, terms, catch_alls, {glossary.printed(view.metric): view.notes})
+    catch_alls = [d for d in catch_alls if residual.RESIDUAL_NOTES.get(d, ("", []))[1]]  # a case list to tell
+    tail = block if verbose else notes.footer(len(figures), len(terms), len(catch_alls),
+                                              len(block) + len(worked), bool(worked))
+    sep = [""] if tail or above[-1] else []  # ``also by`` and the ``-v`` footer share a section: the ways deeper
+    return lines[:len(above)] + tail + sep + lines[len(above):] + (worked if verbose else [])
 
 
-def subagent_names(loaded_types: Dict[str, str], facts: Iterable[Fact]) -> Dict[str, str]:
-    """Each subagent id whose file's type ``loaded_types`` records (by file
-    name, ``corpus.agent_type``), as ``<type> <first 8 of its id>``, unless
-    that label would name two ids: those keep their whole id. Display and
-    ``--where`` only: the id stays the dimension's value."""
-    named = {f.dims[schema.SUBAGENT_DIM]: loaded_types[f.locator.file] for f in facts
-             if schema.SUBAGENT_DIM in f.dims and f.locator.file in loaded_types}
-    named = {i: "%s %s" % (kind, i[:8]) for i, kind in named.items()}
-    seen: Dict[str, int] = {}
-    for label in named.values():
-        seen[label] = seen.get(label, 0) + 1
-    return {i: label for i, label in named.items() if seen[label] == 1}
+def other_totals(view: View, sel: Selection, names: Optional[Dict[str, str]] = None) -> List[str]:
+    """For a view that does not reconcile, every other additive call
+    total, as a table over the population named."""
+    if view.reconciles:
+        return []
+    others = [(name, num(query.total(sel.facts, name))) for name, spec in schema.METRICS.items()
+              if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE and name != view.metric]
+    if not others:
+        return []
+    head = "other call totals, %s" % headline.over(sel, schema.CALL, names)
+    width, figures = max(len(n) for n, _ in others), max(len(v) for _, v in others)
+    return [style.tag(head, style.HEADER)] + ["%-*s  %*s" % (width, n, figures, v) for n, v in others] + [""]
+
+
+# A cause's gloss beside its row, where the line has room: never a synonym (UX_PRINCIPLES 2).
+GLOSSES = {c: glossary.GLOSSARY[c].gloss for c in schema.CAUSES if glossary.GLOSSARY[c].gloss}
+
+
+def _parts(sel: Selection, dim: str, metric: str) -> List[Tuple[str, float]]:
+    """The catch-all row's parts, largest first: its facts by cause (a
+    call, which has none, by what started its window)."""
+    carrier = schema.metric(metric).carrier
+    if dim not in schema.KIND_DIMENSIONS[carrier]:
+        return []
+    by = schema.CAUSE_DIM if schema.CAUSE_DIM in schema.KIND_DIMENSIONS[carrier] else schema.STARTED_BY_DIM
+    lacking = query.select(sel.facts, [(dim, None)])
+    if not lacking or by == dim:
+        return []
+    return [(r.value, r.mass) for r in query.group(lacking, by, metric, sel.calls).rows
+            if r.kind == query.REGULAR]
+
+
+ALSO = "also by: "
+
+
+def also_by(sel: Selection, view: View, carrier: str, printed: List[str]) -> List[str]:
+    """``also by: started_by, window, reason``: the tables a default screen
+    leaves out that would split its facts, each ``by DIM`` away."""
+    order = list(view.also) + [d for d in schema.KIND_DIMENSIONS[carrier] if d not in view.also]
+    rest = [d for d in headline.open_dims(sel, tuple(order), carrier) if d not in printed]
+    if not rest:
+        return []
+    text = ALSO + ", ".join(rest)
+    return [style.tag(text, "", values=((len(ALSO), len(text)),))]
 
 
 def window_counts(sel: Selection, dim: str, metric: str) -> Optional[tables.Counts]:
@@ -111,34 +166,37 @@ def window_counts(sel: Selection, dim: str, metric: str) -> Optional[tables.Coun
 
 
 # Under a drill, a window row's counts are of whole windows: those with a change the pins kept.
-WHOLE_WINDOWS = ("windows, calls, avg call: the whole windows with a matching change and all their"
-                 " calls; part of avg divides by every call in view")
-NEXT = "→ next: add "
+WHOLE_WINDOWS = "windows, calls, avg call: of whole windows with a matching change; part of avg ÷ all calls"
+NEXT = "→ next: "
 
 
-def next_step(view: View, sel: Selection, by: Optional[str],
+def next_step(view: View, sel: Selection, by: Optional[str], inv: grammar.Invocation,
               names: Optional[Dict[str, str]] = None) -> List[str]:
-    """One line under the headline, the path's next step: the fullest
-    ``peak`` band while the windows in view span several and no drill is
-    pinned (the view's ``leads``), then the pin that follows its own levers
-    (the top value of the first lever left open: the top tool, then within
-    a pinned tool its top command), or ``--by fact`` once none is open;
-    none when the leaves already print or there is nothing to show."""
+    """One line under the headline, the path's next step as a command that
+    pastes and runs, the current pins kept: the fullest ``peak`` band while
+    the windows in view span several and no drill is pinned (the view's
+    ``leads``), then the pin that follows its own levers (the top value of
+    the first lever left open: the top tool, then within a pinned tool its
+    top command), or the facts (``by change``) once none is open; none when
+    the facts already print or there is nothing to show."""
     carrier = schema.metric(view.metric).carrier
-    if by == FACT or not any(f.kind == carrier for f in sel.facts):
+    facts_by = grammar.FACTS[inv.view]
+    if by == facts_by or not any(f.kind == carrier for f in sel.facts):
         return []
+    add: List[Tuple[str, str]] = []
     for dim in headline.open_dims(sel, () if sel.drill else view.leads, carrier):
         present = {f.dims.get(dim) for f in sel.facts if f.kind == carrier}
-        top = next(v for v in schema.ORDERED[dim] if v in present)  # the fullest band
-        return [style.tag("%s--where %s=%s" % (NEXT, dim, top), style.HINT)]
-    for dim in headline.open_dims(sel, view.levers, carrier):
-        top = next((r for r in query.group(sel.facts, dim, view.metric, sel.calls).rows
-                    if r.kind == query.REGULAR), None)
-        if top is not None:
-            pin = "%s=%s" % (dim, tables.value(dim, top.value, names))
-            text = "%s--where %s" % (NEXT, "'%s'" % pin if " " in pin else pin)
-            return [style.tag(text, style.HINT, values=((len(NEXT), len(text)),))]
-    return [style.tag("%s--by %s" % (NEXT, FACT), style.HINT)]
+        add = [(dim, next(v for v in schema.ORDERED[dim] if v in present))]  # the fullest band
+        break
+    else:
+        for dim in headline.open_dims(sel, view.levers, carrier):
+            top = next((r for r in query.group(sel.facts, dim, view.metric, sel.calls).rows
+                        if r.kind == query.REGULAR), None)
+            if top is not None:
+                add = [(dim, tables.value(dim, top.value, names))]
+                break
+    text = NEXT + inv.command(by=None if add else facts_by, add=add)
+    return [style.tag(text, style.HINT, values=((len(NEXT), len(text)),))]
 
 
 def tools(view: View, sel: Selection) -> List[str]:
@@ -169,7 +227,7 @@ ORPHAN = ("its copy counts as its own", "their copies count as their own")
 
 
 def population(view: View, sel: Selection, loaded: Corpus, since_default: bool = False,
-               forest: Iterable[Fact] = ()) -> List[str]:
+               forest: Iterable[Fact] = (), names: Optional[Dict[str, str]] = None) -> List[str]:
     """The scope, first: the read, one line (the files its ``--since``
     kept, named with that window and the root, then what the read skipped
     or excluded, corpus-wide) and what the window pins kept: the windows (the files with
@@ -187,14 +245,15 @@ def population(view: View, sel: Selection, loaded: Corpus, since_default: bool =
                  % (count(sum(marks.values()), "compaction"), num(marks["started"]), num(marks["ended"]))
                  ] if marks else []
     plural = schema.PLURAL[carrier]
-    head = "read: %s %s under " % (count(len(loaded.files), "file"), since)
+    head = "read: %s %s under " % (count(len(loaded.files), "file"), since.replace("modified in the", "from the")
+                                   if loaded.since_days is not None else since)
     root = tables.tilde(loaded.root)  # a value: a directory named like a term is not the term
-    read = style.tag(head + root + ", %s skipped, %s excluded" % (
+    read = style.tag(head + root + "; %s skipped, %s" % (
         count(loaded.skipped_lines, "line"), count(loaded.duplicate_records, "duplicate")), "",
         values=((len(head), len(head) + len(root)),))
     orphaned = [" " * (len(KEPT) + 2) + "%s whose %s: %s" % (count(n, schema.FORK), why[n > 1], ORPHAN[n > 1])
                 for n, why in zip(query.orphan_forks(sel.window_facts, forest), ORPHANED) if n]
     return [read] + compacted + [
             "%s%s: %s, %s"
-            % (KEPT, headline.pins(sel.window_where), count(sel.n_windows, _window),
+            % (KEPT, headline.pins(sel.window_where, names), count(sel.n_windows, _window),
                count(sum(f.kind == carrier for f in sel.window_facts), plural[:-1], plural))] + orphaned

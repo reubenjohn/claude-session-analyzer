@@ -1,5 +1,5 @@
 """What the residual row, ``unassigned``, holds in a table by each
-dimension: the cases ``sa explain unassigned`` lists, and the one note a
+dimension: the cases ``-v`` lists, and the one note a
 table prints on that row, naming the cases its own facts fall in."""
 from typing import Callable, Dict, List, Sequence, Tuple
 
@@ -13,7 +13,7 @@ def _cause(cause: str) -> Callable[[dict], bool]:
 
 
 # What the residual row of a table by each dimension can hold, printed by
-# ``sa explain unassigned``, and noted on the row. An ambiguous change is residual when its candidates share no one
+# ``-v``, and summed into parts on the row. An ambiguous change is residual when its candidates share no one
 # tool (by tool) or no one command (by command); a tool_result, when its
 # tool_use did not resolve (by tool) or its tool has no command (by command).
 RESIDUAL_NOTES: Dict[str, Tuple[str, List[Case]]] = {
@@ -40,7 +40,13 @@ def residual_note(dim: str, residual: Sequence[dict]) -> str:
 
 
 def residual_cases(dim: str) -> str:
-    """Every case the residual row of a table by ``dim`` can hold: for
-    ``sa explain unassigned``."""
-    meaning, cases = RESIDUAL_NOTES[dim]
-    return meaning + (": " + ", ".join(text for text, _ in cases) if cases else "")
+    """Every case the catch-all row of a table by ``dim`` can hold: for
+    ``-v``, after its label."""
+    return ", ".join(text for text, _ in RESIDUAL_NOTES[dim][1])
+
+
+def label(dim: str) -> str:
+    """The catch-all row's label in a table by ``dim``: what its facts
+    lack (``no tool``, ``main windows``). Printed as is, it pins that row:
+    ``query.select`` reads its value as None."""
+    return RESIDUAL_NOTES[dim][0] if dim in RESIDUAL_NOTES else "no " + dim

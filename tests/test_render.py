@@ -6,7 +6,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, glossary, headline, leaves, query, render, residual, schema, tables
+from sa import cli, glossary, grammar, headline, leaves, query, render, residual, schema, tables
 from sa.schema import Locator
 
 ROWS = [query.Row("a", 60, 2, query.REGULAR), query.Row("b", 30, 1, query.REGULAR),
@@ -25,14 +25,18 @@ def _top(facts, levers, metric):
 
 def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
     table = query.Table(DIM, ROWS, 100)
-    lines = tables.table(table, M, limit=1, whole=False)
-    assert lines[0].startswith("by " + DIM) and lines[0].endswith("share of 100 (all but %s)" % tables.RESIDUAL_LABEL)
-    assert [l.split()[0] for l in lines[1:]] == ["a", "+2", tables.RESIDUAL_ROW, schema.SHRINK]
-    assert re.match(r"\+2 more rows\s+40\s+2\s+40\.0%", lines[2])
-    assert [l.split()[0] for l in tables.table(table, M, limit=3, whole=False)[1:]] == [
-        "a", "b", "c", tables.RESIDUAL_ROW, schema.SHRINK]
-    for dim, (meaning, cases) in residual.RESIDUAL_NOTES.items():  # sa explain unassigned says each
-        assert residual.residual_cases(dim).startswith(meaning) and all(
+    more = grammar.run("context", grammar.BY, DIM)
+    lines = tables.table(table, M, limit=1, more=more)
+    assert lines[0].startswith(tables.title(DIM)) and lines[0].endswith("  share")
+    assert [l.split()[0] for l in lines[1:]] == ["a", "+2", tables.BASE_LABEL.split()[0],
+                                                 residual.label(DIM).split()[0], schema.SHRINK]
+    assert re.match(r"\+2 more\s+40\s+2\s+40\.0%%  %s$" % re.escape(more), lines[2])  # what it cut, and how to see it
+    assert re.match(r"%s\s+100\s+4  %s$" % (re.escape(tables.BASE_LABEL), re.escape(  # its base, named
+        tables.BASE_NOTE % residual.label(DIM))), lines[3])
+    assert [l.split()[0] for l in tables.table(table, M, limit=3)[1:]] == [
+        "a", "b", "c", tables.BASE_LABEL.split()[0], residual.label(DIM).split()[0], schema.SHRINK]
+    for dim, (meaning, cases) in residual.RESIDUAL_NOTES.items():  # -v says each
+        assert all(
             text in residual.residual_cases(dim) for text, _ in cases)
 
 
@@ -61,8 +65,8 @@ def test_every_dimension_a_view_can_group_with_a_residual_row_has_a_note(tmp_pat
 def test_the_mass_column_is_the_metric_and_the_count_column_its_carrier_kind():
     table = query.Table(DIM, ROWS, 100)
     for name, spec in schema.METRICS.items():  # the metric as printed heads the mass column
-        header = tables.table(table, name, limit=3, whole=False)[0]
-        assert re.match(r"by %s +%s +%s +share of 100 \(all but unassigned\)$" % (
+        header = tables.table(table, name, limit=3)[0]
+        assert re.match(r"by %s +%s +%s +share$" % (
             DIM, re.escape(glossary.printed(name)), schema.PLURAL[spec.carrier]), header), header
         assert "count" not in header
     assert {spec.carrier for spec in schema.METRICS.values()} == set(schema.KINDS)  # both kinds seen
@@ -70,9 +74,9 @@ def test_the_mass_column_is_the_metric_and_the_count_column_its_carrier_kind():
 
 def test_a_zero_base_table_truncates_without_a_share():
     zero = query.Table(DIM, [r._replace(mass=0) for r in ROWS[:3]], 0)
-    lines = tables.table(zero, M, limit=1, whole=False)
-    assert lines[0].endswith("  share") and "share of" not in lines[0]
-    assert re.match(r"\+2 more rows\s+0\s+2\s+-$", lines[2])
+    lines = tables.table(zero, M, limit=1)
+    assert lines[0].endswith("  share")
+    assert re.match(r"\+2 more\s+0\s+2\s+-$", lines[2])
     assert headline._block([("largest tool", 0, "Bash")], 5, [])[0].split()[3] == "0.0%"
 
 
@@ -140,94 +144,82 @@ def test_a_top_tool_with_no_head_still_names_the_top_head():
 
 
 def test_the_cause_table_prints_whole_whatever_the_limit(tmp_path):
-    """``--limit 1`` folds the tool table but never the cause
-    table, whose starting_context and ambiguous rows keep their notes; the
-    folded line counts only the rows it hides."""
+    """The default limit folds the other tables but never the cause
+    table; the folded line counts only the rows it hides."""
     root = fx.cli_corpus(tmp_path)
-
-    def rows(*args):
-        out = fx.run_cli("context", "--root", str(root), "--by", schema.CAUSE_DIM, *args)[1]
-        return out, [l.split() for l in out.splitlines() if l.endswith("%")]
-
-    full = rows()[1]
-    assert len(full) > 2  # vacuity guard: a limit of 1 would fold it
-    out, shown = rows("--limit", "1")
-    assert shown == full and "more row" not in out
-    for value, note in tables.UNSPLITTABLE.items():
-        assert (glossary.printed(value), note) in fx.key(out)
+    facts = fx.load_facts(root)[1]
+    grouped = query.group(facts, schema.CAUSE_DIM, fx.DELTA)
+    regular = [r for r in grouped.rows if r.kind == query.REGULAR]
+    assert len(regular) > 2  # vacuity guard: a limit of 1 would fold it
+    whole = tables.table(grouped, M, limit=1)
+    assert [l.split()[0] for l in whole[1:len(regular) + 1]] == [r.value for r in regular]
+    assert not any(l.startswith("+") for l in whole)
     grouped = query.Table(DIM, ROWS, 100)
-    folded = [l.split() for l in tables.table(grouped, M, limit=1, whole=False)[1:]]
+    folded = [l.split() for l in tables.table(grouped, M, limit=1)[1:]]
     regular = [r for r in ROWS if r.kind == query.REGULAR]
-    assert folded[1][:3] == ["+%d" % (len(regular) - 1), "more", "rows"]
-    assert folded[1][3:5] == [tables.num(sum(r.mass for r in regular[1:])),
+    assert folded[1][:2] == ["+%d" % (len(regular) - 1), "more"]
+    assert folded[1][2:4] == [tables.num(sum(r.mass for r in regular[1:])),
                               tables.num(sum(r.count for r in regular[1:]))]
 
 
 def test_a_row_named_like_a_cause_folds_and_gets_no_note_outside_the_cause_table():
-    """A project called ``ambiguous`` is an ordinary row: ``--limit 1`` folds
-    it; the same rows as the cause table keep it."""
-    rows = [query.Row("a", 60, 2, query.REGULAR)] + [
-        query.Row(cause, 10, 1, query.REGULAR) for cause in tables.UNSPLITTABLE]
-    assert DIM != schema.CAUSE_DIM and len(rows) > 2  # vacuity guard
-    lines = tables.table(query.Table(DIM, rows, 80), M, limit=1, whole=False)
-    assert [l.split()[0] for l in lines[1:]] == ["a", "+%d" % len(tables.UNSPLITTABLE)]
-    kept = tables.table(query.Table(schema.CAUSE_DIM, rows, 80), M, limit=1, whole=False)
-    assert [l.split()[0] for l in kept[1:] if l.endswith("%")] == ["a"] + list(tables.UNSPLITTABLE)
+    """A project called ``ambiguous`` is an ordinary row: a limit of 1 folds
+    it; the same rows as the cause table keep it, with their gloss."""
+    causes = [schema.STARTING_CONTEXT, schema.AMBIGUOUS]
+    rows = [query.Row("a", 60, 2, query.REGULAR)] + [query.Row(cause, 10, 1, query.REGULAR) for cause in causes]
+    assert DIM != schema.CAUSE_DIM  # vacuity guard
+    lines = tables.table(query.Table(DIM, rows, 80), M, limit=1, glosses=render.GLOSSES)
+    assert [l.split()[0] for l in lines[1:]] == ["a", "+%d" % len(causes), tables.BASE_LABEL.split()[0]]
+    kept = tables.table(query.Table(schema.CAUSE_DIM, rows, 80), M, limit=1, glosses=render.GLOSSES)
+    assert [l.split()[0] for l in kept[1:len(rows) + 1]] == ["a"] + causes
+    assert all(l.endswith(render.GLOSSES[c]) for l, c in zip(kept[2:], causes))
 
 
-def test_the_ambiguous_entry_names_every_declared_reason_and_the_key_none():
-    """The key prints one clause; ``sa explain`` the reasons."""
-    meaning, note = glossary.GLOSSARY[schema.AMBIGUOUS].meaning, tables.UNSPLITTABLE[schema.AMBIGUOUS]
+def test_the_ambiguous_entry_names_every_declared_reason_and_the_gloss_none():
+    """The gloss beside the row is a few words; ``-v`` the reasons."""
+    meaning, gloss = glossary.GLOSSARY[schema.AMBIGUOUS].meaning, render.GLOSSES[schema.AMBIGUOUS]
     assert len(schema.REASONS) > 1 and all(reason in meaning for reason in schema.REASONS)
-    assert not any(reason in note for reason in schema.REASONS) and note in glossary.brief(schema.AMBIGUOUS)
+    assert gloss and not any(reason in gloss for reason in schema.REASONS)
 
 
 def test_the_glossary_states_the_measured_conditions():
-    """exact needs growth >= the previous call's output, ambiguous covers the
-    negative remainder, and a shrink is not always a compaction (measured:
-    3 of 8 carried no compaction marker)."""
+    """ambiguous covers the negative remainder, and a shrink is not always a
+    compaction (measured: 3 of 8 carried no compaction marker)."""
     meaning = lambda term: glossary.GLOSSARY[term].meaning
     condition = "less than the previous call's reply"
     assert condition in meaning(schema.AMBIGUOUS)
     assert condition in glossary.GLOSSARY[schema.LESS_THAN_REPLY].meaning  # the same wording
-    assert "at least the previous call's reply" in meaning(glossary.EXACT)
     assert "compaction" in meaning(schema.SHRINK) and "not always" in meaning(schema.SHRINK)
 
 
-def test_a_long_label_keeps_its_tail_behind_an_ellipsis_unless_the_table_is_whole():
+def test_a_long_label_prints_whole_and_widens_its_column():
+    """A label pins its row as printed, so it is never cut."""
     long = "proj/" + "x" * 120 + "/sub.jsonl"
-    assert len(long) > tables.LABEL_WIDTH  # vacuity guard
     rows = [query.Row(long, 60, 2, query.REGULAR), query.Row("short", 30, 1, query.REGULAR)]
-    table = query.Table(schema.WINDOW_DIM, rows, 90)
-    lines = tables.table(table, M, limit=3, whole=False)
-    label = lines[1].split()[0]
-    assert label == "…" + long[1 - tables.LABEL_WIDTH:] and len(label) == tables.LABEL_WIDTH
-    assert lines[2].startswith("short" + " " * (tables.LABEL_WIDTH - 5) + "  ")  # the column is capped
-    at_cap = "y" * tables.LABEL_WIDTH
-    assert tables._label(query.Row(at_cap, 1, 1, query.REGULAR), whole=False) == at_cap  # at the cap
-    whole = tables.table(table, M, limit=3, whole=True)
-    assert whole[1].split()[0] == long and whole[2].startswith("short" + " " * (len(long) - 5) + "  ")
+    lines = tables.table(query.Table(schema.WINDOW_DIM, rows, 90), M, limit=3)
+    assert lines[1].split()[0] == long and lines[2].startswith("short" + " " * (len(long) - 5) + "  ")
 
 
-def test_leaves_are_ordered_by_magnitude_so_a_large_shrink_is_not_hidden_by_limit():
+def test_leaves_are_ordered_by_magnitude_so_a_large_shrink_leads():
     def leaf(cause, delta, line):
         return schema.fact(schema.INCREMENT, {schema.CAUSE_DIM: cause}, {fx.DELTA: delta},
                            Locator("f", line, "u-%d" % line))
     exact, shrink = leaf(schema.USER_TEXT, 100, 1), leaf(schema.SHRINK, -500, 2)
     assert abs(shrink.metrics[fx.DELTA]) > exact.metrics[fx.DELTA]  # the shrink is the larger
-    lines = leaves.leaves([exact, shrink], fx.DELTA, limit=1)
-    assert len(lines) == 2 and lines[1].split()[:3] == ["-500", "f:2", "u-2"]
-    both = leaves.leaves([exact, shrink], fx.DELTA, limit=2)
-    assert [l.split()[0] for l in both[1:]] == ["-500", "100"]
+    lines = leaves.leaves([exact, shrink], fx.DELTA, None, -400)
+    rows = [l.split()[:2] for l in lines if fx.LEAF.match(l)]
+    assert rows == [["-500", ":2"], ["100", ":1"]]
+    assert lines[-1].startswith("Σ 2 ") and lines[-1].endswith("%s the headline's -400" % tables.OK_MARK)
 
 
-def test_a_leaf_without_a_uuid_prints_a_dash_in_the_uuid_column():
-    """A bookkeeping record carries no uuid; its locator still has a line."""
+def test_a_leaf_and_a_candidate_without_a_uuid_print_their_line():
+    """A bookkeeping record carries no uuid; its locator still has a line,
+    which is unique in its file."""
     with_uuid = FACTS[0]._replace(locator=Locator("f", 1, "u-1"), evidence={
         schema.CANDIDATES: [schema.Candidate(Locator("f", 2, None), {})]})
-    lines = leaves.leaves([with_uuid, FACTS[1]], fx.DELTA, limit=2)
-    assert lines[1].split()[:3] == ["60", "f:1", "u-1"]  # vacuity guard: a uuid prints
-    assert lines[2].split() == [schema.CANDIDATES + ":"]
-    assert lines[3].split()[:2] == ["f:2", "-"]           # the candidate without one
-    assert lines[4].split()[:3] == ["30", "f:2", "-"]     # the leaf without one
+    lines = leaves.leaves([with_uuid, FACTS[1]], fx.DELTA, None, 90)
+    body = [l.split() for l in lines[3:-1]]
+    assert body[0][:2] == ["60", ":1"]
+    assert body[1] == [schema.CANDIDATES + ":"] and body[2] == [":2"]  # the candidate without one
+    assert body[3][:2] == ["30", ":2"]  # the leaf without one
     assert "None" not in "\n".join(lines)

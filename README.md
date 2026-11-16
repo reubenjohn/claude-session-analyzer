@@ -8,9 +8,9 @@ aside (were inference free), **is context degrading the model?**
 (`sa context`): every call reasons over its whole window, and a fuller
 window reasons worse (context rot), so it shows what calls held (the
 average context per call) and what put it there. Each answers broadly
-first; its `→ next:` line suggests one pin that narrows it, run by run,
-to something you can fix. Every figure names its population. A Claude
-Code plugin or plain `python3 -m sa`; stdlib, Python 3.8+.
+first; its `→ next:` line is a command to paste that narrows it, run by
+run, to something you can fix. Every figure names its population. A
+Claude Code plugin or plain `python3 -m sa`; stdlib, Python 3.8+.
 
 ## Install
 
@@ -21,13 +21,14 @@ claude plugin install claude-session-analyzer@reubenjohn
 
 ## Usage
 
+One grammar: `python3 -m sa spend|context [by DIM] [DIM=VALUE ...] [-v]`.
 The context path, pin by pin:
 
 ```
-python3 -m sa context                                       # average context per call, by peak
-python3 -m sa context --where peak=200K+                    # what fills the fullest windows
-python3 -m sa context --where peak=200K+ --where tool=Bash  # their top tool
-python3 -m sa context --where peak=200K+ --where command=Bash:cat --by fact  # file:line
+python3 -m sa context                              # average context per call, its tables
+python3 -m sa context peak=200K+                   # what fills the fullest windows
+python3 -m sa context peak=200K+ tool=Bash         # their top tool
+python3 -m sa context peak=200K+ tool=Bash by change   # the changes, file:line
 ```
 
 <!-- example: context | average context per call -->
@@ -35,60 +36,64 @@ python3 -m sa context --where peak=200K+ --where command=Bash:cat --by fact  # f
 average context per call* 84,709 tokens, over 21 calls in 3 windows
   starting context*  84,333  99.5%  = session starts 84,000 + forks 333
   growth                433   0.5%  from Bash 214 → Bash:pytest 214
-→ next: add --where peak=200K+
+→ next: python3 -m sa context peak=200K+
 ```
 
-<!-- example: context | by peak -->
+A table's rows are the values you can pin (`DIM=VALUE`, as printed);
+`by DIM` prints one table, every row:
+
+<!-- example: context by peak | by peak -->
 ```
-by peak          part of avg  windows  calls  avg call  share of 84,766 before shrink
-200K+                 83,811        1      7   251,376   98.9%
-0-50K                    955        2     14     1,376    1.1%
-shrink (signed)          -57        -      -         -       -
-by session, project: the rows above, labelled sess-0002 / ~-work-lib, sess-0001 / ~-work-app
+by peak  part of avg  windows  calls  avg call  share
+200K+         83,811        1      7   251,376   98.9%
+0-50K            955        2     14     1,376    1.1%
+= 100%        84,766        3     21         -
+shrink*          -57        -      -         -       -
 ```
 
-`--since 30d` or `--since all` widens the window; `python3 -m sa explain [TERM]`
-says what a term means. `python3 -m sa spend --by subagent`:
+`--since 30d` or `--since all` widens the window (default 7d); `-v` adds
+how each figure on screen is computed and what its marked (`*`) words
+mean. `python3 -m sa spend by subagent`:
 
-<!-- example: spend --by subagent | by subagent -->
+<!-- example: spend by subagent | by subagent -->
 ```
-by subagent    spend  calls  share of 988 (all but unassigned)
-agent-fake1      988      7  100.0%
-unassigned*  176,976     14       -  main windows
+by subagent     spend  calls  share
+agent-fake1       988      7  100.0%
+= 100%            988      7  shares' base: the rows above, not the main windows row
+main windows  176,976     14       -
 ```
 
 Spend weights cache reads 0.1x, 5m writes 1.25x, 1h writes 2x; never
 dollars. No estimated attribution (one `ambiguous` row, never a spread),
-no summed peaks; a failed check is a bug, exit 1.
+no summed peaks. The last line checks the arithmetic (`-v` works it in
+your numbers); a failed check is a bug, exit 1.
 
-## The drill
+## Pins and tables
 
-```
-python3 -m sa context --where cause=tool_result --by tool
-python3 -m sa context --where tool=Bash --by command
-python3 -m sa context --where cause=ambiguous --by fact --limit 2
-```
+`DIM=VALUE` pins (project, session, subagent, window, started_by, peak,
+cause, tool, command, reason), repeatable: different dimensions AND.
+The first six keep whole windows (`window=<hex>` isolates one; `by
+window` lists them); the rest drill, the headline naming the pin as a
+part of the average. Closed values match in any case or by prefix
+(`peak=200k`), a session by any unique prefix; a
+catch-all row pins by its label (`'tool=no tool'`,
+`'subagent=main windows'`). A command is a Bash call's first command
+word (`Bash:pytest`) or a file tool's extension (`Read:py`). A mistake
+exits 2 in two lines: the nearest valid input, and where the choices
+live.
 
-`--where DIM=VALUE` pins (project, session, subagent, window,
-started_by, peak, cause, tool, command, reason), repeatable, exact: the
-first six keep whole windows (`window=<hex>` isolates one; `--by window`
-lists them); the rest drill, named on the headline with the windows
-hit; an absent value exits 2, naming what is present. A command is a Bash call's first command word
-(`Bash:pytest`) or a file tool's extension (`Read:py`). Under the
-average the headline's block gives the starting context by `started_by`,
-then the growth: the top tool, `→` its largest command, then a larger
-`top command` (`spend`: the top subagent, as `<type> <8 hex>`), whatever
-`--by` shows, never a cause or window row; shares are of the average
-before shrink. A pin omits what it implies; a table that
-repeats the one above row for row prints as one line. `--limit` (5)
-never folds the cause table, `unassigned` or a signed row. `--by fact` lists the
-leaves, each its part of the average then its raw tokens, with
-`file:line  uuid  dimensions`, an ambiguous one's `candidates:` under it.
+The default `context` screen prints the cause, tool and command tables
+(`spend`: subagent); `also by:` names the rest. A default table shows 5
+rows; the rest fold into `+N more`, ending with the command that prints
+them. Every table ends with `= 100%`, the base
+of its shares; the catch-all row (what lacks the dimension) shows its
+parts; `shrink` (a window that got smaller) is signed, in no share. `by
+change` (spend: `by call`) lists the facts, each with `held`, the calls
+that held it, so its part of the average recomputes, and a closing Σ
+line that reconciles to the headline.
 
-On a terminal the output is styled (`--color always|never|auto`,
-`NO_COLOR`, `FORCE_COLOR`); a pipe gets the same text, unstyled. A
-row's figures are a heatmap of its share, green to red on a log scale
-(bold from 25%), and each of the top two tools keeps one hue.
+A terminal gets styled output (`--color always|never|auto`, `NO_COLOR`,
+`FORCE_COLOR`); a pipe, the same text unstyled.
 
 A window is one context window: from a session start, subagent, fork,
 replay or compaction to its file's end or the next compaction. Its
@@ -96,11 +101,10 @@ replay or compaction to its file's end or the next compaction. Its
 `200K+`, lower edge inclusive. The average context per call is what a
 call held, averaged over the calls in view; never summed. Every
 `context` figure is a part of it: each change times the calls that held
-it, over the calls in view (a drill's too), so a table's rows add up to
-it. A fork's copied context is one `inherited` change, held by the
-fork's calls; with the parent missing (or out of
-`--since`) or its branch call not found, the copy counts as the
-fork's own; the scope says how many, and why.
+it, over the calls in view, so a table's rows add up to it. A fork's
+copied context is one `inherited` change, held by the fork's calls;
+with its parent missing, the copy counts as the fork's own and the
+scope says so.
 
 ## Layout
 

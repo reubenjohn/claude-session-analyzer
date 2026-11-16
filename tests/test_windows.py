@@ -8,7 +8,7 @@ import re
 import time
 
 import fixtures as fx
-from sa import checks, corpus, glossary, query, reconciliation, schema, tables, walk, windows
+from sa import checks, corpus, glossary, grammar, query, reconciliation, schema, tables, walk, windows
 from sa.schema import CALL, INCREMENT, WindowKey
 
 CAUSE = schema.CAUSE_DIM
@@ -131,11 +131,11 @@ def test_the_cli_counts_inherited_once_per_fork_call_as_its_own_row(tmp_path):
     calls = sum(f.kind == schema.CALL for f in facts)
     held = sum(f.metrics[fx.HELD] for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED)
     assert held > sum(fx.W_INHERITED.values()) > 0  # vacuity guard: held by more than one call
-    code, out, err = fx.run_cli("context", "--root", str(root), "--limit", "1")
+    code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
     assert re.search(r"^%s\s+%s\s+2\s+\d" % (schema.INHERITED, tables.num(held / calls)), out, re.M)
     assert "counted in parent" not in out
-    code, out, err = fx.run_cli("context", "--root", str(root), "--where", "=".join(_pin(fx.W_FORK)))
+    code, out, err = fx.run_cli("context", "--root", str(root), "=".join(_pin(fx.W_FORK)))
     assert code == 0, err  # one window: every call of it held the copy, so per call it is the copy
     assert re.search(r"^%s\s+1,500\s+1\s" % schema.INHERITED, out, re.M)
     assert fx.headline(out).split("; ")[1].endswith(" + %s 1,500" % schema.INHERITED)  # its own term
@@ -143,13 +143,13 @@ def test_the_cli_counts_inherited_once_per_fork_call_as_its_own_row(tmp_path):
 
 
 def test_a_pinned_fork_shows_its_copy_as_the_parent_breakdown_by_tool(tmp_path):
-    """Under a ``--where window=`` pin, each inherited increment prints its
+    """Under a ``window=`` pin, each inherited increment prints its
     parent window's breakdown by tool through the branch call, found by
     reference; the parts sum to the inherited mass. Unpinned, never."""
     root = fx.window_corpus(tmp_path)
     facts = fx.load_facts(root)[1]
     for name, mass in fx.W_INHERITED.items():
-        out = fx.run_cli("context", "--root", str(root), "--where", "=".join(_pin(name)))[1]
+        out = fx.run_cli("context", "--root", str(root), "=".join(_pin(name)))[1]
         (line,) = [l for l in fx.sections(out)[1] if l.lstrip().startswith(schema.INHERITED + " ")]
         assert line.startswith("    %s %s copied from %s=%s through " % (
             schema.INHERITED, format(mass, ",d"), schema.WINDOW_DIM, fx.window_value(fx.W_PARENT)))
@@ -159,12 +159,16 @@ def test_a_pinned_fork_shows_its_copy_as_the_parent_breakdown_by_tool(tmp_path):
     unpinned = fx.run_cli("context", "--root", str(root))[1]
     assert " copied from " not in unpinned and schema.INHERITED in unpinned  # guard: inherited is there
 
-def test_a_window_value_selects_and_an_unknown_one_exits_2_naming_those_present(tmp_path):
+def test_a_window_value_selects_and_an_unknown_one_exits_2_naming_where_they_are(tmp_path):
     root = fx.window_corpus(tmp_path)
-    code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=0000zzzz" % schema.WINDOW_DIM)
-    assert code == 2 and not out and "no %s carry window=0000zzzz; present: " % schema.PLURAL[INCREMENT] in err
-    assert fx.window_value(fx.W_PARENT, 8) in err
-    code, out, err = fx.run_cli("context", "--root", str(root), "--where", "=".join(_pin(fx.W_PARENT, 8)))
+    code, out, err = fx.run_cli("context", "--root", str(root), "%s=0000zzzz" % schema.WINDOW_DIM)
+    assert code == 2 and not out and len(err.splitlines()) <= 2
+    assert "no %s has %s=0000zzzz" % (schema.PLURAL[INCREMENT][:-1], schema.WINDOW_DIM) in err
+    listing = grammar.run("context", grammar.BY, schema.WINDOW_DIM)
+    assert err.splitlines()[-1].endswith(listing)  # where the values live
+    code, out, err = fx.run_cli(*listing.split()[3:], "--root", str(root))
+    assert code == 0 and re.search(r"^%s\s" % fx.window_value(fx.W_PARENT, 8), out, re.M), err
+    code, out, err = fx.run_cli("context", "--root", str(root), "=".join(_pin(fx.W_PARENT, 8)))
     assert code == 0 and re.search(r"\nin view where %s: 1 window\*?, " % "=".join(_pin(fx.W_PARENT, 8)), out)
 
 
@@ -206,7 +210,7 @@ def test_no_peak_is_summed_across_the_segments_of_one_file(tmp_path):
     top = query.largest(mine, fx.PEAK)
     assert top.metrics[fx.PEAK] == max(peaks.values()) != sum(peaks.values())
     code, out, err = fx.run_cli("context", "--root", str(fx.window_corpus(tmp_path / "cli")),
-                                "--where", "%s=sess-0101" % schema.SESSION_DIM)
+                                "%s=sess-0101" % schema.SESSION_DIM)
     assert code == 0, err
     (average,) = fx.average(out)  # over the session's calls, never a sum of their peaks
     mean, calls = query.mean(query.select(facts, [(schema.SESSION_DIM, "sess-0101")]), fx.PEAK)

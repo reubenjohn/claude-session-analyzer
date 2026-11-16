@@ -21,7 +21,9 @@ by side, never averaged. The temp dir is deleted at the end unless `--keep`.
 1. A temp dir outside the repo, so no project AGENTS.md/CLAUDE.md loads.
    `claude -p` also runs with no setting sources, MCP, skills or saved session.
 2. A frozen snapshot: `~/.claude/projects` files modified in `--days`
-   (default 7), copied with their mtimes into the temp dir.
+   (default 7), copied with their mtimes into the temp dir. Eval runs' own
+   `claude -p` transcripts land in `~/.claude/projects` too, as temp-dir
+   projects (`-tmp-sa-...`); the snapshot skips every `-tmp-` project.
 3. `bin/python3` routes `python3 -m sa` to `sa_wrapper.py`, which runs the
    real CLI on the snapshot, adding `--root` where the CLI's own help says it
    goes, and logs each invocation's argv, exit, lines and width as PRINTED,

@@ -6,7 +6,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, render, style, tables
+from sa import checks as checks_module, cli, glossary, render, residual, schema, style, tables
 
 ESC = "\033["
 
@@ -43,9 +43,9 @@ def test_the_cli_colours_a_tty_and_nothing_else(tmp_path, monkeypatch, capsys):
     assert ESC not in fx.run_cli("context", "--root", root)[1]  # a pipe is no TTY
 
 
-@pytest.mark.parametrize("args", [("context",), ("spend",), ("context", "--by", "fact"),
-                                  ("context", "--where", "tool=Bash", "--by", "command"),
-                                  ("spend", "--by", "subagent")])
+@pytest.mark.parametrize("args", [("context",), ("spend",), ("context", "by", "change"),
+                                  ("context", "tool=Bash", "by", "command"),
+                                  ("spend", "by", "subagent")])
 def test_painting_only_adds_escape_codes_to_the_plain_output(tmp_path, args):
     """The plain output is the contract: strip the codes and it is back,
     byte for byte, so styling can never carry what the text does not."""
@@ -67,7 +67,7 @@ def test_a_tool_keeps_one_hue_across_the_headline_and_the_tables(tmp_path):
     out = "\n".join(line for line in out.splitlines() if render.NEXT not in style.plain(line))  # cyan whole
     tool = next(line for line in style.plain(out).splitlines() if line.startswith("by tool"))
     first = style.plain(out).splitlines()[style.plain(out).splitlines().index(tool) + 1].split()[0]
-    headline = [line for line in out.splitlines() if " from " in style.plain(line)]
+    headline = [line for line in out.splitlines() if style.plain(line).startswith("  " + glossary.GROWTH)]
     assert headline and first in style.plain(headline[0])  # vacuity guard: the walk names it
     assert set(_hues(out, first)) == {style.TOOL_HUES[0]}
 
@@ -85,13 +85,15 @@ def test_tools_take_distinct_hues_and_only_whole_names_are_painted():
 
 
 def test_rows_a_table_never_hides_are_never_dimmed_nor_heated(tmp_path):
-    """``unassigned``, ``+N more rows`` and the signed rows print italic, whatever
+    """The catch-all rows, ``+N more`` and the signed rows print italic, whatever
     their share, outside the heatmap; so does the total row."""
     root = str(fx.cli_corpus(tmp_path))
     out = fx.run_cli("context", "--root", root, "--color", style.ALWAYS)[1].splitlines()
-    kept = [line for line in out
-            if re.match(r"(unassigned\*?|shrink \(signed\)|\+\d+ more rows)\s", style.plain(line))]
-    assert any(style.plain(line).startswith("unassigned") for line in kept)  # vacuity guard
+    labels = [residual.label(d) for d in residual.RESIDUAL_NOTES] + [schema.SHRINK]
+    kept = [line for line in out if re.match(r"(%s)\*?\s|\+\d+ more\s" % "|".join(map(re.escape, labels)),
+                                             style.plain(line))]
+    assert any(style.plain(line).startswith(residual.label(schema.TOOL_DIM)) for line in kept)  # vacuity guard
+    assert any(style.plain(line).startswith(schema.SHRINK) for line in kept)
     faint, italic = "%s%sm" % (ESC, style.FAINT[0]), "%s%sm" % (ESC, style.ITALIC[0])
     heated = re.compile(r"\033\[(%s)[;m]" % "|".join((style.RED, style.YELLOW, style.GREEN)))
     assert all(line.startswith(italic) and faint not in line and not heated.search(line)
@@ -122,7 +124,7 @@ def test_the_checks_line_carries_no_heatmap_hue(tmp_path):
     """Red, yellow and green mean a share: the ✓ line prints plain."""
     root = str(fx.cli_corpus(tmp_path))
     out = fx.run_cli("context", "--root", root, "--color", style.ALWAYS)[1].splitlines()
-    checks = [line for line in out if line.startswith("✓ checks")]
+    checks = [line for line in out if line.startswith(checks_module.OK)]
     assert checks and ESC not in checks[0]
 
 

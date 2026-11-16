@@ -41,7 +41,7 @@ ROLES = {HEADLINE: BOLD, HEADER: UNDERLINE, TOTAL: BOLD, SCOPE: FAINT, KEY: FAIN
 # background); never the heatmap's, nor cyan, a runnable command's. A tool
 # past the second prints plain.
 TOOL_HUES = ("35", "94")
-COMMAND = ("36", "39")  # cyan: a runnable command the key names, the flags a hint adds
+COMMAND = ("36", "39")  # cyan: a runnable command
 HOT, WARM, COLD = 0.25, 0.05, 0.01  # share thresholds: red and bold, yellow, the row dimmed
 Span = Tuple[int, int]
 
@@ -155,8 +155,8 @@ class Painter:
         text = re.sub(r"(\w+)(?=%s)" % re.escape(MARKER), lambda m: sgr(m.group(1), UNDERLINE), text)
         if role == KEY:
             text = re.sub(r"%s\b.*$" % re.escape(PROG), lambda m: sgr(m.group(0), COMMAND), text)
-        if role == HINT:  # the flags to add
-            text = re.sub(r"--.*$", lambda m: sgr(m.group(0), COMMAND), text)
+        if role == HINT:  # the command to run
+            text = re.sub(r"%s\b.*$" % re.escape(PROG), lambda m: sgr(m.group(0), COMMAND), text)
         if self.tool and role != SCOPE:
             text = self.tool.sub(lambda m: sgr(m.group(1), (self.hues[m.group(1)], "39")), text)
         if role == ROW and share is not None:

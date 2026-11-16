@@ -2,7 +2,7 @@
 import re
 
 import fixtures as fx
-from sa import cli, glossary, heads, query, schema, tables
+from sa import render, cli, glossary, grammar, heads, notes, query, residual, schema, tables
 from sa.schema import CALL
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
@@ -18,58 +18,62 @@ def _levers_of(out):
     return [TOOL] + ([HEAD] if " → " in text else []) if " from " in text else []
 
 
+def _rows(out):
+    """The regular rows of the tables shown, split: a label, its figures, its share."""
+    return [l.split() for l in out.splitlines() if re.match(r"^\S+\s+-?[\d,]+(\s+[\d,]+)+\s+[\d.]+%", l)]
+
+
 def _largest_shown(out):
     """The mass of the first (largest) regular row of the first table shown."""
-    return int(next(l for l in out.splitlines() if l.endswith("%") and not l.startswith(" "))
-               .split()[1].replace(",", ""))
+    return int(_rows(out)[0][1].replace(",", ""))
 
 
 def test_headline_walks_the_view_levers_whatever_by_shows(tmp_path):
     """The headline is grouped from the view's levers alone: a shown table
     whose top row is larger (a cause, a session, a window) never leads, and
-    ``--by fact`` shows no table at all. Pinning a lever drops it from the
+    ``by change`` shows no table at all. Pinning a lever drops it from the
     walk; every lever pinned, nothing leads."""
     root = fx.cli_corpus(tmp_path)
     assert CONTEXT.tables[0] == CAUSE and CAUSE not in CONTEXT.levers
     assert CONTEXT.levers == (TOOL, HEAD) and SPEND.levers == (schema.SUBAGENT_DIM,)
     lead = "; growth 433 0.5% from Bash 214 → Bash:pytest 214"
     for by in (CAUSE, schema.SESSION_DIM, schema.WINDOW_DIM):
-        code, out, err = fx.run_cli("context", "--root", str(root), "--by", by)
+        code, out, err = fx.run_cli("context", "--root", str(root), "by", by)
         assert code == 0, err
         assert fx.headline(out).endswith(lead), by
         assert _largest_shown(out) > 214, by  # vacuity guard: the shown table's top row is larger
-    code, out, err = fx.run_cli("context", "--root", str(root), "--by", "fact")
+    code, out, err = fx.run_cli("context", "--root", str(root), "by", "change")
     assert code == 0, err
     assert fx.headline(out).endswith(lead)
-    for by in ([], ["--by", schema.SESSION_DIM], ["--by", "fact"]):
+    for by in ([], ["by", schema.SESSION_DIM], ["by", grammar.FACTS["spend"]]):
         code, out, err = fx.run_cli("spend", "--root", str(root), *by)
         assert code == 0, err
         assert _levers_of(out) == [schema.SUBAGENT_DIM], by
-    assert SPEND.tables[0] != schema.SUBAGENT_DIM  # vacuity guard: not the first table printed
     # A pinned head implies its tool, and every Bash call here has the one
     # head, so pinning either leaves no lever that is not the filter itself.
     facts = fx.load_facts(root)[1]
     assert query.values(query.select(facts, [(TOOL, "Bash")]), HEAD, CONTEXT.metric) == ["Bash:pytest"]
     for pin in ("%s=Bash:pytest" % HEAD, "%s=Bash" % TOOL):
-        assert _levers_of(fx.run_cli("context", "--root", str(root), "--where", pin)[1]) == [], pin
+        assert _levers_of(fx.run_cli("context", "--root", str(root), pin)[1]) == [], pin
 
 
 def test_a_pin_omits_the_tables_and_levers_it_implies(tmp_path):
     """Pinning a command implies its tool; pinning a window implies its subagent,
     session and project. Any table or lever whose facts all share one value
-    is omitted, since it would only repeat the filter; ``--by`` still prints
+    is omitted, since it would only repeat the filter; ``by DIM`` still prints
     it on request, and unpinned every default table prints."""
     root = fx.cli_corpus(tmp_path)
-    code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=Bash:pytest" % HEAD)
+    code, out, err = fx.run_cli("context", "--root", str(root), "%s=Bash:pytest" % HEAD)
     assert code == 0, err
     assert _levers_of(out) == []
     for dim in (TOOL, CAUSE):  # the fixture's one Bash:pytest increment per window is exact
         assert not re.search(r"^by %s\s" % dim, out, re.M), dim
+    also = next(l for l in out.splitlines() if l.startswith(render.ALSO))[len(render.ALSO):].split(", ")
     for dim in (schema.SUBAGENT_DIM, schema.SESSION_DIM, schema.PROJECT_DIM):  # two values each
-        assert re.search(r"^by (?:[\w /]+, )*%s[\s:,]" % dim, out, re.M), dim  # a table, or its relabel line
-    asked = fx.run_cli("context", "--root", str(root), "--where", "%s=Bash:pytest" % HEAD, "--by", TOOL)[1]
+        assert dim in also, dim  # a table away
+    asked = fx.run_cli("context", "--root", str(root), "%s=Bash:pytest" % HEAD, "by", TOOL)[1]
     assert re.search(r"^Bash\s+214\s+3\s+100\.0%$", asked, re.M)
-    window = ["--where", "%s=%s" % (schema.WINDOW_DIM, fx.window_value("proj-a/sess-0001.jsonl"))]
+    window = ["%s=%s" % (schema.WINDOW_DIM, fx.window_value("proj-a/sess-0001.jsonl"))]
     code, out, err = fx.run_cli("context", "--root", str(root), *window)
     assert code == 0, err
     for dim in schema.WINDOW_DIMENSIONS:
@@ -107,9 +111,9 @@ def test_headline_refines_the_top_tool_by_the_head_within_it_and_names_a_larger_
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
     assert fx.headline(out).endswith("; growth 115 10.3%% from Bash 65 → Bash:ls 45; top %s Read:py 50" % HEAD)
-    code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=Bash" % TOOL)
+    code, out, err = fx.run_cli("context", "--root", str(root), "%s=Bash" % TOOL)
     assert code == 0, err
-    assert fx.headline(out).endswith(" in 1 of them; largest %s 45 69.2%% Bash:ls" % HEAD)
+    assert fx.headline(out).endswith(" · 2 changes in 1 window, 4 calls; largest %s 45 69.2%% Bash:ls" % HEAD)
     root = fx.corpus(tmp_path / "within", {"proj-a/sess-0001.jsonl": records(30)})
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
@@ -140,29 +144,29 @@ def test_a_top_tool_with_no_head_still_names_the_top_head_under_its_tool(tmp_pat
 def test_the_headline_never_names_a_cause(tmp_path):
     """One interval with two Read results of one head: ambiguous is the
     largest cause after starting_context and carries the shared tool and command,
-    which lead; no cause does, even under ``--by cause``."""
+    which lead; no cause does, even under ``by cause``."""
     uses = [fx.tool_use("toolu_0001", "Read", file_path="/x/a.py"),
             fx.tool_use("toolu_0002", "Read", file_path="/x/b.py")]
     records = [fx.assistant("uuid-0001", "msg-0001", fx.usage(1000, 50), uses),
                fx.tool_result("uuid-0002", "toolu_0001"), fx.tool_result("uuid-0003", "toolu_0002"),
                fx.assistant("uuid-0004", "msg-0002", fx.usage(1300, 0))]
     root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": records})
-    code, out, err = fx.run_cli("context", "--root", str(root), "--by", CAUSE)
+    code, out, err = fx.run_cli("context", "--root", str(root), "by", CAUSE)
     assert code == 0, err
-    rows = [l.split() for l in out.splitlines() if l.endswith("%") and not l.startswith("  ")]
-    assert [r[0] for r in rows] == [schema.STARTING_CONTEXT, glossary.marked(schema.AMBIGUOUS), schema.REPLIES]
+    assert [r[0] for r in _rows(out)] == [schema.STARTING_CONTEXT, glossary.marked(schema.AMBIGUOUS), schema.REPLIES]
     assert _largest_shown(out) == 1000 > 125  # vacuity guard: the cause rows are the larger
     assert fx.headline(out).endswith(" from Read 125 → Read:py 125")  # the shared ambiguous counts
-    assert "a tool's row" in tables.UNSPLITTABLE[schema.AMBIGUOUS]  # the key says so
+    assert "names a tool" in glossary.GLOSSARY[schema.AMBIGUOUS].surprise  # -v says so
+    verbose = fx.run_cli("context", "--root", str(root), "by", CAUSE, "-v")[1]
     for value in (schema.STARTING_CONTEXT, schema.AMBIGUOUS):
-        assert (glossary.printed(value), tables.UNSPLITTABLE[value]) in fx.key(out)
+        term = glossary.printed(value).replace("_", " ") if value == schema.STARTING_CONTEXT else value
+        assert "\n".join(notes.define(term)) in verbose, value
     # With one result the interval is exact: the same lead.
     root = fx.corpus(tmp_path / "exact", {"proj-a/sess-0001.jsonl": records[:2] + records[3:]})
-    out = fx.run_cli("context", "--root", str(root), "--by", CAUSE)[1]
+    out = fx.run_cli("context", "--root", str(root), "by", CAUSE, "-v")[1]
     assert " from Read 125 → " in fx.headline(out)
-    assert fx.key(out)[-1][0] == schema.AMBIGUOUS  # footnoted where first printed: the checks
-    assert " 0 %s (0.0%% of gaps)" % glossary.marked(schema.AMBIGUOUS) in out.splitlines()[-1]
-    assert schema.STARTING_CONTEXT in dict(fx.key(out))  # vacuity guard: the key prints
+    assert " + 0 %s + " % schema.AMBIGUOUS in fx.worked(out)  # the checks' split, worked under -v
+    assert schema.STARTING_CONTEXT.replace("_", " ") in dict(fx.key(out))  # vacuity guard: -v defines
 
 
 def test_headline_share_is_of_the_added_while_the_table_share_is_of_its_base(tmp_path):
@@ -171,15 +175,19 @@ def test_headline_share_is_of_the_added_while_the_table_share_is_of_its_base(tmp
     the 214 that have a tool at all; the headline's shares are of the
     84,766, the signed row out of them as out of the cause table's."""
     root = fx.cli_corpus(tmp_path)
-    code, out, err = fx.run_cli("context", "--root", str(root), "--by", TOOL)
+    code, out, err = fx.run_cli("context", "--root", str(root), "by", TOOL)
     assert code == 0, err
-    assert re.search(r"^%s\s+84,552\s+\d+\s+-  no tool: " % re.escape(tables.RESIDUAL_ROW), out, re.M)
-    assert re.search(r"^%s \(signed\)\s+-57\s" % re.escape(glossary.marked(schema.SHRINK)), out, re.M)
+    assert re.search(r"^%s\s+84,552\s+\d+\s+-  = %s 84,333 \+ " % (
+        re.escape(residual.label(TOOL)), schema.STARTING_CONTEXT), out, re.M)  # in no share, its parts shown
+    assert re.search(r"^%s\s+-57\s" % re.escape(glossary.marked(schema.SHRINK)), out, re.M)
     assert " 84,333 99.5% " in fx.headline(out) and " 433 0.5% " in fx.headline(out)  # of the 84,766
-    assert "; 254,860 tokens added - 300 %s = 254,560" % schema.SHRINK in fx.checks(out)  # the summed check
+    verbose = fx.run_cli("context", "--root", str(root), "by", TOOL, "-v")[1]
+    assert re.search(r"\n  added 254,860 - %s 300 +  = 254,560 " % schema.SHRINK, fx.worked(verbose))  # summed
     assert " from Bash 214" in fx.headline(out)
-    assert re.search(r"^by %s\s.*\s+%s\s+share of 214 \(all but unassigned\)$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
+    assert re.search(r"^by %s\s.*\s+%s\s+share$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
     assert re.search(r"^Bash\s+214\s+3\s+100\.0%$", out, re.M)
+    assert re.search(r"^%s\s+214\s+3  %s$" % (re.escape(tables.BASE_LABEL), re.escape(  # the base: what has a tool
+        tables.BASE_NOTE % residual.label(TOOL))), out, re.M)
 
 
 def test_headline_total_and_table_base_are_one_sum(tmp_path):
@@ -195,9 +203,10 @@ def test_headline_total_and_table_base_are_one_sum(tmp_path):
         for name, (start, cache_read, session) in files.items()})
     a, b, c = [f.metrics[SPEND.metric] for f in fx.load_facts(root)[1] if f.kind == CALL]
     assert tables.num((a + b) + c) != tables.num((a + c) + b)  # the two orders really straddle a .5
-    code, out, err = fx.run_cli("spend", "--root", str(root), "--by", SPEND.tables[1])
+    code, out, err = fx.run_cli("spend", "--root", str(root), "by", schema.SESSION_DIM)
     assert code == 0, err
     headline = re.match(r"%s([\d,]+) " % re.escape(fx.total_line(SPEND.metric)), fx.headline(out)).group(1)
-    assert re.search(r"^by %s\s.*share of total$" % SPEND.tables[1], out, re.M)  # the base is the total
-    grouped = query.group(fx.load_facts(root)[1], SPEND.tables[1], SPEND.metric)
+    grouped = query.group(fx.load_facts(root)[1], schema.SESSION_DIM, SPEND.metric)
+    assert not [r for r in grouped.rows if r.kind != query.REGULAR]  # every row in a share: the base is the total
+    assert re.search(r"^%s\s+%s\s" % (re.escape(tables.BASE_LABEL), headline), out, re.M)
     assert headline == tables.num(grouped.base)  # the base is the total less the other rows, never re-summed
