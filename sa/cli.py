@@ -103,10 +103,11 @@ dimension (a cause, a tool, a command); the row %(residual)s is the part with
 no value for it. Pin a row with --where DIM=VALUE (any row label), then
 show one table whole with --by DIM. The path:
 
-  %(prog)s context                                     is it a problem
-  %(prog)s context --where peak=200K+                  what fills the fullest
-  %(prog)s context --where peak=200K+ --by session     where
-  %(prog)s context --where command=Bash:cat --by fact  what to fix: file:line
+  is it a problem         %(prog)s context
+  what fills the fullest  %(prog)s context --where peak=200K+
+  where                   %(prog)s context --where peak=200K+ --by session
+  what to fix: file:line  %(prog)s context --where peak=200K+ \\
+                            --where command=Bash:cat --by fact
 
 Flags (all: %(prog)s context --help, %(prog)s spend --help):
   --since 30d|all       files modified in the last N days (default 7d)

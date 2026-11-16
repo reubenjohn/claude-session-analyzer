@@ -41,7 +41,8 @@ def test_the_marked_terms_and_the_key_terms_are_one_set(tmp_path, args):
 @pytest.mark.parametrize("args, hint", [
     (("context",), "--where %s=%s" % (schema.PEAK_DIM, schema.BANDS[-1])),  # the fullest band first
     (("context", "--where", "peak=0-50K"), "--where %s=Bash" % schema.TOOL_DIM),  # one band: no lead
-    (("context", "--where", "tool=Bash"), "--where %s=%s" % (schema.PEAK_DIM, schema.BANDS[-1])),
+    (("context", "--where", "tool=Bash"), "--by fact"),  # past a drill pin, no band: its command is implied
+    (("context", "--where", "command=Bash:pytest"), "--by fact"),  # a command pinned: the leaves next
     (("context", "--where", "peak=200K+", "--where", "tool=Bash"), "--by fact"),  # its command is implied
     (("context", "--where", "peak=200K+", "--where", "command=Bash:pytest"), "--by fact"),
     (("spend",), "--where %s=agent-fake1" % schema.SUBAGENT_DIM),
@@ -60,7 +61,7 @@ def test_under_a_pinned_tool_the_hint_names_its_top_command():
         return schema.Fact(schema.INCREMENT, {schema.TOOL_DIM: "Bash", schema.COMMAND_DIM: command},
                            {schema.CONTEXT_DELTA: mass}, None, {}, None)
     sel = SimpleNamespace(facts=[fact("Bash:sed", 30), fact("Bash:cat", 20), fact("Bash:sed", 5)],
-                          where=[(schema.TOOL_DIM, "Bash")])
+                          where=[(schema.TOOL_DIM, "Bash")], drill=[(schema.TOOL_DIM, "Bash")])
     assert render.next_step(cli.VIEWS["context"], sel, None) == [render.NEXT + "--where command=Bash:sed"]
 
 

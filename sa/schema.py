@@ -112,6 +112,9 @@ BANDS = ("0-50K", "50-100K", "100-200K", "200K+")
 BAND_EDGES = (0, 50000, 100000, 200000)  # each band's lower edge, inclusive
 VOCABULARY = {CAUSE_DIM: CAUSES, REASON_DIM: REASONS, STARTED_BY_DIM: STARTS,
               PEAK_DIM: BANDS}  # declared values
+# Dimensions whose rows print in a declared order, not by mass, in every
+# view: the bands fullest first.
+ORDERED = {PEAK_DIM: BANDS[::-1]}
 
 
 def band(tokens: float) -> str:

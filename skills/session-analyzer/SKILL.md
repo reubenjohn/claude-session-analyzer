@@ -60,7 +60,7 @@ parent file is missing counts its copy as its own; the scope says how many.
 python3 -m sa context                                    # average, by peak
 python3 -m sa context --where peak=200K+                 # what fills them
 python3 -m sa context --where peak=200K+ --by session    # where
-python3 -m sa context --where command=Bash:cat --by fact # file:line
+python3 -m sa context --where peak=200K+ --where command=Bash:cat --by fact  # file:line
 ```
 
 `--by fact` prints the heaviest leaves, e.g.

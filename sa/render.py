@@ -24,7 +24,7 @@ class View(NamedTuple):
     reconciles: bool
     notes: Tuple[str, ...]   # printed in the key, under the view's metric
     starts: Optional[str] = None  # the dimension the starting context splits by; None: no such line
-    leads: Tuple[str, ...] = ()  # declared-band dimensions the hint pins, at their last value, before the levers
+    leads: Tuple[str, ...] = ()  # ``schema.ORDERED`` dimensions the hint pins, at their first value, before the levers
 
 
 def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit: int,
@@ -46,8 +46,8 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
         body, above, repeats = [], None, []
         for dim in dims:
             grouped = query.group(sel.facts, dim, view.metric)
-            if dim in view.leads:  # bands read fullest first, not by mass
-                order = schema.VOCABULARY[dim][::-1]
+            if dim in schema.ORDERED:  # bands read fullest first, not by mass
+                order = schema.ORDERED[dim]
                 grouped = grouped._replace(rows=sorted(grouped.rows, key=lambda r: (
                     r.kind != query.REGULAR, order.index(r.value) if r.kind == query.REGULAR else 0)))
             labels = above and query.relabels(sel.facts, above.dim, dim, view.metric)
@@ -62,8 +62,9 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
                 above, repeats = grouped, []
                 total = _total(view, sel) if dim == schema.CAUSE_DIM else None
                 totalled = totalled or total is not None
+                counts = window_counts(sel, dim)
                 body += table(grouped, view.metric, limit, whole=bool(by), total=total, names=names,
-                              counts=window_counts(sel, dim)) + [""]
+                              counts=counts) + ([WHOLE_WINDOWS] if counts and sel.drill else []) + [""]
     scope = [style.tag(line, style.SCOPE, values=getattr(line, "values", ()))
              for line in population(view, sel, loaded, since_default)]
     above = (scope + [""] + headline.headline(view, sel, forest, names) + next_step(view, sel, by, names)
@@ -104,23 +105,25 @@ def window_counts(sel: Selection, dim: str) -> Optional[tables.Counts]:
             (schema.PLURAL[schema.CALL], {v: n for v, (_, n) in per.items()})]
 
 
+# Under a drill, a band's counts are still of whole windows: those with a change the pins kept.
+WHOLE_WINDOWS = "windows, calls: whole windows with a matching change, and all their calls"
 NEXT = "→ next: add "
 
 
 def next_step(view: View, sel: Selection, by: Optional[str],
               names: Optional[Dict[str, str]] = None) -> List[str]:
-    """One line under the headline: the fullest ``peak`` band while the
-    windows in view span several (the view's ``leads``), then the pin that
-    follows its own levers (the top value of the first lever a pin left
-    open: the top tool, then within a pinned tool its top command), or
-    ``--by fact`` once none is open; none when the leaves already print or
-    there is nothing to show."""
+    """One line under the headline, the path's next step: the fullest
+    ``peak`` band while the windows in view span several and no drill is
+    pinned (the view's ``leads``), then the pin that follows its own levers
+    (the top value of the first lever left open: the top tool, then within
+    a pinned tool its top command), or ``--by fact`` once none is open;
+    none when the leaves already print or there is nothing to show."""
     carrier = schema.metric(view.metric).carrier
     if by == FACT or not any(f.kind == carrier for f in sel.facts):
         return []
-    for dim in headline.open_dims(sel, view.leads, carrier):  # the fullest band first
+    for dim in headline.open_dims(sel, () if sel.drill else view.leads, carrier):
         present = {f.dims.get(dim) for f in sel.facts if f.kind == carrier}
-        top = [v for v in schema.VOCABULARY[dim] if v in present][-1]
+        top = next(v for v in schema.ORDERED[dim] if v in present)  # the fullest band
         return [style.tag("%s--where %s=%s" % (NEXT, dim, top), style.HINT)]
     for dim in headline.open_dims(sel, view.levers, carrier):
         top = next((r for r in query.group(sel.facts, dim, view.metric).rows if r.kind == query.REGULAR), None)

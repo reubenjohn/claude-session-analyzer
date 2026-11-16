@@ -23,7 +23,7 @@ Is it a problem, what causes it, where, what exactly to fix:
 python3 -m sa context                                       # average context per call, by peak
 python3 -m sa context --where peak=200K+                    # what fills the fullest windows
 python3 -m sa context --where peak=200K+ --by session       # which sessions
-python3 -m sa context --where command=Bash:cat --by fact    # file:line of each change
+python3 -m sa context --where peak=200K+ --where command=Bash:cat --by fact  # file:line
 ```
 
 <!-- example: context | context tokens -->

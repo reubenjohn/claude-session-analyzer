@@ -126,10 +126,14 @@ def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
     assert code == 0, err
     for view, question in cli.QUESTIONS.items():
         assert view in out and question.split(":")[0].split()[0] in out
-    workflow = [set(line.split()) for line in out.splitlines() if line.startswith("  %s context" % cli.PROG)]
+    steps = [line.split(cli.PROG, 1)[1].split() for line in out.replace("\\\n", "").splitlines()
+             if line.startswith("  ") and " %s context" % cli.PROG in line]
+    workflow = [set(step) for step in steps]
     assert len(workflow) == 4  # is it a problem, what, where, what to fix
     assert [("--where" in w, "--by" in w) for w in workflow] == [(False, False), (True, False), (True, True),
                                                                 (True, True)]
+    pin = "%s=%s" % (schema.PEAK_DIM, schema.BANDS[-1])
+    assert all(pin in w for w in workflow[1:]) and "%s=Bash:cat" % schema.COMMAND_DIM in workflow[-1]  # kept
     assert "--where %s=%s" % (schema.PEAK_DIM, schema.BANDS[-1]) in out  # the path leads with the fullest band
     for flag in ("--since", "--where", "--by", "--limit", "--root"):
         assert re.search(r"^  %s " % flag, out, re.M), flag
