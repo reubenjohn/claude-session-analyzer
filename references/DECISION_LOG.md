@@ -62,20 +62,9 @@ does not advance the carry.
 **P9 — presets-as-data; computed denominators.** RULED: keep computed
 denominators; presets reduce to the two subcommands' defaults.
 
-**D-SPEND-BY-INCREMENT — spend cannot leave the window.** DEFERRED. Call
-facts carry only window dimensions, so `sa spend` cannot say what put the
-tokens there; it prints a one-line pointer to `sa context` and says that
-context shares are not cost shares. No cost-per-increment join. Design
-note: an exact decomposition exists — spread each call's
-spend uniformly over the tokens occupying its window at that call, so an
-increment's cost is `delta x sum over later calls N of spend(N)/occupancy(N)`,
-which telescopes to `sum spend` exactly — but uniform per-token spreading
-inside a call is a convention, so it is attribution by model and waits for an
-owner ruling. Alternative: price each call's `cache_creation` at its own
-tier rate against the increment booked into the interval that call closes;
-this rests on the identity `cache_read(N) == cache_read(N-1) +
-cache_creation(N-1)`, measured at 92.21% of pairs, so it must be measured
-before anyone calls it exact.
+**D-SPEND-BY-INCREMENT — spend cannot leave the window.** DEFERRED:
+no cost-per-increment join; the row, with its design note, is in
+`DECISION_LOG_HISTORY_2.md`.
 
 **D-USAGE-DOCSTRINGS — `sa/usage.py` docstrings are the measured facts.**
 RULED. Each docstring is the measured fact with its population and date
@@ -185,7 +174,8 @@ window row; a `--where` pin omits every table and lever it fixes; signed
 rows out of shares. Starting context is labelled mass that entered,
 never a window size: compaction starts re-count the system prompt.
 (Amended by D-PER-CALL: the stated total is the average context per
-call, every line in its unit.) [W][O]
+call, every line in its unit. [O] second opinion 2026-11-16 on the
+amendment: AGREE.) [W][O]
 
 **D-OUTPUT-CAP — default `context` output never exceeds its baseline.**
 RULED. A test caps it at 46 lines, 3,228 chars: the fixture baseline at
@@ -224,7 +214,8 @@ population's: never summed nor merged; a combined population is
 recomputed from its facts. (Amended by D-PER-CALL: it is the headline's
 first line, and every context figure a part of it.) `query.total` refuses a PEAK metric as
 `query.group` did, closing the hole [O] found. Measured: 110,119 tokens
-over 24,517 calls; main 120,545, subagent 108,309 [M][O].
+over 24,517 calls; main 120,545, subagent 108,309 [M][O]. [O] second
+opinion 2026-11-16: AGREE-WITH-CHANGE, applied.
 
 **D-PEAK-BAND — `peak`, a window dimension.** RULED. On both kinds,
 constant per window: the band of the window's largest call
@@ -297,24 +288,31 @@ through the last); a set of changes is Σ held over the calls of the
 whole windows in view (window pins narrow them, a drill keeps them). The
 headline opens `average context per call* N tokens, over C calls in W
 windows` (a drill adds `, from N changes where … in M of them`);
-starting context, growth, the lever walk, every context table's rows
-(`= average N ✓ = mean call size`) and `--by fact` (its part, then its
-raw delta) are in that unit. Shares are of the average before shrink:
-the signed row stays out of them, so the base is the average itself only
-without shrink. The peak table adds each band's own `avg call`. `PER_CALL`
-is an aggregation class: `query.per` refuses a sum or a table without
-one population's calls, and any other metric given calls; a per-call
-figure is never summed or merged across populations. A fork's calls hold
-its `inherited` copy: a row whenever such a fork is in view (the summed
-selection keeps D-INHERITED-ONCE). The summed total moves to the checks
-line, against the final window sizes, beside Σ delta×held = Σ call
-occupancy, checked per window (`reconciliation`, MISMATCH exit 1). Spend
-unchanged. [M] LOCAL SWEEP 2026-11-16T08:30Z: holds in 619 of 619
-windows, 2,787,153,745 both sides, 25,066 calls, average 111,193; `sa
-context --since all` holds, exit 0. [O] second opinion pending.
+starting context, growth, the lever walk, every context table's `part of
+avg` column (its rows add up to the average; the cause table alone, and
+only with no drill, closes `= average N ✓ = mean call size`) and `--by
+fact` (its part, then its raw delta) are in that unit. Shares are of the
+average before shrink: the signed row stays out of them, so the base is
+the average itself only without shrink. Every window-dimension table
+adds windows, calls and each row's own `avg call` (`query.mean` over its
+calls: what its pin's headline prints; never summed; under a drill, of
+the whole windows with a matching change). `PER_CALL` is an aggregation
+class: `query.per` refuses a sum or a table without one population's
+calls, and any other metric given calls; a per-call figure is never
+summed or merged across populations. A fork's calls hold its `inherited`
+copy: a row whenever such a fork is in view (the summed selection keeps
+D-INHERITED-ONCE). The summed total moves to the checks, against the
+final window sizes, beside Σ delta×held = Σ call occupancy, checked per
+window (`reconciliation`, MISMATCH exit 1). Spend unchanged. [M] LOCAL
+SWEEP 2026-11-16T08:30Z: holds in 619 of 619 windows, 2,787,153,745 both
+sides, 25,066 calls, average 111,193; `sa context --since all` holds,
+exit 0. [O] second opinion 2026-11-16: AGREE-WITH-CHANGE, applied: the
+part column reads `part of avg`, own `avg call`, the drill note, the
+checks in two lines with `tokens × calls`, the -h path = the hint chain.
 
 **D-NO-VERDICT — no numeric "is this hurting you" verdict.** RULED by
 the owner. No rot threshold has been measured, so any cut-off would be
 an estimate: no figure is labelled good or bad. `sa explain peak` says
 in plain words, with no number, that larger windows are where models
-are most likely to lose track, so start with the fullest band.
+are most likely to lose track, so start with the fullest band. [O]
+second opinion 2026-11-16: AGREE.

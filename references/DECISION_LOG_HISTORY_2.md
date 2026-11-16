@@ -125,3 +125,20 @@ residual row carries it); the key lists exactly the marked terms, one
 clause each. The per-table `∅ by X` lines go; `sa explain unassigned`
 gives each table's cases. `--where` never took `∅` as a value, nor
 takes `unassigned`. Amends D-PLAIN-TERMS' markers; no second opinion yet.
+
+## Rows moved from `DECISION_LOG.md`, 2026-11-16, per call (verbatim)
+
+**D-SPEND-BY-INCREMENT — spend cannot leave the window.** DEFERRED. Call
+facts carry only window dimensions, so `sa spend` cannot say what put the
+tokens there; it prints a one-line pointer to `sa context` and says that
+context shares are not cost shares. No cost-per-increment join. Design
+note: an exact decomposition exists — spread each call's
+spend uniformly over the tokens occupying its window at that call, so an
+increment's cost is `delta x sum over later calls N of spend(N)/occupancy(N)`,
+which telescopes to `sum spend` exactly — but uniform per-token spreading
+inside a call is a convention, so it is attribution by model and waits for an
+owner ruling. Alternative: price each call's `cache_creation` at its own
+tier rate against the increment booked into the interval that call closes;
+this rests on the identity `cache_read(N) == cache_read(N-1) +
+cache_creation(N-1)`, measured at 92.21% of pairs, so it must be measured
+before anyone calls it exact.
