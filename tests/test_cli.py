@@ -19,7 +19,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     loaded, facts = fx.load_facts(root)
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
-    (read, kept, orphan), answer = fx.sections(out)[:2]
+    (read, kept, orphan), answer = fx.sections(fx.joined(out))[:2]  # a long root: its own line
     first = fx.headline(out)
     # D-PER-CALL: every figure is what the average call held. starting_context
     # is the largest cause but cause is no lever: it is the starting context,
@@ -30,9 +30,9 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     assert len(windows) == 3 and tables.num(sum(held) / len(held)) == "84,709"
     assert re.search(r"^%s\s+84,333\s" % schema.STARTING_CONTEXT, out, re.M)
     assert first == ("%s84,709 %s, over %d calls in 3 windows; starting context%s 84,333 99.5%% = %s 84,000"
-                     " + %s 333; growth 433 0.5%% %sBash 214 → Bash:pytest 214") % (
+                     " + %s 333; growth%s%s 433 0.5%% %sBash 214 → Bash:pytest 214") % (
         fx.total_line(CONTEXT.metric), fx.unit(CONTEXT.metric), len(held), glossary.MARKER,
-        schema.SESSION_START, schema.FORK, headline.LARGEST)  # a start by its typable value
+        schema.SESSION_START, schema.FORK, headline.BEFORE_SHRINK, glossary.MARKER, headline.LARGEST)  # a start by its typable value
     assert fx.average(out) == [answer[0]]  # the level is the first line, not a line of its own
     assert re.search(r"^%s\s+84,333\s+\d+\s+99\.5%%  %s$" % (  # one base, and its gloss
         schema.STARTING_CONTEXT, re.escape(render.GLOSSES[schema.STARTING_CONTEXT])), out, re.M)
@@ -41,7 +41,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     assert kept == "in view: 3 windows%s, %d %s%s" % (
         glossary.MARKER, sum(f.kind == INCREMENT for f in facts), schema.PLURAL[INCREMENT], glossary.MARKER)
     assert orphan == " " * len("in view: ") + "1 fork whose parent is missing: its copy counts as its own"
-    rooted = [line for line in out.splitlines() if str(root) in line]  # locators are root-relative
+    rooted = [line for line in fx.joined(out).splitlines() if str(root) in line]  # locators are root-relative
     assert rooted[0] == read and len(rooted) > 1  # every command keeps --root, wrapped to the line budget
     assert all(l.lstrip().startswith((grammar.PROG, render.NEXT, "--root")) for l in rooted[1:]), rooted
     # The cause table closes with its rows' sum, the average, against the
@@ -49,8 +49,9 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     assert re.search(r"^%s\s+84,709\s+%d\s+%s = mean call size$" % (
         tables.TOTAL_LABEL, sum(f.kind == INCREMENT for f in facts), tables.OK_MARK), out, re.M)
     assert fx.checks(out) == (  # what is checked, in plain words; what could not be traced, with its base
-        "%s over 3 windows in view: rows to the average call, changes to window sizes\n"
-        "  %s: 0.2%% of the average call, not traced to one source" % (checks.OK, schema.AMBIGUOUS))
+        "%s over 3 windows in view: rows to the average call, changes to final window sizes\n"
+        "  %s: 0.2%% of the average call over all 21 calls, not traced to one source" % (
+            checks.OK, schema.AMBIGUOUS))
     worked = fx.run_cli("context", "--root", str(root), "-v")[1].splitlines()
     added = "context tokens added 254,860 - shrink 300"  # the widest label sets the figures' column
     row = lambda label, figure, after="": ("  %-*s  %9s  %s" % (len(added), label, figure, after)).rstrip()
@@ -60,7 +61,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
         row("= average call", "84,709", "✓ same as the mean measured call size"),
         row(added, "= " + format(3 * fx.FINAL_OCCUPANCY + 250000, ",d"), "✓ same as the final window sizes"),
         "  18 calls after their window's first = 21 calls - 3 windows",
-        "    = 6 (33.3%) one source + 9 ambiguous + 3 shrank  ✓"]
+        "    = 6 (33.3%) one source + 9 (50.0%) ambiguous + 3 shrank  ✓"]
     assert "reconciliation" not in out and "MISMATCH" not in out  # full detail only on failure
     titles = [line.split(":")[0].split("  ")[0] for line in out.splitlines() if line.startswith("by ")]
     for dim in CONTEXT.tables:  # a table, or a line its rows share with the tables repeating it
@@ -106,7 +107,7 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
                      % (schema.SUBAGENT_DIM, fx.printed(SPEND.metric), fx.count_column(SPEND.metric)),
                      out, re.M)
     assert fx.count_column(SPEND.metric) != fx.count_column(CONTEXT.metric)  # each view names its carrier
-    assert average == "%s%s %s, over 14 calls in 2 windows" % (  # two like windows: one window's mean
+    assert average == "%s%s %s, over the same 14 calls" % (  # two like windows: one window's mean
         fx.AVERAGE, tables.num(sum(f.metrics[fx.PEAK] for f in fx.load_facts(root)[1]
                                    if f.kind == schema.CALL and f.window.line == 1
                                    and f.dims[schema.SESSION_DIM] == fx.SESSION) / 14), fx.unit(fx.PEAK))

@@ -39,7 +39,7 @@ GLOSSARY: Dict[str, Term] = {
     schema.WINDOW_DIM: Term(
         "one context window, from its start to its file's end or the next compaction",
         "it starts at a session start, subagent, fork, replay or compaction; pin one by the 8 hex"
-        " characters by window prints (window=<those 8>); a file holds one window per compaction"
+        " characters by window prints, as window=1a2b3c4d; a file holds one window per compaction"
         " that a call follows; a file with no call is read but is no window", True),
     schema.STARTED_BY_DIM: Term("what began the window: " + ", ".join(schema.STARTS),
                                 "a compaction starts a new window in the same file; its starting"
@@ -62,15 +62,14 @@ GLOSSARY: Dict[str, Term] = {
     schema.CALL: Term("one assistant message, its split records merged: what spend is read from",
                       "a message written as several records counts once"),
     schema.INCREMENT: Term("one change of a window's context, at its start or between two calls",
-                           "booked to its cause; what context tokens are read from; the step between"
-                           " two calls can book two (the previous reply, then the rest), so changes"
-                           " outnumber calls; one ambiguous change can name several tool results", True),
+                           "the step between two calls can book two (the previous reply, then the"
+                           " rest), so changes outnumber calls", True),
     schema.CONTEXT_DELTA: Term(
         "context tokens booked to what put them in a window; summed, they equal the"
         " windows' final sizes",
         "it is net: what a compaction or other shrink removed is not counted, so a window"
         " that grew to 700K and compacted to 70K reports 70K"),
-    schema.SPEND: Term("input tokens weighted by price: cache reads x0.1, cache writes x1.25 (5m) or x2.0 (1h)",
+    schema.SPEND: Term("input tokens weighted by price: cache reads ×0.1, cache writes ×1.25 (5m) or ×2.0 (1h)",
                        "output excluded; every call re-reads its whole context, so spend grows with"
                        " context times calls; it is never quoted in dollars", True),
     AVERAGE: Term(
@@ -93,9 +92,9 @@ GLOSSARY: Dict[str, Term] = {
                                 "never summed: a sum counts a token once per call that re-read it"),
     "output_tokens": Term("tokens the calls generated",
                           "the next call reads them back, as replies"),
-    "cache_write_1h_tokens": Term("tokens written to the 1-hour prompt cache (billed x2.0)",
+    "cache_write_1h_tokens": Term("tokens written to the 1-hour prompt cache (billed ×2.0)",
                                   "each call writes one cache tier only"),
-    "cache_write_5m_tokens": Term("tokens written to the 5-minute prompt cache (billed x1.25)",
+    "cache_write_5m_tokens": Term("tokens written to the 5-minute prompt cache (billed ×1.25)",
                                   "each call writes one cache tier only"),
     schema.PROJECT_DIM: Term("the project directory the session ran in, path-encoded (/ as -),"
                              " home printed as ~",
@@ -117,7 +116,7 @@ GLOSSARY: Dict[str, Term] = {
         "what a window held at its first call: system prompt, tools, CLAUDE.md, prompt",
         "after a compaction, its summary; not split by content: the transcript records no size for each"
         " part; a fork's copy of its parent is apart, an inherited row, when the parent is in view."
-        " The lever is how many windows start (subagent starts are usually most) and what each loads",
+        " The lever is how many windows start (subagent_start is usually most) and what each loads",
         True, gloss="held at a window's first call"),
     schema.INHERITED: Term("what a fork or replayed window copied: its parent window's size at"
                            " the branch call",
@@ -132,12 +131,12 @@ GLOSSARY: Dict[str, Term] = {
     schema.USER_TEXT: Term("text typed into the window (by you or a hook)",
                            "usually small: typing rarely fills a window", gloss="typed by you or a hook"),
     schema.AMBIGUOUS: Term(
-        "growth between two calls not traced to one contributor, left undivided",
+        "growth between two calls not traced to one source, left undivided",
         ", ".join("%s (%s)" % r for r in ((schema.SEVERAL, "more than one entered"),
                                           (schema.LESS_THAN_REPLY, "grew by less than the previous call's reply"),
                                           (schema.UNEXPLAINED, "none did")))
         + "; never spread over them; it still names a tool when every candidate came from one;"
-        " by change lists the candidates", True, gloss="no one contributor: undivided"),
+        " by change lists the candidates", True, gloss="not traced to one source"),
     schema.SHRINK: Term("a window that got smaller between two calls (often, not always, a compaction)",
                         "a negative row: excluded from every share, always in the checks", True,
                         gloss="the window got smaller; in no share"),

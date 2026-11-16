@@ -5,6 +5,7 @@ and home printed as ``~``. Terms come from ``glossary.GLOSSARY``."""
 import os
 import re
 import time
+from pathlib import Path
 
 import pytest
 
@@ -26,13 +27,13 @@ def test_the_first_line_names_the_files_the_default_window_and_the_root(tmp_path
     old = sorted(root.rglob("*.jsonl"))[0]
     _age(old, 30)
     n = len(list(root.rglob("*.jsonl")))
-    out = fx.run_cli("context", "--root", str(root))[1]
+    out = fx.joined(fx.run_cli("context", "--root", str(root))[1])  # a long root: its own line
     rest = ""  # the one read line: nothing set aside, so nothing said
     assert out.splitlines()[0] == "read: %d files from the last %gd (default) under %s%s" % (
         n - 1, grammar.DEFAULT_SINCE, root, rest)
-    out = fx.run_cli("context", "--root", str(root), "--since", grammar.ALL)[1]
+    out = fx.joined(fx.run_cli("context", "--root", str(root), "--since", grammar.ALL)[1])
     assert out.splitlines()[0] == "read: %d files of any age under %s%s" % (n, root, rest)
-    out = fx.run_cli("context", "--root", str(root), "--since", "%gd" % grammar.DEFAULT_SINCE)[1]
+    out = fx.joined(fx.run_cli("context", "--root", str(root), "--since", "%gd" % grammar.DEFAULT_SINCE)[1])
     assert out.splitlines()[0] == "read: %d files from the last %gd under %s%s" % (
         n - 1, grammar.DEFAULT_SINCE, root, rest)
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "every")
@@ -54,7 +55,7 @@ def test_home_prints_as_a_tilde(tmp_path, monkeypatch, capsys):
 def test_sections_read_scope_answer_tables_also_footer_checks(tmp_path):
     root = fx.cli_corpus(tmp_path)
     out = fx.run_cli("context", "--root", str(root))[1]
-    sections = fx.sections(out)
+    sections = fx.sections(fx.joined(out))
     firsts = [s[0] for s in sections]
     assert firsts[0].startswith("read: ") and sections[0][1].startswith("in view: ")
     assert firsts[1].startswith(fx.total_line(CONTEXT.metric)) and fx.hint(out)
@@ -179,8 +180,9 @@ def test_an_encoded_home_prints_as_a_tilde_and_selects_as_printed(tmp_path, monk
     assert encoded not in out and re.search(r"^~-work\s", out, re.M)
     assert cli.main(["context", "--root", str(root), "by", grammar.FACTS["context"]]) == 0
     out = capsys.readouterr().out  # a file prints as on disk, under the directory named once: it opens
-    assert "\nby change, files in ~/%s/%s/\n" % (root.relative_to(tmp_path).as_posix(), encoded) in out
-    assert re.search(r"^sess-0001\.jsonl  ", out, re.M) and (root / encoded / "sess-0001.jsonl").is_file()
+    (listed,) = fx.listed(out)  # the directory as deep as its line holds, the rest on the path: it opens
+    assert Path(listed.replace("~", str(tmp_path), 1)).resolve() == (root / encoded / "sess-0001.jsonl").resolve()
+    assert "/./-" in listed  # a long name stays on the path, never read as a flag
     assert cli.main(["context", "--root", str(root), "%s=~-work" % schema.PROJECT_DIM]) == 0
     assert "\nin view where %s=~-work: " % schema.PROJECT_DIM in capsys.readouterr().out
     # A refusal names the nearest value with home as ~ too.
@@ -214,4 +216,4 @@ def test_v_says_how_to_pin_a_window(tmp_path):
     value = next(f.dims[schema.WINDOW_DIM] for f in fx.load_facts(root)[1])
     assert len(value) == 8 and int(value, 16) >= 0  # vacuity guard: the value is 8 hex characters
     out = fx.run_cli("context", "--root", str(root), "-v")[1]
-    assert "%s=<those 8>" % schema.WINDOW_DIM in dict(fx.key(out))[schema.WINDOW_DIM]
+    assert re.search(r"\b%s=[0-9a-f]{8}\b" % schema.WINDOW_DIM, dict(fx.key(out))[schema.WINDOW_DIM])

@@ -88,11 +88,9 @@ def leaves(facts: List[Fact], metric: str, calls: Optional[int], total: float,
         return text
     hidden = order[limit:] if limit is not None else []
     shown = order[:len(order) - len(hidden)]
-    common = posixpath.commonpath([posixpath.dirname(k.file) for k in shown]) if shown else ""
-    under = posixpath.join(root, common, "") if root else ""
     title = "by %s" % ("change" if spec.carrier == schema.INCREMENT else "call")
-    lines = [style.tag(title + (", files in " + under if under else ""), style.HEADER),
-             style.tag(line(header), style.HEADER)]
+    common, head = _under(title, root, [k.file for k in shown])
+    lines = [style.tag(h, style.HEADER) for h in head] + [style.tag(line(header), style.HEADER)]
     said: List[str] = []  # the candidates' order is said once
     noun = schema.PLURAL[spec.carrier]
 
@@ -107,7 +105,8 @@ def leaves(facts: List[Fact], metric: str, calls: Optional[int], total: float,
         dims_of = mine[0].dims
         tags = "  ".join("%s=%s" % (d, schema.window_value(key) if d == schema.WINDOW_DIM else dims_of.get(d))
                          for d in heads)
-        lines += _window_head(posixpath.relpath(key.file, common or "."), tags)
+        path = posixpath.relpath(key.file, common or ".")
+        lines += _window_head("./" + path if path.startswith("-") else path, tags)  # never read as a flag
         for f in mine:
             text = line(rows[id(f)])
             for part in _fit(text, lead + sum(w + 2 for w in widths[:len(names_)])):
@@ -122,19 +121,43 @@ def leaves(facts: List[Fact], metric: str, calls: Optional[int], total: float,
     return lines + [_sigma(carried, metric, calls, total)]
 
 
+def _under(title: str, root: str, files: List[str]) -> Tuple[str, List[str]]:
+    """The directory the files share, under ``root``, as deep as the title
+    line holds (the rest stays on each file's path, so both open as
+    printed), and the title's lines: the root on its own when even it
+    overflows, broken after a ``/`` past the budget."""
+    shared = posixpath.commonpath([posixpath.dirname(f) for f in files]) if files else ""
+    if not root:
+        return shared, [title]
+    parts = [p for p in shared.split("/") if p]
+    for k in range(len(parts), -1, -1):
+        under = posixpath.join(root, *(parts[:k] + [""]))
+        if len(title) + len(FILES_IN) + len(under) <= WIDTH:
+            return posixpath.join(*parts[:k]) if k else "", [title + FILES_IN + under]
+    return "", [title + FILES_IN.rstrip()] + [p.rstrip() for p in broken("  " + posixpath.join(root, ""))]
+
+
+FILES_IN = ", files in "
+
+
+def broken(path: str) -> List[str]:
+    """A path within the line budget, broken after a ``/`` (a locator is
+    never cut short), each continuation indented."""
+    parts = []
+    while len(path) > WIDTH:
+        cut = path.rfind("/", 0, WIDTH) + 1 or WIDTH
+        parts.append(path[:cut])
+        path = "  " + path[cut:]
+    return parts + [path]
+
+
 def _window_head(path: str, tags: str) -> List[str]:
     """A window's file and dimensions, within the line budget: the tags
     on their own line when both overflow it, a long path broken after a
     ``/`` (a locator is never cut short)."""
     if len(path) + 2 + len(tags) <= WIDTH:
         return [style.tag("%s  %s" % (path, tags), "", values=((0, len(path)),))]
-    parts = []
-    while len(path) > WIDTH:
-        cut = path.rfind("/", 0, WIDTH) + 1 or WIDTH
-        parts.append(path[:cut])
-        path = "  " + path[cut:]
-    parts.append(path)
-    return [style.tag(p, "", values=((0, len(p)),)) for p in parts] + ["  " + tags]
+    return [style.tag(p, "", values=((0, len(p)),)) for p in broken(path)] + ["  " + tags]
 
 
 def _fit(text: str, indent: int) -> List[str]:
@@ -200,7 +223,7 @@ def _evidence(evidence: dict, file: str, said: List[str]) -> Iterator[str]:
                 said.append(how)
             for c in sorted(val, key=lambda c: -(c.chars or -1)):
                 tags = " ".join("%s=%s" % (d, c.dims[d]) for d in ROW_DIMS if d in c.dims)
-                yield ("%s  %s  %s  %s" % (PAD, _at(c.locator, file), recorded(c), tags)).rstrip()
+                yield ("%s└ %s  %s  %s" % (PAD, _at(c.locator, file), recorded(c), tags)).rstrip()
         elif isinstance(val, schema.WindowKey):  # a parent window: its pin
             yield "%s%s: %s=%s" % (PAD, key, schema.WINDOW_DIM, schema.window_value(val))
         elif isinstance(val, schema.Locator):

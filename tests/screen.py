@@ -85,8 +85,31 @@ def key(out):
 
 def joined(out):
     """The output with each command wrapped to the line budget (`` \\``,
-    then its indented continuation) rejoined on one line, as a shell reads it."""
-    return re.sub(r" \\\n +", " ", out)
+    then its indented continuation) rejoined on one line, as a shell reads it;
+    the read line's root, on a line of its own when long, rejoined too."""
+    return re.sub(r" \\\n +", " ", re.sub(r"^(read: .* under)\n  ", r"\1 ", out, flags=re.M))
+
+
+def listed(out):
+    """``by change``/``by call``: each window's file as its header says it
+    opens, the directory named once joined to its path (a long one rejoined
+    from its broken lines)."""
+    lines = out.splitlines()
+    head = next(i for i, l in enumerate(lines) if re.match(r"^by (change|call), files in", l))
+    under = lines[head].split(", files in", 1)[1].strip()
+    if not under:  # a long root on its own lines
+        under = lines[head + 1].strip()
+        while under.endswith("/") and lines[head + 2].startswith("  ") and lines[head + 2].strip().endswith("/"):
+            head += 1
+            under += lines[head + 1].strip()
+    files, path = [], ""
+    for line in lines[head + 1:]:
+        if path or re.match(r"^[^ ]\S*(\.jsonl|/)(  |$)", line):
+            path += line.strip().split("  ")[0]
+            if path.endswith(".jsonl"):
+                files.append(under + path)
+                path = ""
+    return files
 
 
 def hint(out):

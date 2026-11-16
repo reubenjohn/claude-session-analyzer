@@ -2,7 +2,7 @@
 import re
 
 import fixtures as fx
-from sa import cli, glossary, grammar, heads, notes, query, residual, schema, tables
+from sa import cli, glossary, grammar, headline, heads, notes, query, residual, schema, tables
 from sa.schema import CALL
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
@@ -36,7 +36,7 @@ def test_headline_walks_the_view_levers_whatever_by_shows(tmp_path):
     root = fx.cli_corpus(tmp_path)
     assert CONTEXT.tables[0] == CAUSE and CAUSE not in CONTEXT.levers
     assert CONTEXT.levers == (TOOL, HEAD) and SPEND.levers == (schema.SUBAGENT_DIM,)
-    lead = "; growth 433 0.5% largest: Bash 214 → Bash:pytest 214"
+    lead = "; growth%s%s 433 0.5%% largest: Bash 214 → Bash:pytest 214" % (headline.BEFORE_SHRINK, glossary.MARKER)
     for by in (CAUSE, schema.SESSION_DIM, schema.WINDOW_DIM):
         code, out, err = fx.run_cli("context", "--root", str(root), "by", by)
         assert code == 0, err
@@ -165,7 +165,7 @@ def test_the_headline_never_names_a_cause(tmp_path):
     root = fx.corpus(tmp_path / "exact", {"proj-a/sess-0001.jsonl": records[:2] + records[3:]})
     out = fx.run_cli("context", "--root", str(root), "by", CAUSE, "-v")[1]
     assert " largest: Read 125 → " in fx.headline(out)
-    assert " + 0 %s + " % schema.AMBIGUOUS in fx.worked(out)  # the checks' split, worked under -v
+    assert " + 0 (0.0%%) %s + " % schema.AMBIGUOUS in fx.worked(out)  # the checks' split, worked under -v
     assert schema.STARTING_CONTEXT.replace("_", " ") in dict(fx.key(out))  # vacuity guard: -v defines
 
 
@@ -179,7 +179,7 @@ def test_headline_share_is_of_the_added_while_the_table_share_is_of_its_base(tmp
     assert code == 0, err
     assert re.search(r"^%s\s+84,552\s+\d+\s+-  = %s 84,333 \+ " % (
         re.escape(residual.label(TOOL)), schema.STARTING_CONTEXT), out, re.M)  # in no share, its parts shown
-    assert re.search(r"^%s\s+-57\s" % re.escape(glossary.marked(schema.SHRINK)), out, re.M)
+    assert re.search(r"^%s\*?\s+-57\s" % re.escape(schema.SHRINK), out, re.M)
     assert " 84,333 99.5% " in fx.headline(out) and " 433 0.5% " in fx.headline(out)  # of the 84,766
     verbose = fx.run_cli("context", "--root", str(root), "by", TOOL, "-v")[1]
     assert re.search(r"\n  context tokens added 254,860 - %s 300 += 254,560 " % schema.SHRINK, fx.worked(verbose))  # summed

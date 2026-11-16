@@ -52,7 +52,7 @@ def headline(view, sel: Selection, forest: List[Fact] = (), names: Names = None)
                      _sum(view, starting, sel.calls)))
         extra = copied(sel, forest)
         if added - mass:
-            rows.append((glossary.GROWTH, added - mass, (added - mass) / added, LARGEST + "%s %s" % (
+            rows.append((glossary.GROWTH + (BEFORE_SHRINK if added != sel.total else ""), added - mass, (added - mass) / added, LARGEST + "%s %s" % (
                 _name(top, levers, names), num(top.mass)) + path if top else ""))
     elif top is not None and added:
         rows.append(("largest " + levers[0], top.mass, None, _name(top, levers, names) + path))
@@ -62,6 +62,7 @@ def headline(view, sel: Selection, forest: List[Fact] = (), names: Names = None)
         [] if per_call else _average(sel))
 
 
+BEFORE_SHRINK = " before shrink"  # the split adds up to the average before shrink: said where it shows
 LARGEST = "largest: "  # the growth's largest part, walked down the levers: a part, never all of it
 
 
@@ -230,12 +231,13 @@ def _path(facts: List[Fact], levers: List[str], metric: str,
 def _average(sel: Selection) -> List[str]:
     """The average context per call: what a call held (its
     ``context_tokens``), averaged over the calls of the whole windows
-    selected (a drill keeps no call facts), printed with that population.
+    selected (a drill keeps no call facts), printed with that population,
+    the headline's above it: "the same" calls.
     It is never "added per call", and a mean never sums (``query.mean``)."""
     mean, calls = query.mean(sel.window_facts, schema.CONTEXT_TOKENS)
     if not calls:
         return []
-    return ["%s %s %s, over %s in %s" % (
+    return ["%s %s %s, over the same %s" % (
         glossary.printed(glossary.AVERAGE).replace("_", " "), num(mean), schema.metric(schema.CONTEXT_TOKENS).unit,
-        count(calls, "call"), count(sel.n_windows, "window"))]
+        count(calls, "call"))]
 

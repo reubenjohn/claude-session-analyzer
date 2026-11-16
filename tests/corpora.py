@@ -18,8 +18,10 @@ WIDE += [("Read", {"file_path": "/x/a.py"}), ("Edit", {"file_path": "/x/b.md"}),
          ("Glob", {"pattern": "*.py"}), ("WebFetch", {"url": "https://example.com"})]
 
 
-def _project(home, name):
-    return home / ".claude" / "projects" / (re.sub(r"[^A-Za-z0-9]", "-", str(home)) + "-work-" + name)
+def _project(home, name, root=None):
+    """A project directory as Claude Code names it under ``home``, in
+    ``root`` (``home``'s projects unless given)."""
+    return (root or home / ".claude" / "projects") / (re.sub(r"[^A-Za-z0-9]", "-", str(home)) + "-work-" + name)
 
 
 def wide(home):
@@ -68,10 +70,12 @@ def _window(n, session, start, grow, agent=None):
     return [dict(r, agentId=agent) for r in records] if agent else records
 
 
-def realistic(home):
+def realistic(home, name="proj", at=None):
+    """``name`` the projects' stem, ``at`` the directory they are in
+    (``home``'s projects unless given): long ones make every path long."""
     n = 0
     for p in range(PROJECTS):
-        root = _project(home, "proj%d" % p)
+        root = _project(home, "%s%d" % (name, p), at)
         for s in range(SESSIONS):
             session = _id(100 * p + s)
             fx.write_jsonl(root / (session + ".jsonl"), _window(n, session, STARTS[n % 4], 650 * (1 + n % 6)))

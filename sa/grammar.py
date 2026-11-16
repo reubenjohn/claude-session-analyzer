@@ -51,10 +51,15 @@ with its checks (✓): what it verified, in plain words.
   %(p)s context by tool                     one table, every row
   %(p)s context tool=Bash command=Bash:cat  pin rows you saw (DIM=VALUE); pins stack
   %(p)s context tool=Bash by change         the changes themselves, file:line
-  %(p)s context tool=Bash -v                how each figure is computed and checked
+  %(p)s context tool=Bash -v                how it's computed; what * words mean
+  %(p)s spend by subagent                   what each subagent cost
 
---since 30d|all  files modified in the last N days (default 7d); --root DIR;
---color auto|always|never""" % {"p": PROG}
+DIM: %(w)s;
+     context also %(i)s
+--since 30d|all  files modified in the last N days (default 7d)
+--root DIR       the transcripts' directory (default ~/.claude/projects)
+--color auto|always|never""" % {"p": PROG, "w": ", ".join(schema.WINDOW_DIMENSIONS), "i": ", ".join(
+    d for d in schema.KIND_DIMENSIONS[schema.INCREMENT] if d not in schema.WINDOW_DIMENSIONS)}
 
 
 class UsageError(Exception):
@@ -99,6 +104,13 @@ def _dimension(dim: str, view: str) -> str:
                      "dimensions: " + ", ".join(carried))
 
 
+def _start(view: str, rest: Sequence[str]) -> str:
+    """The command with the view put right and the user's other words
+    kept, so it pastes as meant; the view alone when that overflows."""
+    whole = run(view, *rest)
+    return whole if len(whole) <= WIDTH - len("start here: ") else run(view)
+
+
 def carrier(view: str) -> str:
     return schema.INCREMENT if view == "context" else schema.CALL
 
@@ -120,7 +132,7 @@ def parse(argv: Sequence[str]) -> Args:
         near = difflib.get_close_matches(view, VIEWS, 1, 0.6)
         raise UsageError("unknown command %r: %s" % (view, "did you mean %s?" % near[0] if near else
                                                        "the commands are spend and context"),
-                         "start here: %s %s" % (PROG, near[0] if near else "context"))
+                         "start here: " + _start(near[0] if near else "context", words))
     found: Dict[str, object] = {"view": view}
     pins, bare = [], []
     while words:
@@ -143,7 +155,11 @@ def parse(argv: Sequence[str]) -> Args:
         elif flag in RETIRED and word.startswith("-"):
             raise UsageError("%s is retired: %s" % (flag, RETIRED[flag]), "see %s -h" % PROG)
         elif word.startswith("-"):
-            raise UsageError("unknown flag %s" % word, "flags: -v, --since, --root, --color; see %s -h" % PROG)
+            near = difflib.get_close_matches(flag, list(RETIRED) + list(GLOBAL), 1, 0.6)
+            if near and near[0] in RETIRED:  # the retired flag it was meant as teaches the fix
+                raise UsageError("unknown flag %s; %s is retired" % (word, near[0]), RETIRED[near[0]])
+            raise UsageError("unknown flag %s%s" % (word, "; did you mean %s?" % near[0] if near else ""),
+                             "flags: -v, --since, --root, --color; see %s -h" % PROG)
         elif word == BY:
             if "by" in found:
                 raise UsageError("one by per command: by %s already" % found["by"])
@@ -237,7 +253,8 @@ def no_match(view: str, dim: str, text: str, printed: Sequence[str], every: str,
     given the pins before it): the nearest value as a pin, and the command
     that lists every one."""
     near = difflib.get_close_matches(text, list(printed), 1, 0.5) or [
-        p for p in printed if p.lower() == text.lower()][:1] or list(printed)[:1]
+        p for p in printed if p.lower() == text.lower()][:1] or (  # an empty value means the catch-all row
+        [residual.label(dim)] if not text and dim in residual.RESIDUAL_NOTES else list(printed)[:1])
     return UsageError("no %s has %s=%s%s%s" % (
         schema.PLURAL[carrier(view)][:-1], dim, text, " with the pins before it" if given else "",
         "; nearest: %s" % quote("%s=%s" % (dim, near[0])) if near else "; none present"),

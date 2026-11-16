@@ -80,13 +80,13 @@ def context(sel: Selection, more: Optional[Callable[[str], str]] = None) -> Tupl
     r = sel.reconciliation
     if not r.holds:
         return _reconciliation(r), []
-    lines = [style.tag("%s over %s in view: rows to the average call, changes to window sizes" % (
+    lines = [style.tag("%s over %s in view: rows to the average call, changes to final window sizes" % (
         OK, count(sel.n_windows, "window")), style.GOOD)] + _material(sel, more)
     shrink = r.by_cause[schema.SHRINK]
     added = ("context tokens added %s - %s %s" % (num(r.booked - shrink), schema.SHRINK, num(-shrink)) if shrink
              else "context tokens added")
     split = " + ".join("%s %s" % (what, name) for what, name in (
-        (_rate(r, r.exact), "one source"), (num(r.ambiguous), schema.AMBIGUOUS), (num(r.shrink), "shrank")))
+        (_rate(r, r.exact), "one source"), (_rate(r, r.ambiguous), schema.AMBIGUOUS), (num(r.shrink), "shrank")))
     worked = _worked([
         ("each change × the calls that held it", num(r.held), ""),
         ("÷ calls in view", num(r.calls), ""),
@@ -116,19 +116,29 @@ def _material(sel: Selection, more: Optional[Callable[[str], str]]) -> List[str]
         hit = abs(share) >= floor
         if not (hit or cause == schema.AMBIGUOUS and share):
             continue
-        lines.append("%s%s: %s of the average call%s" % (INDENT, cause, tables.pct(share), (
-            ", not traced to one source" if cause == schema.AMBIGUOUS else "")))
+        lines.append("%s%s: %s of the average call over all %s%s" % (
+            INDENT, cause, tables.pct(share), count(sel.calls, "call"),
+            ", not traced to one source" if cause == schema.AMBIGUOUS else ""))
         if hit and more:
-            lines += [style.tag(line, style.HINT) for line in tables.command_lines("%s! %s %s%.0f%%: " % (
-                INDENT, "over" if share > 0 else "beyond", "" if share > 0 else "-", 100 * floor), more(cause))]
+            lines += [style.tag(line, style.HINT) for line in tables.command_lines("%s! %s %s %s%.0f%%: " % (
+                INDENT, cause, "over" if share > 0 else "beyond", "" if share > 0 else "-", 100 * floor),
+                more(cause))]
     return lines
 
 
-def spend(sel: Selection, shown: Sequence[query.Table]) -> Tuple[List[str], List[str]]:
+def spend(sel: Selection, shown: Optional[Sequence[query.Table]]) -> Tuple[List[str], List[str]]:
     """The spend view's line, and per table shown, its rows summed against
-    the headline: a ``✓`` only where the printed figures add up."""
-    if not shown:
+    the headline: a ``✓`` only where the printed figures add up; with no
+    table (a pin left none open), the calls' spend summed against it."""
+    if shown is None:  # the facts' list: its Σ line is the check
         return [], []
+    if not shown:
+        calls = [f for f in sel.facts if f.kind == schema.CALL]
+        summed = sum(f.metrics[schema.SPEND] for f in calls)
+        ok = num(summed) == num(sel.total)
+        return [style.tag(("%s: %s summed = %s %s %s" % (
+            OK if ok else tables.BAD_MARK, count(len(calls), "call"), glossary.printed(schema.SPEND), num(summed),
+            "" if ok else "not the headline's %s" % num(sel.total))).rstrip(), style.GOOD if ok else style.BAD)], []
     worked, holds = [], True
     for grouped in shown:
         regular = sum(r.mass for r in grouped.rows if r.kind == query.REGULAR)

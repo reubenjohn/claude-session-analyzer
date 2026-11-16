@@ -59,7 +59,7 @@ def test_unknown_value_of_a_closed_vocabulary_dimension_is_refused(tmp_path, dim
     root = fx.every_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "%s=bogus" % dim)
     assert code == 2 and not out
-    assert "unknown %s 'bogus'; declared: %s" % (dim, ", ".join(schema.VOCABULARY[dim])) in err
+    assert "unknown %s 'bogus'; declared: %s" % (dim, ", ".join(schema.VOCABULARY[dim])) in err.replace("\n", "; ")
     code, out, err = fx.run_cli("context", "--root", str(root), "%s=%s" % (dim, value))
     assert code == 0, err  # vacuity guard
     lead = re.escape(fx.total_line(CONTEXT.metric)) if dim in schema.WINDOW_DIMENSIONS else r"%s\*?: " % value
@@ -84,7 +84,7 @@ def test_a_value_no_fact_carries_is_refused_naming_the_values_present(tmp_path, 
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), *bogus)
     assert code == 2 and not out and len(err.splitlines()) <= 2
-    assert message + "\n" in err
+    assert message + "\n" in err or message in err.replace("\n", "; ", 1)  # a long one: its tail, line 2
     _answers(*fx.run_cli("context", "--root", str(root), *good))  # vacuity guard
 
 
@@ -113,7 +113,8 @@ def test_root_must_be_an_existing_directory(tmp_path):
     root = fx.cli_corpus(tmp_path)
     for typo in (root.parent / "typo", root / "proj-a" / "sess-0001.jsonl"):
         code, out, err = fx.run_cli("context", "--root", str(typo))
-        assert code == 2 and not out and "no such directory: %s" % typo in err
+        assert code == 2 and not out and "no such directory: " in err and typo.name in err  # a long one, cut
+        assert len(err.splitlines()) == 2
     _answers(*fx.run_cli("context", "--root", str(root)))  # vacuity guard
 
 
@@ -121,10 +122,10 @@ def test_since_selects_files_by_mtime_and_zero_days_selects_none(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "0d")
     assert code == 0, err
-    assert "read: 0 files from the last 0d under " in out and "\nin view: 0 windows*, 0 changes" in out
+    assert "read: 0 files from the last 0d under " in fx.joined(out) and "\nin view: 0 windows*, 0 changes" in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since", "1d")
     assert code == 0, err
-    assert "read: 4 files from the last 1d under " in out and "\nin view: 3 windows*, " in out
+    assert "read: 4 files from the last 1d under " in fx.joined(out) and "\nin view: 3 windows*, " in out
     code, out, err = fx.run_cli("context", "--root", str(root), "--since=-1d")
     assert code == 2 and not out and "number of days" in err
 
@@ -146,7 +147,7 @@ def test_since_excludes_a_parent_before_dedup_so_its_continuation_owns_the_repla
         found, file = [], None
         for line in out.splitlines():
             if re.match(r"^\S+\.jsonl  ", line):
-                file = line.split()[0]
+                file = line.split()[0].rsplit("/", 1)[-1]
             elif fx.LEAF.match(line):
                 found.append((int(line.split()[1].replace(",", "")), file))
         return sorted(found)
@@ -156,15 +157,15 @@ def test_since_excludes_a_parent_before_dedup_so_its_continuation_owns_the_repla
     assert heads(out) == [(200, second), (1000, first)]
     assert "%s=%s" % (schema.STARTED_BY_DIM, schema.REPLAYED) in out  # the continuation's window header
     assert headline % ("10 calls", "2 windows", "2 changes", "2 windows") in fx.headline(out)
-    assert "\nby change, files in %s/proj-a/\n" % root in out
-    assert "read: 2 files from the last 1d under " in out and "; 5 duplicates\n" in out
+    assert sorted(fx.listed(out)) == ["%s/proj-a/%s" % (root, f) for f in (first, second)]
+    assert "read: 2 files from the last 1d under " in fx.joined(out) and "; 5 duplicates\n" in out
     stale = time.time() - 2 * corpus.DAY
     os.utime(root / "proj-a" / "sess-0001.jsonl", (stale, stale))
     code, out, err = fx.run_cli(*args)
     assert code == 0, err
     assert heads(out) == [(1000, second)]  # booked from its first record now
     assert headline % ("5 calls", "1 window", "1 change", "1 window") in fx.headline(out)
-    assert "read: 1 file from the last 1d under %s\n" % root in out  # nothing set aside: nothing said
+    assert "read: 1 file from the last 1d under %s\n" % root in fx.joined(out)  # nothing set aside: nothing said
     facts = fx.load_facts(root, 1)[1]
     assert {f.dims[schema.STARTED_BY_DIM] for f in facts} == {schema.SESSION_START}
 

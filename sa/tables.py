@@ -206,8 +206,9 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
             note = parts_text(parts, WIDTH - len(text) - 2)
         elif i == values and hidden:
             note = more
-        elif r.kind == BASE_LABEL and any(h.kind == query.RESIDUAL for h in grouped.rows):
-            note = BASE_NOTE % residual.label(grouped.dim)
+        elif r.kind == BASE_LABEL:
+            note = BASE_NOTE % residual.label(grouped.dim) if any(
+                h.kind == query.RESIDUAL for h in grouped.rows) else BASE_NOTE.split(", not")[0]
         elif r.kind in (query.REGULAR, query.SIGNED) and glosses and r.value in glosses:
             note = glosses[r.value] if len(text) + 2 + len(glosses[r.value]) <= WIDTH else ""
         role = style.ROW if i < values else (style.TOTAL if r.kind == BASE_LABEL else style.OTHER)
@@ -221,8 +222,10 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
         text = text + "  " + note if note else text
         lines.append(style.tag(text, role, share, ((mass, mass + widths[0]), (at, at + 6)),
                                ((0, width),) if free else ((len(text) - len(note), len(text)),) if note else ()))
-    if total is not None:
-        lines.append(style.tag(line(TOTAL_LABEL, -1, "      " + total), style.TOTAL))
+    if total is not None:  # its verdict alone where a long label leaves no room for its words
+        text = line(TOTAL_LABEL, -1, "      " + total)
+        lines.append(style.tag(text if len(text) <= WIDTH else line(TOTAL_LABEL, -1, "      " + OK_MARK),
+                               style.TOTAL))
     return lines
 
 

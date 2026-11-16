@@ -25,6 +25,7 @@ progress line goes to stderr only when it is a TTY. No arguments, or
 ``-h``, print ``grammar.HELP`` and exit 0.
 """
 import os
+import re
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -32,6 +33,7 @@ from typing import List, Optional
 from . import corpus, glossary, grammar, query, render, schema, style, tables, walk
 from .grammar import UsageError
 from .render import View
+from .tables import WIDTH
 
 PROG = glossary.PROG
 SPEND_NOTE = "paid per call, so no context share is a cost share; what filled it: %s context" % PROG
@@ -51,11 +53,42 @@ def _colour(choice: str = style.AUTO) -> bool:
 
 
 def refuse(view: Optional[str], error: Exception) -> int:
-    """A refusal, exit 2: its line and its hint, home as ``~``."""
+    """A refusal, exit 2: its line and its hint, home as ``~``, each within
+    the line budget (``fit``)."""
     head = "%s%s: error: " % (PROG, " " + view if view else "")
-    lines = [head + str(error)] + ([getattr(error, "hint")] if getattr(error, "hint", "") else [])
-    print("\n".join(tables.home_text(line) for line in lines), file=sys.stderr)
+    hint = tables.home_text(getattr(error, "hint", "") or "")
+    print("\n".join(fit(tables.home_text(head + str(error)), hint)), file=sys.stderr)
     return 2
+
+
+ROOT = re.compile(r" --root ('[^']*'|\S+)")
+EVERY = re.compile(r"; every [\w ]+: ")
+
+
+def _elide(text: str) -> str:
+    """``text`` within the line budget, its middle cut to ``…`` when it
+    must be: its start and end kept."""
+    keep = WIDTH - 1
+    return text if len(text) <= WIDTH else text[:keep // 2] + "…" + text[len(text) - (keep - keep // 2):]
+
+
+def fit(line: str, hint: str) -> List[str]:
+    """An error's two lines within the budget, the most useful kept: what
+    follows the error's last ``; `` (the nearest value, the declared ones)
+    leads the hint when the error overflows; a hint that overflows drops
+    the ``--root`` it repeats (the user typed it), then names its listing
+    ``all``, then keeps its first clause; what still overflows is cut in
+    the middle."""
+    if len(line) > WIDTH and "; " in line:
+        line, moved = line.rsplit("; ", 1)
+        hint = moved + ("; " + hint if hint else "")
+    if len(hint) > WIDTH:
+        hint = ROOT.sub("", hint)
+    if len(hint) > WIDTH:
+        hint = EVERY.sub("; all: ", hint, 1)
+    if len(hint) > WIDTH:
+        hint = hint.split("; ", 1)[0]
+    return [_elide(text) for text in (line, hint) if text]
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -68,8 +101,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     root = Path(args.root) if args.root else corpus.default_root()
     if not root.is_dir():
-        return refuse(args.view, UsageError("no such directory: %s" % args.root, "--root takes the transcripts'"
-                                            " directory; the default is ~/.claude/projects"))
+        return refuse(args.view, UsageError("--root names no directory (by default ~/.claude/projects)",
+                                            "no such directory: %s" % args.root))
     view = VIEWS[args.view]
     if sys.stderr.isatty():
         n = sum(1 for _ in corpus.find_files(root, args.since))

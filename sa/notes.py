@@ -104,8 +104,8 @@ def figures(view, sel: query.Selection, shown: Sequence[Tuple[query.Table, objec
         out.append((what, "its changes' tokens × held, summed, ÷ the calls in view",
                     "%s ÷ %s = %s" % (num(mass), num(sel.calls), num(sel.total))))
     else:
-        out.append((glossary.printed(view.metric), "input + cache reads × 0.1 + 5m cache writes × 1.25 + 1h"
-                    " cache writes × 2.0, a call's", "summed over the %s: %s" % (count(len(carried), "call"),
+        out.append((glossary.printed(view.metric), "a call's input + cache reads × 0.1 + 5m cache writes × 1.25"
+                    " + 1h cache writes × 2.0", "summed over the %s: %s" % (count(len(carried), "call"),
                                                                            num(sel.total))))
         others = [n for n, m in schema.METRICS.items()
                   if m.carrier == schema.CALL and m.aggregation == schema.ADDITIVE and n != view.metric]

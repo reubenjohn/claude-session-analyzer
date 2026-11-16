@@ -222,6 +222,6 @@ def test_a_leaf_and_a_candidate_without_a_uuid_print_their_line():
     lines = leaves.leaves([with_uuid, FACTS[1]], fx.DELTA, None, 90)
     body = [l.split() for l in lines[3:-1]]
     assert body[0][:2] == ["60", ":1"]
-    assert body[1] == [schema.CANDIDATES + ":"] and body[2] == [":2"]  # the candidate without one
+    assert body[1] == [schema.CANDIDATES + ":"] and body[2] == ["└", ":2"]  # the candidate without one
     assert body[3][:2] == ["30", ":2"]  # the leaf without one
     assert "None" not in "\n".join(lines)

@@ -34,7 +34,7 @@ held it, over ALL calls in view, so a table's rows add up to the average
 context per call. Causes: `starting_context` (what a window held at its
 first call; a fork's copy is `inherited` apart), `replies` (Claude's
 replies, tool-call inputs included), `tool_result`, `user_text`,
-`ambiguous` (no one contributor; `reason`: `several`, `less_than_reply`,
+`ambiguous` (not traced to one source; `reason`: `several`, `less_than_reply`,
 `unexplained`) and `shrink` (a window that got smaller, signed).
 
 **`spend`** sums each call's price-weighted input tokens: uncached
@@ -84,14 +84,14 @@ average (what could not be traced); `-v` works them in this run's numbers:
 
 <!-- example: context -v | ✓ numbers add up -->
 ```
-✓ numbers add up over 3 windows in view: rows to the average call, changes to window sizes
-  ambiguous: 0.2% of the average call, not traced to one source
+✓ numbers add up over 3 windows in view: rows to the average call, changes to final window sizes
+  ambiguous: 0.2% of the average call over all 21 calls, not traced to one source
   each change × the calls that held it       1,778,890
   ÷ calls in view                                   21
   = average call                                84,709  ✓ same as the mean measured call size
   context tokens added 254,860 - shrink 300  = 254,560  ✓ same as the final window sizes
   18 calls after their window's first = 21 calls - 3 windows
-    = 6 (33.3%) one source + 9 ambiguous + 3 shrank  ✓
+    = 6 (33.3%) one source + 9 (50.0%) ambiguous + 3 shrank  ✓
 ```
 
 A material `ambiguous` (10%+ of the average) or `shrink` (1%+) gets a

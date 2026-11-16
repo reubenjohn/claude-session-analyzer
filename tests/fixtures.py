@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from sa import corpus as corpus_module, glossary, schema, walk
-from screen import (AVERAGE, also, average, checks, headline, hint, joined, key, pointer_v,  # noqa: F401
+from screen import (AVERAGE, also, average, checks, headline, hint, joined, key, listed, pointer_v,  # noqa: F401
                     sections, verbose, worked)
 
 SESSION = "sess-0001"

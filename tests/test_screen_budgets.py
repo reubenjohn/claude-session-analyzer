@@ -18,6 +18,7 @@ import shlex
 import subprocess
 import sys
 from functools import lru_cache
+from pathlib import Path
 
 import pytest
 
@@ -52,7 +53,22 @@ def homes(tmp_path_factory):
         home = tmp_path_factory.mktemp(name).resolve()
         getattr(corpora, name)(home)
         homes[name] = str(home)
+    base = str(tmp_path_factory.mktemp("long").resolve()) + "/a-copy-of-the-transcripts"
+    long = base + "-" * max(LONG_ROOT - len(base), 0)  # read with --root, under another HOME: printed whole
+    corpora.realistic(fixture, "a-project-whose-directory-name-is-long-", Path(long))
+    homes[LONG] = long
+    assert len(long) >= LONG_ROOT  # vacuity guard: a root and a project path that cannot share a line
     return homes
+
+
+LONG_ROOT = 76  # a --root this long, plus a project directory, overflows any line
+LONG = "long"  # the realistic corpus under a long --root, with long project names (UX_PRINCIPLES 2: 100 columns)
+
+
+def at(homes, corpus, args):
+    """The HOME and the words a matrix screen runs with: the long corpus
+    under the fixture's HOME, its root given."""
+    return (homes["fixture"], tuple(args) + ("--root", homes[LONG])) if corpus == LONG else (homes[corpus], args)
 
 
 @lru_cache(maxsize=None)
@@ -124,7 +140,7 @@ def matrix():
     return every
 
 
-SCREENS = [(corpus, args) for corpus in ("fixture", "wide", "realistic") for args in matrix()]
+SCREENS = [(corpus, args) for corpus in ("fixture", "wide", "realistic", LONG) for args in matrix()]
 
 
 @pytest.mark.parametrize("corpus", ["fixture", "realistic"])
@@ -190,6 +206,17 @@ ERRORS = [(word,) for word in sorted(grammar.RETIRED)] + [(CONTEXT, word) for wo
     (CONTEXT, "--since", "week"), (CONTEXT, schema.TOOL_DIM), (CONTEXT, grammar.BY)]
 
 
+@pytest.mark.parametrize("args", ERRORS + [(CONTEXT, "%s=zzz" % schema.PROJECT_DIM, "%s=Bash" % schema.TOOL_DIM),
+                                  (SPEND, "%s=x" % schema.PROJECT_DIM, "%s=y" % schema.SESSION_DIM)], ids=" ".join)
+def test_an_error_under_a_long_root_and_long_values_fits_its_two_lines(homes, args):
+    """The nearest value, a project's long name, and the root the hint
+    repeats never push an error past 100 columns."""
+    home, words = at(homes, LONG, args)
+    code, out, err = sa(home, *words)
+    assert code == 2 and not out and err.strip(), (code, out, err)
+    assert len(err.splitlines()) <= ERROR_LINES and max(map(len, err.splitlines())) <= grammar.WIDTH, err
+
+
 @pytest.mark.parametrize("args", ERRORS, ids=" ".join)
 def test_an_error_is_two_lines_whose_suggestions_run(homes, args):
     code, out, err = sa(homes["fixture"], *args)
@@ -203,18 +230,22 @@ def test_an_error_is_two_lines_whose_suggestions_run(homes, args):
 
 @pytest.mark.parametrize("corpus,args", SCREENS, ids=lambda x: x if isinstance(x, str) else " ".join(x))
 def test_every_line_fits_and_every_suggested_command_runs(homes, corpus, args):
-    out = ok(homes[corpus], *args)
+    home, args = at(homes, corpus, args)
+    out = ok(home, *args)
     assert out.strip()  # vacuity guard
     wide = [line for line in out.splitlines() if len(line) > grammar.WIDTH]
     assert not wide, wide
-    for command in suggested(out):
-        assert runs(homes[corpus], command)[0] == 0, command
+    for command in suggested(fx.joined(out)):
+        assert runs(home, command)[0] == 0, command
 
 
 def test_the_screens_do_suggest_commands(homes):
     """Vacuity guard for the test above: the matrix prints a ``→ next:`` and
     a ``+N more`` command, and ``suggested`` finds them."""
-    found = [c for corpus, args in SCREENS for c in suggested(ok(homes[corpus], *args))]
+    found = []
+    for corpus, args in SCREENS:
+        home, words = at(homes, corpus, args)
+        found += suggested(ok(home, *words))
     assert any(grammar.BY in shlex.split(c) for c in found) and any(
         grammar.BY not in shlex.split(c) for c in found), found
 

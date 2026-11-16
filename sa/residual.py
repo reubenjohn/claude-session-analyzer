@@ -19,13 +19,14 @@ def _cause(cause: str) -> Callable[[dict], bool]:
 RESIDUAL_NOTES: Dict[str, Tuple[str, List[Case]]] = {
     schema.SUBAGENT_DIM: ("main", []),  # typable as printed: subagent=main
     schema.TOOL_DIM: ("no tool", [(c, _cause(c)) for c in (
-        schema.STARTING_CONTEXT, schema.REPLIES, schema.USER_TEXT, schema.INHERITED,
-        schema.AMBIGUOUS)] + [("an unresolved %s" % schema.TOOL_RESULT, _cause(schema.TOOL_RESULT))]),
+        schema.STARTING_CONTEXT, schema.REPLIES, schema.USER_TEXT, schema.INHERITED)] + [
+        ("%s naming no one tool" % schema.AMBIGUOUS, _cause(schema.AMBIGUOUS))] + [("an unresolved %s" % schema.TOOL_RESULT, _cause(schema.TOOL_RESULT))]),
     schema.COMMAND_DIM: ("no command", [
         ("no tool", lambda dims: schema.TOOL_DIM not in dims),
         ("not %s" % "/".join(sorted(heads.EXTRACTORS)),
          lambda dims: schema.TOOL_DIM in dims and _cause(schema.TOOL_RESULT)(dims)),
-        (schema.AMBIGUOUS, lambda dims: schema.TOOL_DIM in dims and _cause(schema.AMBIGUOUS)(dims))]),
+        ("%s naming no one command" % schema.AMBIGUOUS,
+         lambda dims: schema.TOOL_DIM in dims and _cause(schema.AMBIGUOUS)(dims))]),
     schema.REASON_DIM: ("not %s" % schema.AMBIGUOUS, [  # shrink is the signed row, never residual
         (c, _cause(c)) for c in schema.CAUSES if c not in (schema.AMBIGUOUS, schema.SHRINK)]),
 }

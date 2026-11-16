@@ -55,7 +55,9 @@ def test_the_peak_table_counts_each_bands_windows_and_calls(tmp_path):
     want = {b: ({f.window for f in facts if f.dims[PEAK] == b},
                 sum(f.kind == schema.CALL and f.dims[PEAK] == b for f in facts)) for b in schema.BANDS}
     out = fx.run_cli("context", "--root", str(root), "--since", "all", "by", PEAK)[1]
-    rows = {line.split()[0].rstrip("*"): line.split() for line in _rows(out)}
+    rows = {}
+    for line in _rows(out):  # the first row of a label: ``= 100%`` before ``= average call``
+        rows.setdefault(line.split()[0].rstrip("*"), line.split())
     assert set(schema.BANDS) <= set(rows)  # vacuity guard: every band has a row
     for band, (windows, calls) in want.items():
         assert rows[band][2:4] == [tables.num(len(windows)), tables.num(calls)], band

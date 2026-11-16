@@ -164,8 +164,8 @@ def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
     assert code == 0, err
     code, unpinned, err = fx.run_cli("context", "--root", str(root), window)
     assert code == 0, err
-    population = [l for l in out.splitlines() if l.startswith(("read: ", "in view"))]
-    assert population == [l for l in unpinned.splitlines() if l.startswith(("read: ", "in view"))] == [
+    population = [l for l in fx.joined(out).splitlines() if l.startswith(("read: ", "in view"))]
+    assert population == [l for l in fx.joined(unpinned).splitlines() if l.startswith(("read: ", "in view"))] == [
         "read: 4 files from the last 7d (default) under %s" % root,
         "in view where %s: 2 windows*, 22 changes*" % window]
     assert drill not in "".join(population) and schema.TOOL_RESULT not in "".join(population)
@@ -191,8 +191,8 @@ def test_by_change_lists_leaves_with_their_dimensions_and_evidence(tmp_path):
                                 "%s=%s" % (schema.REASON_DIM, schema.SEVERAL), window)
     assert code == 0, err
     assert re.search(r"^\s+%s: %s\n"
-                     r"\s+:4  [\d,]+ characters  %s=%s\n"
-                     r"\s+:5  2 characters  %s=%s %s=Read %s=Read:py$"
+                     r"\s+└ :4  [\d,]+ characters  %s=%s\n"
+                     r"\s+└ :5  2 characters  %s=%s %s=Read %s=Read:py$"
                      % (schema.CANDIDATES, HEAVIEST, CAUSE, schema.USER_TEXT, CAUSE, schema.TOOL_RESULT,
                         TOOL, HEAD), out, re.M)
     assert out.count("%s:" % schema.CANDIDATES) == 1
@@ -211,6 +211,6 @@ def test_by_change_lists_leaves_with_their_dimensions_and_evidence(tmp_path):
     assert len(leaves) == 7  # every call, no cap
     name = "proj-a/sess-0001/subagents/agent-fake1.jsonl"  # the header names the file; a file can hold
     window = "%s=%s" % (schema.WINDOW_DIM, fx.window_value(name))  # several windows, so it names the window
-    assert "\nby call, files in %s/proj-a/sess-0001/subagents/\n" % root in out  # the shared directory, once
-    assert "\n%s  %s\n" % (name.rsplit("/", 1)[1], window) in out  # each file under it, openable there
+    assert fx.listed(out) == ["%s/%s" % (root, name)]  # the shared directory, once; each file under it, openable
+    assert "%s  %s\n" % (name.rsplit("/", 1)[1], window) in out or "\n  %s\n" % window in out
     assert query.select(fx.load_facts(root)[1], [tuple(window.split("="))])  # vacuity guard

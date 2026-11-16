@@ -70,12 +70,14 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], inv: g
                     catch_alls.append(dim)
                 body += tables.table(
                     grouped, view.metric, None if by else LIMIT,
-                    total=_total(view, sel) if dim == schema.CAUSE_DIM else None, names=names,
+                    total=_total(view, sel) if dim in (schema.CAUSE_DIM, by) else None, names=names,
                     counts=counts, more=inv.command(by=dim), parts=_parts(sel, dim, view.metric),
                     glosses=GLOSSES if dim == schema.CAUSE_DIM else None) + (
                     [WHOLE_WINDOWS] if counts and sel.drill else []) + [""]
         ways = notes.also_by(sel, view, spec.carrier, printed, inv)
-    pad = max([len(c) for c, _ in ways] + [len(inv.command(by=by, verbose=True))])
+    # the glosses beside their commands align; one that goes under its command sets no column
+    pad = max([len(c) for c, g in ways if len(c) + 2 + len(g) <= tables.WIDTH]
+              + [len(inv.command(by=by, verbose=True))])
     scope = [style.tag(line, style.SCOPE, values=getattr(line, "values", ()))
              for line in population(view, sel, loaded, inv.since_text is None, forest, names)]
     above = (scope + [""] + headline.headline(view, sel, forest, names) + next_step(view, sel, by, inv, names)
@@ -84,7 +86,7 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], inv: g
         closing, worked = checks.context(sel, None if schema.CAUSE_DIM in dict(inv.pins) else (
             lambda c: inv.command(add=[(schema.CAUSE_DIM, c)])))
     else:
-        closing, worked = checks.spend(sel, [] if by == facts_by else [t for t, _ in shown])
+        closing, worked = checks.spend(sel, None if by == facts_by else [t for t, _ in shown])
     lines, terms = notes.footnote(above + closing)
     figures = notes.figures(view, sel, shown, by == facts_by, names)
     block = notes.block(figures, terms, catch_alls, {glossary.printed(view.metric): view.notes})
@@ -224,14 +226,18 @@ def population(view: View, sel: Selection, loaded: Corpus, since_default: bool =
     plural = schema.PLURAL[carrier]
     head = "read: %s %s under " % (count(len(loaded.files), "file"), since.replace("modified in the", "from the")
                                    if loaded.since_days is not None else since)
-    root = tables.tilde(loaded.root)  # a value: a directory named like a term is not the term
     cut = [text for n, text in ((loaded.skipped_lines, count(loaded.skipped_lines, "line") + " skipped"),
                                 (loaded.duplicate_records, count(loaded.duplicate_records, "duplicate"))) if n]
-    read = style.tag(head + root + ("; " + ", ".join(cut) if cut else ""), "",  # said when there is any
-                     values=((len(head), len(head) + len(root)),))
+    root = tables.tilde(loaded.root)  # a value: a directory named like a term is not the term
+    tail = root + ("; " + ", ".join(cut) if cut else "")  # what the read skipped, said when there is any
+    if len(head + tail) > tables.WIDTH:  # a long root on its own line, whole, so it opens as printed
+        read = [head.rstrip()] + [style.tag(part, "", values=((2, 2 + len(root)),))
+                                  for part in leaves.broken("  " + tail)]
+    else:
+        read = [style.tag(head + tail, "", values=((len(head), len(head) + len(root)),))]
     orphaned = [" " * (len(KEPT) + 2) + "%s whose %s: %s" % (count(n, schema.FORK), why[n > 1], ORPHAN[n > 1])
                 for n, why in zip(query.orphan_forks(sel.window_facts, forest), ORPHANED) if n]
-    return [read] + compacted + [
+    return read + compacted + [
             "%s%s: %s, %s"
             % (KEPT, headline.pins(sel.window_where, names), count(sel.n_windows, _window),
                count(sum(f.kind == carrier for f in sel.window_facts), plural[:-1], plural))] + orphaned

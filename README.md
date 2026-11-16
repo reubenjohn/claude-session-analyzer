@@ -34,8 +34,8 @@ python3 -m sa context peak=200K+ tool=Bash     # pins stack: the fullest windows
 <!-- example: context | average context per call -->
 ```
 average context per call* 84,709 tokens, over 21 calls in 3 windows
-  starting context*  84,333  99.5%  = session_start 84,000 + fork 333
-  growth                433   0.5%  largest: Bash 214 → Bash:pytest 214
+  starting context*      84,333  99.5%  = session_start 84,000 + fork 333
+  growth before shrink*     433   0.5%  largest: Bash 214 → Bash:pytest 214
 → next: python3 -m sa context tool=Bash
 ```
 
@@ -44,16 +44,17 @@ A table's rows are the values you can pin (`DIM=VALUE`, as printed);
 
 <!-- example: context by peak | by peak -->
 ```
-by peak  part of avg  windows  calls  avg call  share
-200K+         83,811        1      7   251,376   98.9%
-0-50K            955        2     14     1,376    1.1%
-= 100%        84,766        3     21         -
-shrink*          -57        -      -         -       -
+by peak         part of avg  windows  calls  avg call  share
+200K+                83,811        1      7   251,376   98.9%
+0-50K                   955        2     14     1,376    1.1%
+= 100%               84,766        3     21         -  shares' base: the rows above
+shrink                  -57        -      -         -       -
+= average call       84,709        3     21         -        ✓ = mean call size
 ```
 
 `--since 30d` or `--since all` widens the window (default 7d); `-v` adds
-how each figure on screen is computed and what its marked (`*`) words
-mean. `python3 -m sa spend by subagent`:
+how each figure is computed and what `*` words mean. `python3 -m sa
+spend by subagent`:
 
 <!-- example: spend by subagent | by subagent -->
 ```
@@ -82,18 +83,15 @@ word (`Bash:pytest`) or a file tool's extension (`Read:py`). A mistake
 exits 2 in two lines: the nearest valid input, and where the choices
 live.
 
-The default `context` screen prints the cause, tool and command tables
+The default `context` prints the cause, tool and command tables
 (`spend`: subagent), then commands for the rest (`by DIM`) and `-v`.
 A default table shows 5 rows; the rest fold into `+N more` and the
-command that prints them. Every table ends with `= 100%`, the base
-of its shares; the catch-all row (what lacks the dimension) shows its
+command that prints them. Every table ends with `= 100%`, its
+shares' base; the catch-all row (what lacks the dimension) shows its
 parts; `shrink` (a window that got smaller) is signed, in no share. `by
 change` (spend: `by call`) lists the facts, each with `held`, the calls
 that held it, so its part of the average recomputes, and a closing Σ
 line that reconciles to the headline.
-
-A terminal gets styled output (`--color always|never|auto`, `NO_COLOR`,
-`FORCE_COLOR`); a pipe, the same text unstyled.
 
 A window is one context window: from a session start, subagent, fork,
 replay or compaction to its file's end or the next compaction. Its
