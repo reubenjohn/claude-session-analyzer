@@ -7,10 +7,10 @@ paid again (reads discounted), so the calls' costs add up. Then, cost
 aside (were inference free), **is context degrading the model?**
 (`sa context`): every call reasons over its whole window, and a fuller
 window reasons worse (context rot), so it shows what calls held (the
-average context per call), what put it there, and a path to what to
-cut. Both start broad and narrow down. Every figure names its
-population; `context` reconciles. A Claude Code plugin or plain
-`python3 -m sa`; stdlib, Python 3.8+.
+average context per call) and what put it there. Each answers broadly
+first; its `→ next:` line suggests one pin that narrows it, run by run,
+to something you can fix. Every figure names its population. A Claude
+Code plugin or plain `python3 -m sa`; stdlib, Python 3.8+.
 
 ## Install
 
@@ -21,7 +21,7 @@ claude plugin install claude-session-analyzer@reubenjohn
 
 ## Usage
 
-Is it a problem, what causes it, where, what exactly to fix:
+The context path, pin by pin:
 
 ```
 python3 -m sa context                                       # average context per call, by peak

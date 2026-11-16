@@ -138,8 +138,9 @@ def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
     assert "Cost aside" in asked["context"] and "aside" not in asked["spend"]  # the premise is context's
     # a start for each view; the context path's pins, in order, are the hint chain's (test_footnotes)
     for view in cli.VIEWS:
-        assert re.search(r"^  %s %s  " % (re.escape(cli.PROG), view), out, re.M), view
+        assert re.search(r" %s %s  " % (re.escape(cli.PROG), view), out), view
     assert "--where %s=%s" % (schema.PEAK_DIM, schema.BANDS[-1]) in out  # the path leads with the fullest band
+    assert out.index("broadly") < out.index(render.NEXT.split(":")[0]) < out.index("Start here")  # expectation first
     for flag in ("--since", "--where", "--by"):
         assert re.search(r"^  %s " % flag, out, re.M), flag
     assert "%s context --help" % cli.PROG in out
@@ -150,7 +151,7 @@ def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
     assert "%s explain TERM" % cli.PROG in pointer
     # argparse's own blocks would repeat the subcommands
     assert "optional arguments" not in out and "positional arguments" not in out and "subcommands:" not in out
-    assert len(out.splitlines()) <= 26
+    assert len(out.splitlines()) <= 25
 
 
 @pytest.mark.parametrize("view", list(cli.VIEWS))

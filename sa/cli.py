@@ -101,14 +101,13 @@ unless --since) and helps answer two questions:
   spend    What did my sessions cost? Each call pays for the context it
            sends, cache reads discounted, so the calls' costs add up.
   context  Cost aside, is context degrading the model? Every call reasons
-           over its whole window, and a fuller window reasons worse
-           (context rot). context shows what an average call held, what
-           put it there, and leads you to what to cut.
+           over its whole window, a fuller one reasons worse (context rot):
+           context shows what an average call held and what put it there.
 
-Both start broad and narrow down. Start here:
-  %(prog)s spend      what it cost, by project, session, subagent
-  %(prog)s context    is it a problem? Then add what each run's
-    "%(next)s" line names, one at a time:
+Each first answers broadly (everything in view), then its "%(next)s" line
+suggests one pin that narrows it, run by run, to something you can fix:
+Start here:  %(prog)s spend    then its top subagent, then its calls
+             %(prog)s context  then, one pin at a time:
     the fullest windows     --where peak=200K+
     their top tool          --where tool=Bash
     its top command         --where command=Bash:cat
