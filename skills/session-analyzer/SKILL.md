@@ -1,17 +1,17 @@
 ---
 name: session-analyzer
-description: Measures whether context is hurting a Claude Code model (context rot), what fills it, and what it cost, from the local transcripts; use when the user asks "where is my context going", "is my context too big", "what did this session cost", "which subagent or tool was expensive".
+description: Measures what Claude Code sessions cost and, cost aside, whether context degrades the model (context rot) and what fills it, from transcripts; use when the user asks "where is my context going", "is my context too big", "what did this session cost", "which subagent or tool was expensive".
 ---
 
 # session-analyzer
 
-Two questions from the JSONL transcripts under `~/.claude/projects`:
-is context hurting the model (every call reasons over its whole
-window), what fills it, how to fix it; and what did it cost.
+Two questions from `~/.claude/projects`: what did it cost; then, cost
+aside, is context degrading the model (every call reasons over its
+whole window: context rot), what fills it, what to cut.
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}" && python3 -m sa context   # is context a problem, what fills it
 cd "${CLAUDE_PLUGIN_ROOT}" && python3 -m sa spend     # what did it cost
+cd "${CLAUDE_PLUGIN_ROOT}" && python3 -m sa context   # cost aside: is context a problem
 ```
 
 Pin, then drill:

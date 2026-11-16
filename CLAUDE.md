@@ -1,8 +1,8 @@
 # session-analyzer v2 — standing context
 
-Purpose (README): were inference free, is context rotting my model's
-intelligence, what fills it, how do I fix it (`context`); what did it
-cost (`spend`). From `~/.claude/projects`; stdlib, Python 3.8.
+Purpose (README): what did it cost (`spend`); cost aside (were
+inference free), is context rotting my model, what fills it, what to
+cut (`context`). From `~/.claude/projects`; stdlib, Python 3.8.
 TIME/scheduling questions are deferred: design for them, add none.
 Standing premise: NO USERS, NO DEPLOYMENTS — breaking changes are free,
 legacy is deleted, published numbers move when the old one was wrong.

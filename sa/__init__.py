@@ -1,4 +1,4 @@
-"""session-analyzer v2: where did my context go, and what did it cost.
+"""session-analyzer v2: what did it cost, and, cost aside, where did my context go.
 
 Read Claude Code transcripts (``corpus``), cut them into context windows
 (``windows``), turn each window into facts (``walk``), and answer over the facts (``query``, ``render``, ``cli``). ``schema`` is
