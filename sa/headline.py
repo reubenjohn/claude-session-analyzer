@@ -30,8 +30,8 @@ def headline(view, sel: Selection, forest: List[Fact] = (), names: Names = None)
     growth down the view's levers, whatever ``--by`` shows: a category
     (``cause``) or a population row is never the answer. With no starting
     context, the block is the largest value of the first lever left open.
-    Shares are of the mass added: the signed rows stay out of them, as out
-    of every table's; the checks line says what was added and what shrank.
+    Shares are of the total before shrink (per call, the average before
+    shrink): the signed rows stay out of them, as out of every table's.
     A pinned window that inherited shows each copy's breakdown in its
     parent (``copied``)."""
     spec = schema.metric(view.metric)
