@@ -11,7 +11,7 @@ from bisect import bisect_left, bisect_right
 from collections import Counter
 from typing import Dict, List, Tuple
 
-from . import query, schema, sweep_mean, usage, walk, windows
+from . import query, reconciliation, schema, sweep_mean, usage, walk, windows
 from .corpus import Corpus, Record, default_root, load, message_id
 from .schema import Fact
 
@@ -159,7 +159,7 @@ def fork_marks(loaded: Corpus, cuts: Dict[str, List[windows.Window]]) -> Tuple[i
 def report(loaded: Corpus) -> List[str]:
     """Every count as one line, each beside the population it was taken over."""
     facts = walk.forest(loaded)
-    rec = query.reconcile(facts)
+    rec = reconciliation.reconcile(facts)
     (multi, multi_mass), (tool, tool_mass), (head, head_mass) = shared(facts)
     cuts = cut(loaded)
     lines = [

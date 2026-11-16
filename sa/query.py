@@ -2,6 +2,7 @@
 from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 from . import schema
+from .reconciliation import Reconciliation, reconcile
 from .schema import Fact
 
 Where = Iterable[Tuple[str, str]]
@@ -59,14 +60,28 @@ def values(facts: Iterable[Fact], dim: str, metric: str) -> List[str]:
     return sorted(mass, key=lambda v: -mass[v])
 
 
-def total(facts: List[Fact], metric: str) -> float:
-    """The metric summed once, in fact order, over its carrier kind: the one
-    figure a headline and every table's base are taken from. A peak refuses,
-    as in ``group``: its sum counts a token once per call that re-read it."""
+def per(metric: str, calls: Optional[int]) -> float:
+    """What a sum of ``metric`` is divided by: 1, or for a per-call metric
+    the ``calls`` of the one population it is read over, which it requires
+    and nothing else takes (D-PER-CALL: a per-call figure is never summed or
+    merged across populations, their denominators differ). A peak refuses:
+    its sum counts a token once per call that re-read it."""
     spec = schema.metric(metric)
     if spec.aggregation == schema.PEAK:
         raise schema.SchemaError("%s is a peak; it has no sum. Use largest() or mean()." % metric)
-    return sum(f.metrics[metric] for f in facts if f.kind == spec.carrier)
+    if (spec.aggregation == schema.PER_CALL) != (calls is not None):
+        raise schema.SchemaError("%s is %s per call: its population's calls are %s" % (
+            metric, "read" if calls is None else "not", "required" if calls is None else "not taken"))
+    return max(calls, 1) if calls is not None else 1
+
+
+def total(facts: List[Fact], metric: str, calls: Optional[int] = None) -> float:
+    """The metric summed once, in fact order, over its carrier kind (over
+    ``calls`` for a per-call metric, ``per``): the one figure a headline and
+    every table's base are taken from."""
+    divisor = per(metric, calls)
+    carrier = schema.metric(metric).carrier
+    return sum(f.metrics[metric] for f in facts if f.kind == carrier) / divisor
 
 
 def mean(facts: Iterable[Fact], metric: str) -> Tuple[float, int]:
@@ -153,7 +168,7 @@ class Table(NamedTuple):
         return mass / self.base if self.base else None
 
 
-def group(facts: List[Fact], dim: str, metric: str) -> Table:
+def group(facts: List[Fact], dim: str, metric: str, calls: Optional[int] = None) -> Table:
     """One row per value of ``dim``, then the residual row for facts that
     lack ``dim``, then the signed shrink row.
 
@@ -163,11 +178,11 @@ def group(facts: List[Fact], dim: str, metric: str) -> Table:
     Shrink increments always land in their own signed row whatever ``dim``
     is, so no other row mixes signed mass and every share is a share of mass
     that was added. The base is the total less the residual and signed rows,
-    so it and the headline total never disagree by a rounding.
+    so it and the headline total never disagree by a rounding. A per-call
+    metric's rows are over its population's ``calls`` (``per``), so they
+    add up to its total.
     """
-    spec = schema.metric(metric)
-    if spec.aggregation == schema.PEAK:
-        raise schema.SchemaError("%s is a peak; it has no sum. Use largest() or mean()." % metric)
+    spec, divisor = schema.metric(metric), per(metric, calls)
     schema.check_dimension(dim, spec.carrier)
     mass: Dict[Tuple[Optional[str], str], float] = {}
     count: Dict[Tuple[Optional[str], str], int] = {}
@@ -186,8 +201,9 @@ def group(facts: List[Fact], dim: str, metric: str) -> Table:
         count[key] = count.get(key, 0) + 1
     regular = sorted((k for k in mass if k[1] == REGULAR), key=lambda k: -mass[k])
     other = [k for k in ((None, RESIDUAL), (schema.SHRINK, SIGNED)) if k in mass]
-    rows = [Row(k[0], mass[k], count[k], k[1]) for k in regular + other]
-    return Table(dim, rows, total(facts, metric) - sum(mass[k] for k in other), tuple(residual))
+    rows = [Row(k[0], mass[k] / divisor, count[k], k[1]) for k in regular + other]
+    return Table(dim, rows, total(facts, metric, calls) - sum(mass[k] / divisor for k in other),
+                 tuple(residual))
 
 
 def relabels(facts: List[Fact], a: str, b: str, metric: str) -> Optional[Dict[str, str]]:
@@ -212,66 +228,6 @@ def largest(facts: Iterable[Fact], metric: str) -> Optional[Fact]:
     return max(carried, key=lambda f: f.metrics[metric]) if carried else None
 
 
-class Reconciliation(NamedTuple):
-    by_cause: Dict[str, float]  # context_delta booked per cause
-    windows: int
-    calls: int
-    final_occupancy: float      # last call's context_tokens, summed over windows
-    exact: int
-    ambiguous: int
-    by_reason: Dict[str, int]
-    shrink: int
-
-    @property
-    def booked(self) -> float:
-        return sum(self.by_cause.values())
-
-    @property
-    def intervals(self) -> int:
-        """Counted from the calls, not from the increments it is checked against."""
-        return self.calls - self.windows
-
-    @property
-    def mass_holds(self) -> bool:
-        return self.booked == self.final_occupancy
-
-    @property
-    def count_holds(self) -> bool:
-        return self.exact + self.ambiguous + self.shrink == self.intervals
-
-    @property
-    def holds(self) -> bool:
-        return self.mass_holds and self.count_holds
-
-
-def reconcile(facts: Iterable[Fact]) -> Reconciliation:
-    """Chain integrity over whole windows, keyed by identity: every booked
-    increment (``inherited`` included), summed by cause, against the
-    occupancy the windows ended at; and the exact,
-    ambiguous and shrink increments against the interval count, which is
-    calls minus windows because every call but a window's first closes one.
-    The rates are measured from this run, never quoted."""
-    by_cause = dict.fromkeys(schema.CAUSES, 0)
-    by_reason = dict.fromkeys(schema.REASONS, 0)
-    counts = dict.fromkeys(schema.CAUSES, 0)
-    final: Dict[str, float] = {}
-    calls = 0
-    for f in facts:
-        if f.kind == schema.CALL:
-            calls += 1
-            final[f.window] = f.metrics[schema.CONTEXT_TOKENS]
-        else:
-            cause = f.dims[schema.CAUSE_DIM]
-            by_cause[cause] += f.metrics[schema.CONTEXT_DELTA]
-            counts[cause] += 1
-            if cause == schema.AMBIGUOUS:
-                by_reason[f.dims[schema.REASON_DIM]] += 1
-    return Reconciliation(
-        by_cause, len(final), calls, sum(final.values()),
-        sum(counts[c] for c in schema.EXACT_CAUSES),
-        counts[schema.AMBIGUOUS], by_reason, counts[schema.SHRINK])
-
-
 class Selection(NamedTuple):
     """What a view is answered over: the whole windows the window-dimension
     filters kept and the facts the drill filters kept within them."""
@@ -279,9 +235,10 @@ class Selection(NamedTuple):
     drill: List[Tuple[str, str]]     # the --where pairs that selected within them
     window_facts: List[Fact]        # whole windows kept by ``window_where``
     facts: List[Fact]               # the windows' facts kept by ``drill`` too, less ``inherited``
-    total: float                    # the view's metric over ``facts``, summed once
+    total: float                    # the view's metric over ``facts``, summed once (per call: over ``calls``)
     reconciliation: Optional[Reconciliation]  # over ``window_facts`` (a drill never changes it), or None
     inherited: Tuple[Fact, ...] = ()  # inherited increments whose parent window is kept: counted there
+    calls: Optional[int] = None     # a per-call metric's population: the calls of ``window_facts``
 
     @property
     def where(self) -> List[Tuple[str, str]]:
@@ -305,14 +262,19 @@ def selection(facts: List[Fact], where: Where, metric: str, reconciles: bool) ->
     """The view's population: the window pins narrow first and keep whole
     windows, the drill pins narrow within them; the total is over the
     drilled facts, the reconciliation (for a view that reconciles) over the
-    whole windows. An inherited increment counts once: decided here, over
-    the windows kept, it leaves the total and every table when its parent
-    window is kept, and counts in full when the parent is out of scope;
-    either way its own window's reconciliation includes it."""
+    whole windows. Under a summed metric an inherited increment counts
+    once: decided here, over the windows kept, it leaves the total and
+    every table when its parent window is kept, and counts in full when the
+    parent is out of scope; either way its own window's reconciliation
+    includes it. Under a per-call metric it stays: the fork's calls held it.
+    A per-call metric is over the calls of the whole windows kept, a drill
+    included (D-PER-CALL)."""
     window_where, drill = split(where)
     window_facts = narrow(facts, window_where, metric)
-    once = counted_in_parent(window_facts)
+    calls = (sum(f.kind == schema.CALL for f in window_facts)
+             if schema.metric(metric).aggregation == schema.PER_CALL else None)
+    once = counted_in_parent(window_facts) if calls is None else []
     dropped = set(map(id, once))
     kept = narrow([f for f in window_facts if id(f) not in dropped], drill, metric)
-    return Selection(window_where, drill, window_facts, kept, total(kept, metric),
-                     reconcile(window_facts) if reconciles else None, tuple(once))
+    return Selection(window_where, drill, window_facts, kept, total(kept, metric, calls),
+                     reconcile(window_facts) if reconciles else None, tuple(once), calls)

@@ -31,7 +31,8 @@ def metric_named(**spec):
     return names[0]
 
 
-DELTA = metric_named(carrier=schema.INCREMENT)
+DELTA = metric_named(carrier=schema.INCREMENT, aggregation=schema.ADDITIVE)
+HELD = metric_named(aggregation=schema.PER_CALL)
 PEAK = metric_named(aggregation=schema.PEAK)
 
 

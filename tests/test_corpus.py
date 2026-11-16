@@ -3,7 +3,7 @@ ownership: which copy of a replayed record counts, by uuid and by message.id."""
 import pytest
 
 import fixtures as fx
-from sa import corpus, query, schema, walk
+from sa import corpus, query, reconciliation, schema, walk
 
 
 def test_physical_line_numbers_survive_skipped_lines(tmp_path):
@@ -106,7 +106,7 @@ def test_the_longest_running_copy_owns_a_replayed_prefix_whatever_its_filename(t
         assert by_file[names[1]] == [False] * 14
         heads = [f for f in facts if f.dims.get(schema.CAUSE_DIM) in (schema.STARTING_CONTEXT, schema.INHERITED)]
         assert sorted(f.metrics[fx.DELTA] for f in heads) == [200, 1000, 1300]  # 1,500 = 1,300 inherited + 200
-        results.append(query.reconcile(facts).by_cause)
+        results.append(reconciliation.reconcile(facts).by_cause)
     assert results[0] == results[1]
     assert sum(results[0].values()) == 2 * fx.FINAL_OCCUPANCY
 

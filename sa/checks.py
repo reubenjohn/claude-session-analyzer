@@ -5,7 +5,7 @@ counted in its parent; for a view that does not reconcile, its other call
 totals. Nothing here decides the exit status: the selection carries it."""
 from typing import List
 
-from . import glossary, headline, query, schema, style, tables
+from . import glossary, headline, query, reconciliation, schema, style, tables
 from .headline import INHERITED_LABEL
 from .query import Selection
 from .tables import count, num
@@ -15,7 +15,7 @@ def _status(holds: bool) -> str:
     return "OK" if holds else "MISMATCH"
 
 
-def _reconciliation(r: query.Reconciliation) -> List[str]:
+def _reconciliation(r: reconciliation.Reconciliation) -> List[str]:
     """The reconciliation in full, printed only when it fails."""
     terms = " + ".join("%s %s" % (c, num(r.by_cause[c])) for c in schema.CAUSES)
     reasons = ", ".join("%s %s" % (k, num(v)) for k, v in r.by_reason.items() if v)
@@ -36,11 +36,11 @@ def gaps(n: int) -> str:
     return count(n, "gap between calls", glossary.printed(glossary.GAP))
 
 
-def _rate(r: query.Reconciliation, n: int) -> str:
+def _rate(r: reconciliation.Reconciliation, n: int) -> str:
     return "%s (%.1f%%)" % (num(n), 100.0 * n / r.intervals) if r.intervals else "0"
 
 
-def _checks(r: query.Reconciliation, totalled: bool, scope: str = "") -> str:
+def _checks(r: reconciliation.Reconciliation, totalled: bool, scope: str = "") -> str:
     """The one line a holding reconciliation prints, a drill and ``--by
     fact`` included: the tokens added less the shrinks, the booked total
     (against the final sizes unless a cause table's total row already said
@@ -62,7 +62,7 @@ def _checks(r: query.Reconciliation, totalled: bool, scope: str = "") -> str:
 ONE_SOURCE, SHRANK = "to one source", "shrank"  # the checks' plain words for exact and shrink gaps
 
 
-def _part(r: query.Reconciliation, n: int, name: str) -> str:
+def _part(r: reconciliation.Reconciliation, n: int, name: str) -> str:
     """``786 exact (92.9%)``: the count first, so it reads as that many gaps."""
     return "%s %s (%.1f%%)" % (num(n), name, 100.0 * n / r.intervals) if r.intervals else "0 " + name
 

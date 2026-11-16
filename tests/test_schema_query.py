@@ -26,7 +26,7 @@ def test_every_metric_is_carried_only_by_its_kind(facts):
         assert carriers, "fixture carries no %s" % name
         assert {f.kind for f in carriers} == {spec.carrier}
         classes_seen.add(spec.aggregation)
-    assert classes_seen == {schema.ADDITIVE, schema.PEAK}
+    assert classes_seen == {schema.ADDITIVE, schema.PEAK, schema.PER_CALL}
 
 
 def test_every_fact_carries_only_its_kinds_dimensions(facts):
@@ -56,6 +56,28 @@ def test_group_refuses_every_peak_and_sums_every_additive(facts):
             table = query.group(facts, schema.SESSION_DIM, name)
             assert sum(r.mass for r in table.rows) == query.total(facts, name) == sum(
                 f.metrics[name] for f in facts if f.kind == spec.carrier)
+
+
+def test_a_per_call_metric_is_read_over_one_populations_calls_only(facts):
+    """D-PER-CALL: every per-call metric refuses a sum or a table without
+    its population's calls; given them, its rows add up to its total, and
+    the total over whole windows is their calls' mean occupancy."""
+    per_call = [n for n, s in schema.METRICS.items() if s.aggregation == schema.PER_CALL]
+    assert per_call  # vacuity guard: one exists
+    calls = sum(f.kind == schema.CALL for f in facts)
+    assert calls > 1  # vacuity guard: the division is visible
+    for name in per_call:
+        with pytest.raises(schema.SchemaError, match="per call"):
+            query.total(facts, name)
+        with pytest.raises(schema.SchemaError, match="per call"):
+            query.group(facts, schema.CAUSE_DIM, name)
+        table = query.group(facts, schema.CAUSE_DIM, name, calls)
+        assert sum(r.mass for r in table.rows) == pytest.approx(query.total(facts, name, calls))
+        assert query.total(facts, name, calls) == pytest.approx(query.mean(facts, fx.PEAK)[0])
+    for name, spec in schema.METRICS.items():  # nothing else takes a population's calls
+        if spec.aggregation == schema.ADDITIVE:
+            with pytest.raises(schema.SchemaError, match="per call"):
+                query.total(facts, name, calls)
 
 
 def test_a_mean_is_over_its_carrier_facts_never_a_sum(facts):

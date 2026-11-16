@@ -5,7 +5,7 @@ import json
 import os
 
 import fixtures as fx
-from sa import query, schema, sweep_mean as m
+from sa import query, reconciliation, schema, sweep_mean as m
 
 DELTA, PEAK_METRIC = fx.DELTA, fx.metric_named(aggregation=schema.PEAK)
 
@@ -109,3 +109,21 @@ def test_a_since_read_that_drops_the_parent_is_compared_band_for_band(tmp_path):
     alone = fx.load_facts(root, 7.0)[1]
     assert sum(f.kind == schema.CALL for f in alone) > sum(  # vacuity guard: the copies went live
         f.kind == schema.CALL and f.locator.file == fx.W_FORK for f in facts)
+
+
+def test_the_engine_books_held_and_reconciles_it_per_window(tmp_path):
+    """D-PER-CALL: ``walk.forest`` books ``context_held`` on every increment
+    and the reconciliation checks it per window; one token off breaks it."""
+    _, facts = fx.load_facts(fx.every_corpus(tmp_path))
+    increments = [f for f in facts if f.kind == schema.INCREMENT]
+    assert increments and all(fx.HELD in f.metrics for f in increments)
+    assert {id(f): n for f, n in m.held(facts) if f.metrics[DELTA]} == {
+        id(f): f.metrics[fx.HELD] / f.metrics[DELTA] for f in increments if f.metrics[DELTA]}
+    r = reconciliation.reconcile(facts)
+    assert r.held_holds and r.holds and r.held == r.occupancy > 0
+    i = next(i for i, f in enumerate(facts) if f.kind == schema.INCREMENT)
+    broken = list(facts)
+    broken[i] = facts[i]._replace(metrics=dict(facts[i].metrics, **{fx.HELD: facts[i].metrics[fx.HELD] + 1}))
+    r = reconciliation.reconcile(broken)
+    assert not r.held_holds and not r.holds and r.mass_holds
+    assert r.held_windows == r.windows - 1

@@ -2,11 +2,9 @@
 a measuring module, not engine. Nothing here mints a fact or changes
 ``python3 -m sa``; ``sweep.report`` prints these lines under its stamp.
 
-A call holds every increment of its window booked at or before it: its
-occupancy telescopes to their sum. So an increment is HELD by the calls of
-its window from the one it is booked at through the window's last, and
-``sum(delta x held) == sum(call occupancy)`` over any set of whole windows,
-signed shrink rows included. Divided by the population's calls it is the
+The weighting is the engine's (``walk.held``, booked as ``context_held``,
+D-PER-CALL): ``sum(delta x held) == sum(call occupancy)`` over any set of
+whole windows, signed shrink rows included. Divided by the population's calls it is the
 average context per call; it is not additive across populations (the
 denominator changes), so it is reported per population, never summed.
 LOCAL SWEEP 2026-11-16T01:14Z: the identity holds in 610 of 610 windows;
@@ -23,24 +21,14 @@ CALL, INCREMENT, DELTA = schema.CALL, schema.INCREMENT, schema.CONTEXT_DELTA
 
 
 def held(facts: List[Fact]) -> List[Tuple[Fact, int]]:
-    """Each increment with the number of its window's calls that hold it.
-    ``facts`` are whole windows in walk order (a call is followed by the
-    increments it closes), as ``walk.forest`` and ``query.select`` on
-    window dimensions leave them; a drill drops calls, so weigh first."""
-    calls = Counter(f.window for f in facts if f.kind == CALL)
-    seen: Counter = Counter()
-    out = []
-    for f in facts:
-        if f.kind == CALL:
-            seen[f.window] += 1
-        else:
-            out.append((f, calls[f.window] - seen[f.window] + 1))
-    return out
+    """Each increment with the calls that hold it (``walk.held``, the engine's)."""
+    return [(f, n) for f, n in walk.held(facts) if f.kind == INCREMENT]
 
 
 def weighted(facts: List[Fact]) -> List[Fact]:
-    """The increments with ``context_delta`` scaled by ``held``: what
-    ``query.group`` and ``query.total`` then read as calls x tokens held."""
+    """The increments with ``context_delta`` scaled by ``held``, recomputed
+    from the deltas (not read from ``context_held``, so a broken delta shows):
+    what ``query.group`` and ``query.total`` then read as calls x tokens held."""
     return [f._replace(metrics={DELTA: f.metrics[DELTA] * n}) for f, n in held(facts)]
 
 

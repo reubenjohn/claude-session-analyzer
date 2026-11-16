@@ -20,6 +20,9 @@ from . import usage
 
 ADDITIVE = "additive"
 PEAK = "peak"
+# Summed over one population's carrier facts, then divided by that
+# population's calls (D-PER-CALL): never summed or merged across two.
+PER_CALL = "per_call"
 
 CALL = "call"
 INCREMENT = "increment"
@@ -30,7 +33,7 @@ PLURAL = {CALL: "calls", INCREMENT: "changes"}
 
 
 class Metric(NamedTuple):
-    aggregation: str  # ADDITIVE sums; PEAK is a high-water mark and never sums
+    aggregation: str  # ADDITIVE sums; PEAK is a high-water mark and never sums; PER_CALL divides
     carrier: str      # the one fact kind that carries it
     unit: str
     # A call metric is read from the call's max-merged usage dict; an
@@ -39,13 +42,18 @@ class Metric(NamedTuple):
 
 
 # The two metrics the reconciliation joins: every booked increment against
-# the occupancy the window's last call reports.
+# the occupancy the window's last call reports. ``context_held`` is an
+# increment's delta times the calls of its window that held it (``walk.held``):
+# summed over whole windows it is their calls' summed occupancy, so over
+# the population's calls it is the average context per call, split by row.
 CONTEXT_DELTA = "context_delta"
 CONTEXT_TOKENS = "context_tokens"
+CONTEXT_HELD = "context_held"
 SPEND = "spend"
 
 METRICS: Dict[str, Metric] = {
     CONTEXT_DELTA: Metric(ADDITIVE, INCREMENT, "context tokens"),
+    CONTEXT_HELD: Metric(PER_CALL, INCREMENT, "tokens"),
     SPEND: Metric(ADDITIVE, CALL, "price-weighted input tokens", usage.usage_spend),
     "output_tokens": Metric(ADDITIVE, CALL, "tokens", lambda u: u["output_tokens"]),
     "cache_write_1h_tokens": Metric(ADDITIVE, CALL, "tokens", lambda u: usage.cache_creation_tiers(u)[0]),

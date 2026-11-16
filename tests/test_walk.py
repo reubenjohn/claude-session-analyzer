@@ -4,7 +4,7 @@ import json
 import pytest
 
 import fixtures as fx
-from sa import query, schema, walk
+from sa import query, reconciliation, schema, walk
 from sa.schema import CALL, INCREMENT
 
 ADDITIVE_CALL_METRICS = [n for n, s in schema.METRICS.items()
@@ -36,7 +36,7 @@ def test_chain_integrity_holds_over_every_branch(tmp_path):
     assert reasons == set(schema.REASONS), "fixture must exercise every reason"
     booked, final = _chain(facts)
     assert booked == final == {next(iter(final)): fx.FINAL_OCCUPANCY}
-    r = query.reconcile(facts)
+    r = reconciliation.reconcile(facts)
     assert r.holds
     assert r.intervals == sum(f.kind == CALL for f in facts) - 1 == fx.INTERVALS
     assert (r.exact, r.ambiguous, r.shrink) == (fx.EXACT, fx.AMBIGUOUS, fx.SHRINK)
@@ -46,12 +46,12 @@ def test_reconciliation_fails_on_a_missing_or_extra_increment(tmp_path):
     facts = _one_window(tmp_path)
     without_shrink = [f for f in facts if f.dims.get(schema.CAUSE_DIM) != schema.SHRINK]
     assert len(without_shrink) < len(facts)
-    assert not query.reconcile(without_shrink).holds
+    assert not reconciliation.reconcile(without_shrink).holds
     exact = next(f for f in facts if f.dims.get(schema.CAUSE_DIM) in schema.EXACT_CAUSES)
     zero = exact._replace(metrics={fx.DELTA: 0})  # mass unchanged, interval count off by one
     doubled = facts + [zero]
-    assert query.reconcile(doubled).booked == query.reconcile(facts).booked
-    assert not query.reconcile(doubled).holds
+    assert reconciliation.reconcile(doubled).booked == reconciliation.reconcile(facts).booked
+    assert not reconciliation.reconcile(doubled).holds
 
 
 def test_a_call_split_across_files_is_one_call_owned_by_the_earlier_file(tmp_path):
@@ -66,7 +66,7 @@ def test_a_call_split_across_files_is_one_call_owned_by_the_earlier_file(tmp_pat
     assert loaded.duplicate_records == 1
     (call,) = [f for f in facts if f.kind == CALL]
     assert call.locator.file == "proj-a/sess-0001.jsonl"
-    assert query.reconcile(facts).holds
+    assert reconciliation.reconcile(facts).holds
     code, out, err = fx.run_cli("spend", "--root", str(root))
     assert code == 0, err
     assert ("read: 2 files modified in the last 7d (default) under %s, 0 lines skipped,"
@@ -211,7 +211,7 @@ def _after_one_call(tmp_path, uses, between):
     records = ([fx.assistant("uuid-0001", "msg-0001", fx.usage(1000, 50), uses)] + between
                + [fx.assistant("uuid-0010", "msg-0002", fx.usage(1300, 0))])
     facts = _one_window(tmp_path, records)
-    assert query.reconcile(facts).holds
+    assert reconciliation.reconcile(facts).holds
     return facts
 
 

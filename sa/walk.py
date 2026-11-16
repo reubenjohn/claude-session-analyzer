@@ -214,8 +214,35 @@ def _window(source: SourceFile, live: List[Record], uses: ToolUses, win: Window,
 def forest(loaded: Corpus) -> List[Fact]:
     """Every window's facts, files in owner order: the one population the
     views, the sweep and the tests select from. The files are cut first,
-    so a fork finds its parent's window and branch call."""
+    so a fork finds its parent's window and branch call; each increment
+    then books ``context_held`` (``held``)."""
     cuts = {source.name: windows_module.cut(source, loaded.usages) for source in loaded.files}
     inherited = windows_module.inherits(loaded, cuts)
-    return [f for source in loaded.files
-            for f in walk(source, loaded.usages, cuts[source.name], inherited.get(source.name))]
+    return weigh([f for source in loaded.files
+                  for f in walk(source, loaded.usages, cuts[source.name], inherited.get(source.name))])
+
+
+def held(facts: List[Fact]) -> Iterator[Tuple[Fact, int]]:
+    """Each fact with the number of its window's calls that hold it: an
+    increment, those from the call it is booked at through the window's
+    last (a call's occupancy telescopes to the increments booked at or
+    before it); a call, 0. ``facts`` are whole windows in walk order (a
+    call followed by the increments it closes), so per window
+    ``sum(delta x held) == sum(call occupancy)`` (D-PER-CALL)."""
+    calls: Dict[schema.WindowKey, int] = {}
+    for f in facts:
+        calls[f.window] = calls.get(f.window, 0) + (f.kind == schema.CALL)
+    seen: Dict[schema.WindowKey, int] = {}
+    for f in facts:
+        if f.kind == schema.CALL:
+            seen[f.window] = seen.get(f.window, 0) + 1
+            yield f, 0
+        else:
+            yield f, calls[f.window] - seen.get(f.window, 0) + 1
+
+
+def weigh(facts: List[Fact]) -> List[Fact]:
+    """The facts, each increment also carrying ``context_held``: its
+    ``context_delta`` times the calls that held it."""
+    return [f if f.kind == schema.CALL else f._replace(metrics=dict(
+        f.metrics, **{schema.CONTEXT_HELD: f.metrics[schema.CONTEXT_DELTA] * n})) for f, n in held(facts)]

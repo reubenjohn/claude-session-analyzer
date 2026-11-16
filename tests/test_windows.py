@@ -8,7 +8,7 @@ import re
 import time
 
 import fixtures as fx
-from sa import checks, corpus, glossary, query, schema, tables, walk, windows
+from sa import checks, corpus, glossary, query, reconciliation, schema, tables, walk, windows
 from sa.schema import CALL, INCREMENT, WindowKey
 
 CAUSE = schema.CAUSE_DIM
@@ -41,11 +41,11 @@ def test_every_window_telescopes_and_a_file_keyed_reconcile_fails_on_a_split_fil
     booked, final = _per_window(facts)
     assert final == {WindowKey(*k): v for k, v in fx.W_FINALS.items()}
     assert booked == final  # every window telescopes, the inherited increment included
-    r = query.reconcile(facts)
+    r = reconciliation.reconcile(facts)
     assert r.holds and r.windows == len(fx.W_FINALS) and query.window_count(facts) == r.windows
     by_file = [f._replace(window=WindowKey(f.locator.file, 1)) for f in facts]
     assert len({f.window for f in by_file}) < r.windows  # vacuity guard: a file holds two windows
-    assert not query.reconcile(by_file).holds
+    assert not reconciliation.reconcile(by_file).holds
 
 
 def test_each_window_carries_one_declared_start_and_its_hashed_key(tmp_path):
@@ -89,7 +89,7 @@ def test_a_message_id_split_across_a_marker_is_one_call_in_its_first_window(tmp_
     for name, spec in schema.METRICS.items():
         if spec.carrier == CALL and spec.aggregation == schema.ADDITIVE:
             assert query.total(split, name) == query.total(whole, name), name
-    assert query.reconcile(split).holds and query.window_count(whole) == 1  # vacuity guard
+    assert reconciliation.reconcile(split).holds and query.window_count(whole) == 1  # vacuity guard
 
 
 def test_a_fork_with_its_parent_in_scope_counts_the_inherited_mass_once(tmp_path):
@@ -187,10 +187,10 @@ def test_a_forced_key_collision_causes_no_false_mismatch(tmp_path, monkeypatch):
     monkeypatch.setattr(schema, "window_value", lambda key: "deadbeef")
     loaded, facts = _facts(tmp_path)
     assert {f.dims[schema.WINDOW_DIM] for f in facts} == {"deadbeef"}  # every window collides
-    r = query.reconcile(facts)
+    r = reconciliation.reconcile(facts)
     assert r.holds and r.windows == len(fx.W_FINALS)
     by_value = [f._replace(window=WindowKey(f.dims[schema.WINDOW_DIM], 0)) for f in facts]
-    assert not query.reconcile(by_value).holds  # vacuity guard: keyed on the value, it would fail
+    assert not reconciliation.reconcile(by_value).holds  # vacuity guard: keyed on the value, it would fail
 
 
 def test_no_peak_is_summed_across_the_segments_of_one_file(tmp_path):
