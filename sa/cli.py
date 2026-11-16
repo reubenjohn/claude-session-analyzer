@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from . import corpus, glossary, query, render, schema, style, tables, walk
+from . import corpus, glossary, query, render, residual, schema, style, tables, walk
 from .render import View
 
 DEFAULT_DAYS = 7.0
@@ -170,7 +170,7 @@ def explain(term: Optional[str]) -> List[str]:
         lines += ["%s: %s" % (glossary.marked(name), entry.meaning),
                   "  surprise: " + entry.surprise]
         if name == glossary.RESIDUAL_LABEL:  # what it holds in each table
-            lines += ["  by %s: %s" % (d, glossary.residual_cases(d)) for d in glossary.RESIDUAL_NOTES]
+            lines += ["  by %s: %s" % (d, residual.residual_cases(d)) for d in residual.RESIDUAL_NOTES]
     return lines
 
 

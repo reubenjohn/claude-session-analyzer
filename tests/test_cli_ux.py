@@ -9,7 +9,7 @@ import time
 import pytest
 
 import fixtures as fx
-from sa import cli, corpus, glossary, render, schema, tables
+from sa import cli, corpus, glossary, render, residual, schema, tables
 
 CONTEXT = cli.VIEWS["context"]
 
@@ -116,7 +116,7 @@ def test_explain_prints_one_term_or_all_and_refuses_an_unknown_one():
     assert out.splitlines() == ["%s: %s" % (tables.marked(schema.STARTING_CONTEXT), entry.meaning),
                                 "  surprise: " + entry.surprise]
     code, out, err = fx.run_cli("explain")
-    assert code == 0 and len(out.splitlines()) == 2 * len(glossary.GLOSSARY) + len(glossary.RESIDUAL_NOTES)
+    assert code == 0 and len(out.splitlines()) == 2 * len(glossary.GLOSSARY) + len(residual.RESIDUAL_NOTES)
     code, out, err = fx.run_cli("explain", "bogus")
     assert code == 2 and not out and "unknown term 'bogus'" in err and schema.STARTING_CONTEXT in err
 

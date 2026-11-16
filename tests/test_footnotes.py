@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 import fixtures as fx
-from sa import cli, glossary, render, schema, tables
+from sa import cli, glossary, render, residual, schema, tables
 
 STAR = re.escape(glossary.MARKER)
 
@@ -68,8 +68,8 @@ def test_under_a_pinned_tool_the_hint_names_its_top_command():
 def test_explain_unassigned_says_what_it_holds_in_each_table():
     code, out, err = fx.run_cli("explain", tables.RESIDUAL_LABEL)
     assert code == 0, err
-    for dim in glossary.RESIDUAL_NOTES:
-        assert "  by %s: %s" % (dim, glossary.residual_cases(dim)) in out.splitlines()
+    for dim in residual.RESIDUAL_NOTES:
+        assert "  by %s: %s" % (dim, residual.residual_cases(dim)) in out.splitlines()
 
 
 def test_a_value_named_like_a_term_is_never_marked(tmp_path):
