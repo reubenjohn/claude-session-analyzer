@@ -138,8 +138,13 @@ def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
     for flag in ("--since", "--where", "--by", "--limit", "--root"):
         assert re.search(r"^  %s " % flag, out, re.M), flag
     assert "%s context --help" % cli.PROG in out and "%s explain TERM" % cli.PROG in out
-    for term in (t for t, e in glossary.GLOSSARY.items() if e.marked):
-        assert glossary.printed(term) in out  # the marked terms are named where the marker is explained
+    (named,) = [line for line in out.splitlines() if line.startswith("Marked %s" % glossary.MARKER)]
+    marked = [t for t, e in glossary.GLOSSARY.items() if e.marked]
+    starts = [t for t in marked if t in schema.STARTS]
+    assert starts  # vacuity guard: a start value is a marked term, never named here as printed
+    for term in marked:  # each as printed, spaces for underscores, as the key spells it
+        spelt = glossary.printed(term).replace("_", " ")
+        assert (re.search(r"[ :]%s[,;.]" % re.escape(spelt), named) is None) == (term in starts), term
 
 
 @pytest.mark.parametrize("view", list(cli.VIEWS))
@@ -169,3 +174,14 @@ def test_an_encoded_home_prints_as_a_tilde_and_selects_as_printed(tmp_path, monk
     assert cli.main(["context", "--root", str(root), "--where", "%s=nope" % schema.PROJECT_DIM]) == 2
     err = capsys.readouterr().err
     assert "present: ~-work" in err and encoded not in err and str(tmp_path) not in err
+
+
+def test_the_answer_and_checks_words_each_explain(tmp_path):
+    """Unmarked words a reader meets in the default output still have an
+    entry: growth (and its arrow), replies, the checks' gaps."""
+    out = fx.run_cli("context", "--root", str(fx.cli_corpus(tmp_path)))[1]
+    for word in (glossary.GROWTH, schema.REPLIES, glossary.printed(glossary.GAP)):
+        assert re.search(r"(?<![\w_])%s(?![\w_])" % re.escape(word), out), word  # vacuity guard: printed
+        code, said, err = fx.run_cli("explain", word)
+        assert code == 0 and said.startswith(word + ":"), err
+    assert " → " in out and "→" in glossary.GLOSSARY[glossary.GROWTH].meaning

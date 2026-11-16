@@ -119,7 +119,9 @@ Flags (all: %(prog)s context --help, %(prog)s spend --help):
 Marked %(marker)s in the output: %(marked)s.
 %(prog)s explain TERM says what any term means.""" % {"prog": PROG,
     "residual": glossary.RESIDUAL_LABEL, "marker": glossary.MARKER, "limit": DEFAULT_LIMIT,
-    "marked": ", ".join(glossary.printed(t) for t, e in glossary.GLOSSARY.items() if e.marked)}
+    "marked": ", ".join(glossary.printed(t).replace("_", " ") for t, e in glossary.GLOSSARY.items()
+                        if e.marked and t not in schema.STARTS and t != schema.SPEND)
+              + "; in spend's, " + glossary.printed(schema.SPEND)}  # as printed: a start is a value
 
 
 def _dimensions_help() -> str:

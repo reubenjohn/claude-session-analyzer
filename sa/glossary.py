@@ -16,6 +16,8 @@ from .schema import SchemaError
 RESIDUAL_LABEL = "unassigned"  # the residual row: never in a share, never hidden
 EXACT = "exact"
 DRILL = "drill"
+GROWTH = "growth"  # the headline's line for what the windows added after their start
+GAP = "gap"  # the checks' unit: one call to the next
 AVERAGE = "average_context_per_call"  # the headline's level: what a call held, averaged
 MARKER = "*"  # a footnote: the term is explained below
 PROG = "python3 -m sa"  # the real invocation, wherever a runnable command prints
@@ -23,7 +25,7 @@ PROG = "python3 -m sa"  # the real invocation, wherever a runnable command print
 # The output's spelling of a key, where it differs: the column and the
 # total say "context tokens", the counts "changes" and "calls".
 PRINTED = {schema.CONTEXT_DELTA: "context tokens", schema.INCREMENT: schema.PLURAL[schema.INCREMENT],
-           schema.CALL: schema.PLURAL[schema.CALL]}
+           schema.CALL: schema.PLURAL[schema.CALL], GAP: "gaps between calls"}
 
 
 class Term(NamedTuple):
@@ -63,10 +65,11 @@ GLOSSARY: Dict[str, Term] = {
                           "a session that opens by repeating another's records (resumed or branched)"),
     schema.CALL: Term("one assistant message, its split records merged: what spend is read from",
                       "a message written as several records counts once"),
-    schema.INCREMENT: Term("one booked change of a window's context between two calls:"
-                           " what context tokens are read from",
+    schema.INCREMENT: Term("one booked change of a window's context, at its start (its starting"
+                           " context) or between two calls: what context tokens are read from",
                            "one ambiguous change can name several tool results", True,
-                           "one change of a window's context between two calls, booked to its cause"),
+                           "one change of a window's context, at its start or between two calls,"
+                           " booked to its cause"),
     schema.CONTEXT_DELTA: Term(
         "context tokens booked to what put them in a window; summed, they equal the"
         " windows' final sizes",
@@ -108,11 +111,13 @@ GLOSSARY: Dict[str, Term] = {
                              "never a path; python3 x.py is Bash:python3"),
     schema.REASON_DIM: Term("why a change is ambiguous", "only ambiguous changes have one"),
     schema.STARTING_CONTEXT: Term(
-        "the context a window's first call already had, less what it inherited: system prompt,"
-        " tools, CLAUDE.md and first message, or a compaction's summary",
-        "often the largest cause; the transcript does not record its contents, so it is"
-        " not split further", True, "what each window's first call already held: system prompt, tools,"
-        " CLAUDE.md, first message"),
+        "what a window held at its first call: the system prompt, tools, CLAUDE.md and the first"
+        " message or prompt, or a compaction's summary; a fork's copy of its parent is counted"
+        " apart, as inherited",
+        "it is not split by content: the transcript records no size for each part. The lever is"
+        " how many windows start (subagent starts are usually most of it) and what each start"
+        " loads", True, "what a window held at its first call: system prompt, tools, CLAUDE.md,"
+        " first message or summary"),
     schema.INHERITED: Term("what a fork or replayed window copied: its parent window's size at"
                            " the branch call",
                            "counted once: left out of the total when the parent window is kept;"
@@ -144,10 +149,19 @@ GLOSSARY: Dict[str, Term] = {
                              "declared so it is labelled should it appear"),
     RESIDUAL_LABEL: Term("the part of a table's total with no value for its dimension",
                          "often most of the total: starting_context has no tool", True,
-                         "not attributable to this table's dimension; excluded from share"),
+                         "no value for this table's dimension (what it holds ends its row); in no share"),
     EXACT: Term("a gap between two calls with one contributor that grew by at least the"
                 " previous call's reply: booked to it after subtracting that reply",
                 "exact given that model; bookkeeping attachments fold into the remainder"),
+    GROWTH: Term("what the windows added after their start: every change between two calls,"
+                 " shrinks aside. Its line names the largest tool and its tokens, then (→) the"
+                 " largest command within that tool; '; top command' names a larger one elsewhere",
+                 "its share is of every token added, starting context included, so it often looks"
+                 " small: it is the part a tool or command can cut"),
+    GAP: Term("the step from one call to the next in a window: N calls make N - 1 gaps; each"
+              " gap's growth is booked to one source (exact), left ambiguous, or shrank",
+              "a gap can book two changes (the previous reply, then the rest) and each window's"
+              " start is one more, so changes outnumber gaps"),
     DRILL: Term("a --where pin on cause, tool, command or reason: narrows the changes inside"
                 " the windows kept",
                 "the checks still cover the whole windows, not the drill"),

@@ -54,7 +54,7 @@ def headline(view, sel: Selection, forest: List[Fact] = (), names: Names = None)
         extra = copied(sel, forest)
         top, path = _path(sel.facts, levers, view.metric, names)
         if added - mass:
-            rows.append(("growth", added - mass, "from %s %s" % (_name(top, levers, names), num(top.mass))
+            rows.append((glossary.GROWTH, added - mass, "from %s %s" % (_name(top, levers, names), num(top.mass))
                          + path if top else ""))
     else:
         top, path = _path(sel.facts, levers, view.metric, names)

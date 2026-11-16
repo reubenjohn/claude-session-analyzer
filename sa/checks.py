@@ -5,7 +5,7 @@ counted in its parent; for a view that does not reconcile, its other call
 totals. Nothing here decides the exit status: the selection carries it."""
 from typing import List
 
-from . import headline, query, schema, style, tables
+from . import glossary, headline, query, schema, style, tables
 from .headline import INHERITED_LABEL
 from .query import Selection
 from .tables import count, num
@@ -33,7 +33,7 @@ def _reconciliation(r: query.Reconciliation) -> List[str]:
 def gaps(n: int) -> str:
     """The reconciliation's unit: one gap between two calls of a window, so
     a window of N calls has N - 1; a change is one booked part of a gap."""
-    return count(n, "gap between calls", "gaps between calls")
+    return count(n, "gap between calls", glossary.printed(glossary.GAP))
 
 
 def _rate(r: query.Reconciliation, n: int) -> str:
