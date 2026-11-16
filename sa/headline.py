@@ -14,12 +14,11 @@ Names = Optional[Dict[str, str]]  # a subagent id -> its printed label (``render
 
 
 def open_dims(sel: Selection, dims: Tuple[str, ...], carrier: str) -> List[str]:
-    """The dimensions a ``--where`` pin left open: all when nothing is
-    pinned, else those whose carrier facts do not all share one value (a
-    pinned command implies its tool, a pinned window its subagent, session and
-    project): a table or lever over one value only repeats the filter."""
-    if not sel.where:
-        return list(dims)
+    """The dimensions left open: those whose carrier facts do not all share
+    one value, pinned or not (a pinned command implies its tool, a pinned
+    window its subagent, session and project; a corpus of one ``peak``
+    band has none to pin): a table or lever over one value only repeats
+    the filter, or the scope."""
     return [dim for dim in dims
             if len({f.dims.get(dim) for f in sel.facts if f.kind == carrier}) != 1]
 

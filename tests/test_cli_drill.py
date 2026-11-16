@@ -139,9 +139,10 @@ def test_an_asked_for_table_prints_its_labels_whole_so_they_copy_into_where(tmp_
     ``--where`` selects."""
     project = "-home-me-workspace-" + "x" * 40
     assert len(project) > tables.LABEL_WIDTH  # vacuity guard
-    root = fx.corpus(tmp_path, {project + "/sess-0001.jsonl": fx.window_records(),  # two sessions:
-                                project + "/sess-0002.jsonl":  # the project table is no relabel
-                                fx.window_records("b-", session="sess-0002")})
+    root = fx.corpus(tmp_path, {project + "/sess-0001.jsonl": fx.window_records(),  # three sessions,
+                                project + "/sess-0002.jsonl":  # two projects: the project table
+                                fx.window_records("b-", session="sess-0002"),  # is no relabel
+                                "proj-b/sess-0003.jsonl": fx.window_records("c-", session="sess-0003")})
     cut = "…" + project[1 - tables.LABEL_WIDTH:]
     for by, label in (([], cut), (["--by", schema.PROJECT_DIM], project)):
         code, out, err = fx.run_cli("context", "--root", str(root), *by)
