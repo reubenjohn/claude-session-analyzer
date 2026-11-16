@@ -20,7 +20,7 @@ One grammar: `python3 -m sa spend|context [by DIM | by change | by call]
 
 | Word | Meaning |
 |---|---|
-| `DIM=VALUE` | a pin, repeatable, as a table prints the value; `project` `session` `subagent` `window` `started_by` `peak` keep whole windows; `cause` `tool` `command` `reason` drill |
+| `DIM=VALUE` | a pin, repeatable, as a table prints the value; `project` `session` `subagent` `window` `started_by` `peak` keep whole windows; `cause` `tool` `command` `reason` keep only matching changes |
 | `by DIM` | that one table, every row (default screen: 5 rows, then `+N more` and its command) |
 | `by change` / `by call` | the facts: one change (spend: call) per row, `file:line`, `calls held`, its pins, evidence under |
 | `-v` | how this screen's figures are computed and what its `*` words mean |
@@ -44,7 +44,7 @@ apart (`-v`: `not in spend`). Context shares are not cost shares.
 The `context` headline opens with `average context per call* N tokens,
 over C calls in W windows` (what a call held; never summed, never "added
 per call"), then the starting context by `started_by` and the `growth`:
-`largest:` the top tool, `of which` its largest command. A drill pin's headline
+`largest:` the top tool, `of which` its largest command. A change pin's headline
 says its part: `Bash: 214 of the 84,709-token average call, over 21
 calls in 3 windows`, then its changes. A pin omits tables that would have one row.
 
@@ -95,7 +95,7 @@ average (what could not be traced); `-v` works them in this run's numbers:
 
 A material `ambiguous` (10%+ of the average) or `shrink` (1%+) gets a
 `!` line with the command that shows it. A failure prints `MISMATCH` in
-full, a bug in this tool, exit 1. A drill's checks name the whole
+full, a bug in this tool, exit 1. A change pin's checks name the whole
 windows they apply to.
 
 ## Refusals

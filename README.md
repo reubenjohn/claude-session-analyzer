@@ -14,6 +14,7 @@ it there. Stdlib only, Python 3.8+; every figure names its population.
 ## Install
 
 ```
+python3 -m venv .venv && . .venv/bin/activate   # or any environment
 pip install git+https://github.com/reubenjohn/claude-session-analyzer
 ```
 
@@ -85,8 +86,8 @@ works it in your numbers); a failed check is a bug, exit 1.
 
 `DIM=VALUE` pins (project, session, subagent, window, started_by, peak,
 cause, tool, command, reason), repeatable: different dimensions AND.
-The first six keep whole windows; the rest drill, the headline naming
-the pin as a part of the average. Closed values match in any case or
+The first six keep whole windows; the rest keep only matching changes,
+the headline naming the pin as a part of the average. Closed values match in any case or
 by prefix (`peak=200k`), a session by any unique prefix; a catch-all
 row pins by its label (`subagent=main`). A command is a Bash call's
 first command word (`Bash:pytest`) or a file tool's extension
