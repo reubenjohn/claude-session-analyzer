@@ -113,12 +113,16 @@ def test_a_since_read_that_drops_the_parent_is_compared_band_for_band(tmp_path):
 
 def test_the_engine_books_held_and_reconciles_it_per_window(tmp_path):
     """D-PER-CALL: ``walk.forest`` books ``context_held`` on every increment
-    and the reconciliation checks it per window; one token off breaks it."""
+    and the reconciliation checks it per window; one token off breaks it.
+    The expectation is by hand, not by ``walk.held``: ``fx.window_records``
+    is one window of 7 calls; its start is held by all 7, the changes
+    closed at call k (2 here, 2 at call 3, ...) by calls k through 7."""
+    one = fx.load_facts(fx.corpus(tmp_path / "one", {"proj-a/sess-0001.jsonl": fx.window_records()}))[1]
+    increments = [f for f in one if f.kind == schema.INCREMENT]
+    assert sum(f.kind == schema.CALL for f in one) == 7  # vacuity guard: the window counted by hand
+    assert [f.metrics[fx.HELD] / f.metrics[DELTA] for f in increments] == [7, 6, 6, 5, 5, 4, 3, 2, 2, 1, 1]
     _, facts = fx.load_facts(fx.every_corpus(tmp_path))
-    increments = [f for f in facts if f.kind == schema.INCREMENT]
-    assert increments and all(fx.HELD in f.metrics for f in increments)
-    assert {id(f): n for f, n in m.held(facts) if f.metrics[DELTA]} == {
-        id(f): f.metrics[fx.HELD] / f.metrics[DELTA] for f in increments if f.metrics[DELTA]}
+    assert all(fx.HELD in f.metrics for f in facts if f.kind == schema.INCREMENT)
     r = reconciliation.reconcile(facts)
     assert r.held_holds and r.holds and r.held == r.occupancy > 0
     i = next(i for i, f in enumerate(facts) if f.kind == schema.INCREMENT)
