@@ -24,7 +24,7 @@ def _split(out):
 def test_the_marked_terms_and_the_key_terms_are_one_set(tmp_path, args):
     out = fx.run_cli(*args, "--root", str(fx.cli_corpus(tmp_path)))[1]
     body, key = _split(out)
-    keyed = [re.match(r"^  (\S+(?: \S+)?)%s +=" % STAR, line).group(1) for line in key]
+    keyed = [re.match(r"^  (\S+(?: \S+)*?)%s +=" % STAR, line).group(1) for line in key]
     known = {glossary.printed(t) for t in glossary.GLOSSARY}
     spelt = sorted(known | {t.replace("_", " ") for t in known}, key=len, reverse=True)  # as printed
     marked = re.findall(r"(?<![\w-])(%s)s?%s" % ("|".join(map(re.escape, spelt)), STAR), "\n".join(body))
@@ -39,9 +39,11 @@ def test_the_marked_terms_and_the_key_terms_are_one_set(tmp_path, args):
 
 
 @pytest.mark.parametrize("args, hint", [
-    (("context",), "--where %s=Bash" % schema.TOOL_DIM),
-    (("context", "--where", "tool=Bash"), "--by fact"),  # its one command is implied: no lever left
-    (("context", "--where", "command=Bash:pytest"), "--by fact"),
+    (("context",), "--where %s=%s" % (schema.PEAK_DIM, schema.BANDS[-1])),  # the fullest band first
+    (("context", "--where", "peak=0-50K"), "--where %s=Bash" % schema.TOOL_DIM),  # one band: no lead
+    (("context", "--where", "tool=Bash"), "--where %s=%s" % (schema.PEAK_DIM, schema.BANDS[-1])),
+    (("context", "--where", "peak=200K+", "--where", "tool=Bash"), "--by fact"),  # its command is implied
+    (("context", "--where", "peak=200K+", "--where", "command=Bash:pytest"), "--by fact"),
     (("spend",), "--where %s=agent-fake1" % schema.SUBAGENT_DIM),
     (("spend", "--where", "subagent=agent-fake1"), "--by fact"),
     (("context", "--by", "fact"), None)])

@@ -32,7 +32,7 @@ def test_headline_walks_the_view_levers_whatever_by_shows(tmp_path):
     root = fx.cli_corpus(tmp_path)
     assert CONTEXT.tables[0] == CAUSE and CAUSE not in CONTEXT.levers
     assert CONTEXT.levers == (TOOL, HEAD) and SPEND.levers == (schema.SUBAGENT_DIM,)
-    lead = "; growth 1,860 38.3% from Bash 750 → Bash:pytest 750"
+    lead = "; growth 1,860 0.7% from Bash 750 → Bash:pytest 750"
     for by in (CAUSE, schema.SESSION_DIM, schema.WINDOW_DIM):
         code, out, err = fx.run_cli("context", "--root", str(root), "--by", by)
         assert code == 0, err
@@ -66,7 +66,7 @@ def test_a_pin_omits_the_tables_and_levers_it_implies(tmp_path):
     for dim in (TOOL, CAUSE):  # the fixture's one Bash:pytest increment per window is exact
         assert not re.search(r"^by %s\s" % dim, out, re.M), dim
     for dim in (schema.SUBAGENT_DIM, schema.SESSION_DIM, schema.PROJECT_DIM):  # two values each
-        assert re.search(r"^by %s[\s:]" % dim, out, re.M), dim  # a table, or its relabel line
+        assert re.search(r"^by (?:[\w /]+, )*%s[\s:,]" % dim, out, re.M), dim  # a table, or its relabel line
     asked = fx.run_cli("context", "--root", str(root), "--where", "%s=Bash:pytest" % HEAD, "--by", TOOL)[1]
     assert re.search(r"^Bash\s+750\s+3\s+100\.0%$", asked, re.M)
     window = ["--where", "%s=%s" % (schema.WINDOW_DIM, fx.window_value("proj-a/sess-0001.jsonl"))]
@@ -77,7 +77,7 @@ def test_a_pin_omits_the_tables_and_levers_it_implies(tmp_path):
     assert "by %s" % TOOL in out and "by %s" % HEAD in out
     assert " from Bash " in fx.headline(out)  # the window's tools are not implied
     unpinned = fx.run_cli("context", "--root", str(root))[1]
-    assert all("by %s" % dim in unpinned for dim in CONTEXT.tables)  # vacuity guard
+    assert all(re.search(r"^by (?:[\w /]+, )*%s[\s:,]" % dim, unpinned, re.M) for dim in CONTEXT.tables)  # vacuity guard
 
 
 def test_headline_refines_the_top_tool_by_the_head_within_it_and_names_a_larger_head_elsewhere(tmp_path):
@@ -163,17 +163,17 @@ def test_the_headline_never_names_a_cause(tmp_path):
 
 
 def test_headline_share_is_of_the_added_while_the_table_share_is_of_its_base(tmp_path):
-    """Bash carries 750 of the 4,860 tokens added (4,560 net of the -300
+    """Bash carries 750 of the 254,860 tokens added (254,560 net of the -300
     shrink): the table's share column is over the 750 that have a tool at
-    all; the headline's shares are of the 4,860 added, named once on the
+    all; the headline's shares are of the 254,860 added, named once on the
     total's line, the signed row out of them as out of the cause table's."""
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", TOOL)
     assert code == 0, err
-    assert re.search(r"^%s\s+4,110\s+\d+\s+-$" % re.escape(tables.RESIDUAL_ROW), out, re.M)
+    assert re.search(r"^%s\s+254,110\s+\d+\s+-$" % re.escape(tables.RESIDUAL_ROW), out, re.M)
     assert re.search(r"^%s \(signed\)\s+-300\s" % re.escape(glossary.marked(schema.SHRINK)), out, re.M)
-    assert " 3,000 61.7% " in fx.headline(out) and " 1,860 38.3% " in fx.headline(out)  # of the 4,860
-    assert out.splitlines()[-1].startswith("%s checks: 4,860 added - 300 %s = 4,560" % (tables.OK_MARK, schema.SHRINK))
+    assert " 253,000 99.3% " in fx.headline(out) and " 1,860 0.7% " in fx.headline(out)  # of the 254,860
+    assert out.splitlines()[-1].startswith("%s checks: 254,860 added - 300 %s = 254,560" % (tables.OK_MARK, schema.SHRINK))
     assert " from Bash 750" in fx.headline(out)
     assert re.search(r"^by %s\s.*\s+%s\s+share of 750 \(all but unassigned\)$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
     assert re.search(r"^Bash\s+750\s+3\s+100\.0%$", out, re.M)

@@ -59,7 +59,7 @@ def test_sections_read_scope_answer_tables_key_checks(tmp_path):
     tables_at = [i for i, line in enumerate(firsts) if line.startswith("by ")]
     assert tables_at == list(range(2, 2 + len(tables_at))) and tables_at  # contiguous, non-empty
     for dim in CONTEXT.tables:  # each printed, or relabelled under the table it repeats
-        assert re.search(r"^by %s[\s:]" % dim, "\n".join(sum(sections[2:2 + len(tables_at)], [])), re.M), dim
+        assert re.search(r"^by (?:[\w /]+, )*%s[\s:,]" % dim, "\n".join(sum(sections[2:2 + len(tables_at)], [])), re.M), dim
     assert firsts[-2].startswith(tables.KEY_TITLE) and firsts[-1].startswith(tables.OK_MARK + " checks: ")
     assert len(sections) == 4 + len(tables_at)
     for section in sections[2:-2]:  # no note inside a table: every one is in the key

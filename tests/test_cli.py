@@ -20,25 +20,24 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
     (read, kept, orphan), answer = fx.sections(out)[:2]
-    first, peak = fx.headline(out), fx.peaks(out)[0]
-    # starting_context is the largest cause (3,000 of 4,560) but cause is no
+    first, (average,) = fx.headline(out), fx.average(out)
+    # starting_context is the largest cause (253,000 of 254,560) but cause is no
     # lever: it is the starting context, by started_by; the growth walks down
-    # the top tool and its top command. Every share is of the 4,860 added
+    # the top tool and its top command. Every share is of the 254,860 added
     # (the shrink row out), as in the cause table, which the checks state.
-    assert re.search(r"^%s\s+3,000\s" % schema.STARTING_CONTEXT, out, re.M)
-    assert first == ("%s%s across 3 windows; starting context%s 3,000 61.7%% = %s 2,000 + %s 1,000;"
-                     " growth 1,860 38.3%% from Bash 750 → Bash:pytest 750") % (
-        fx.total_line(CONTEXT.metric), format(3 * fx.FINAL_OCCUPANCY, ",d"), glossary.MARKER,
+    assert re.search(r"^%s\s+253,000\s" % schema.STARTING_CONTEXT, out, re.M)
+    assert first == ("%s%s across 3 windows; starting context%s 253,000 99.3%% = %s 252,000 + %s 1,000;"
+                     " growth 1,860 0.7%% from Bash 750 → Bash:pytest 750") % (
+        fx.total_line(CONTEXT.metric), format(3 * fx.FINAL_OCCUPANCY + 250000, ",d"), glossary.MARKER,
         headline.START_LABELS[schema.SESSION_START], headline.START_LABELS[schema.FORK])
-    assert out.splitlines()[-1].startswith("%s checks: 4,860 added - 300 %s = 4,560; " % (
+    assert out.splitlines()[-1].startswith("%s checks: 254,860 added - 300 %s = 254,560; " % (
         tables.OK_MARK, schema.SHRINK))  # the shares' base, and what shrank
     assert fx.unit(CONTEXT.metric) == fx.printed(CONTEXT.metric)  # so the total line states it once
-    assert re.search(r"^%s\s+3,000\s+\d+\s+61\.7%%$" % schema.STARTING_CONTEXT, out, re.M)  # one base
+    assert re.search(r"^%s\s+253,000\s+\d+\s+99\.3%%$" % schema.STARTING_CONTEXT, out, re.M)  # one base
     windows = {f.window for f in facts}
-    top = [f for f in facts if f.metrics.get(fx.PEAK) == fx.FINAL_OCCUPANCY][0]
-    assert len(windows) == 3 and peak == "%s%s %s (of 3 windows), %s=%s" % (
-        fx.PEAK_LINE, format(fx.FINAL_OCCUPANCY, ",d"), fx.unit(fx.PEAK), schema.WINDOW_DIM,
-        schema.window_value(top.window))
+    held = [f.metrics[fx.PEAK] for f in facts if f.kind == schema.CALL]  # what each call held
+    assert len(windows) == 3 and average == "%s%s %s, over %d calls in 3 windows" % (
+        fx.AVERAGE, tables.num(sum(held) / len(held)), fx.unit(fx.PEAK), len(held))
     assert read == ("read: %d files modified in the last 7d (default) under %s, 0 lines skipped,"
                     " 0 duplicates excluded" % (len(loaded.files), root))
     assert kept == "in view: 3 windows%s, %d %s%s" % (
@@ -48,14 +47,15 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     # The cause table closes with its total against the final sizes; the
     # intervals collapse to one checks line, last.
     assert re.search(r"^%s\s+%s\s+%d\s+%s = final window sizes$" % (
-        tables.TOTAL_LABEL, format(3 * fx.FINAL_OCCUPANCY, ",d"), sum(f.kind == INCREMENT for f in facts),
+        tables.TOTAL_LABEL, format(3 * fx.FINAL_OCCUPANCY + 250000, ",d"), sum(f.kind == INCREMENT for f in facts),
         tables.OK_MARK), out, re.M)
-    assert out.splitlines()[-1] == ("%s checks: 4,860 added - 300 shrink = 4,560; 18 gaps between calls"
+    assert out.splitlines()[-1] == ("%s checks: 254,860 added - 300 shrink = 254,560; 18 gaps between calls"
                                     " (21 calls - 3 windows): 6 to one source (33.3%%), 9 ambiguous (50.0%%),"
                                     " 3 shrank (16.7%%)" % tables.OK_MARK)
     assert "reconciliation" not in out and "MISMATCH" not in out  # full detail only on failure
-    for dim in CONTEXT.tables:
-        assert "by " + dim in out
+    titles = [line.split(":")[0].split("  ")[0] for line in out.splitlines() if line.startswith("by ")]
+    for dim in CONTEXT.tables:  # a table, or a line its rows share with the tables repeating it
+        assert any(re.search(r"\b%s\b" % dim, t) for t in titles), dim
     drillable = set(schema.KIND_DIMENSIONS[INCREMENT]) - set(CONTEXT.tables)
     assert schema.WINDOW_DIM in drillable  # D-CONTEXT-WINDOW: one row per window is never a default table
     for dim in drillable:
@@ -72,13 +72,13 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("spend", "--root", str(root), "--where", "project=proj-a")
     assert code == 0, err
-    first, (peak,) = fx.headline(out), fx.peaks(out)
+    first, (average,) = fx.headline(out), fx.average(out)
     assert first.startswith(fx.total_line(SPEND.metric)) and fx.unit(SPEND.metric) in first
     # project is pinned; subagent is spend's lever, and the fork bills exactly
     # what its parent does, so it is half the total.
     assert re.search(r"over 14 calls in 2 windows; largest %s [\d,]+ 50\.0%% agent-fake1$"
                      % schema.SUBAGENT_DIM, first)
-    assert peak.startswith(fx.PEAK_LINE) and (SPEND.metric, cli.SPEND_NOTE) in fx.key(out)
+    assert average.startswith(fx.AVERAGE) and (SPEND.metric, cli.SPEND_NOTE) in fx.key(out)
     others = [name for name, spec in schema.METRICS.items()  # footer totals name their population
               if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE
               and name != SPEND.metric]
@@ -91,9 +91,10 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
                      % (schema.SUBAGENT_DIM, fx.printed(SPEND.metric), fx.count_column(SPEND.metric)),
                      out, re.M)
     assert fx.count_column(SPEND.metric) != fx.count_column(CONTEXT.metric)  # each view names its carrier
-    assert re.search(r"^%s%s %s \(of 2 windows\), %s=[0-9a-f]{8}$"
-                     % (fx.PEAK_LINE, format(fx.FINAL_OCCUPANCY, ",d"), fx.unit(fx.PEAK), schema.WINDOW_DIM),
-                     out, re.M)
+    assert average == "%s%s %s, over 14 calls in 2 windows" % (  # two like windows: one window's mean
+        fx.AVERAGE, tables.num(sum(f.metrics[fx.PEAK] for f in fx.load_facts(root)[1]
+                                   if f.kind == schema.CALL and f.window.line == 1
+                                   and f.dims[schema.SESSION_DIM] == fx.SESSION) / 14), fx.unit(fx.PEAK))
     assert "by %s" % CAUSE not in out
     assert "by %s" % CAUSE in fx.run_cli("context", "--root", str(root))[1]  # vacuity guard
 
@@ -103,8 +104,8 @@ def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("spend", "--root", str(root), "--by", schema.SUBAGENT_DIM)
     assert code == 0, err
-    assert re.search(r"; largest %s [\d,]+ 33\.3%% agent-fake1$"
-                     % schema.SUBAGENT_DIM, fx.headline(out))  # one of three like windows
+    assert re.search(r"; largest %s [\d,]+ 0\.6%% agent-fake1$"
+                     % schema.SUBAGENT_DIM, fx.headline(out))  # the one subagent, beside a 200K+ window
     assert re.search(r"^%s\s+[\d,]+\s+14\s+-$" % re.escape(tables.RESIDUAL_ROW), out, re.M)
     assert (tables.RESIDUAL_LABEL, glossary.brief(tables.RESIDUAL_LABEL)) in fx.key(out)
     assert "%s=main" % schema.SUBAGENT_DIM not in out

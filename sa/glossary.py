@@ -16,6 +16,7 @@ from .schema import SchemaError
 RESIDUAL_LABEL = "unassigned"  # the residual row: never in a share, never hidden
 EXACT = "exact"
 DRILL = "drill"
+AVERAGE = "average_context_per_call"  # the headline's level: what a call held, averaged
 MARKER = "*"  # a footnote: the term is explained below
 PROG = "python3 -m sa"  # the real invocation, wherever a runnable command prints
 
@@ -42,6 +43,11 @@ GLOSSARY: Dict[str, Term] = {
     schema.STARTED_BY_DIM: Term("what began the window: " + ", ".join(schema.STARTS),
                                 "a compaction starts a new window in the same file; its starting"
                                 " context re-counts the system prompt; %s explain fork, replayed" % PROG),
+    schema.PEAK_DIM: Term("how full the window got: the band its largest call's context fell in, "
+                          + ", ".join(schema.BANDS) + " tokens (K = 1,000; a band includes its lower"
+                          " edge, so 200,000 is 200K+)",
+                          "a band of the window, not of a call: a 200K+ window's calls are"
+                          " counted there from its first, small ones too"),
     schema.FORK: Term("a window that began as a copy of another window's context: a forked"
                       " session or subagent, its file opening with the parent's records",
                       "the copy is one inherited change, counted in the parent when the parent"
@@ -69,7 +75,14 @@ GLOSSARY: Dict[str, Term] = {
                        " x0.1, cache writes x1.25 (5-minute) or x2.0 (1-hour); output excluded",
                        "every call re-reads its whole context, so spend grows with context times"
                        " calls; it is never quoted in dollars", True),
-    schema.CONTEXT_TOKENS: Term("one call's context size; a peak, so only its largest call is shown",
+    AVERAGE: Term(
+        "what a call held (its context size), averaged over the calls in view: the size the"
+        " model reasoned over at a typical call",
+        "not what a call added: every call re-reads its whole window, so long windows hold most"
+        " calls; a mean of one population, never summed or averaged with another's", True,
+        "what a call held, averaged over these calls; never added per call, never summed"),
+    schema.CONTEXT_TOKENS: Term("one call's context size: what it held; shown averaged over the"
+                                " calls and as each window's peak band",
                                 "never summed: a sum counts a token once per call that re-read it"),
     "output_tokens": Term("tokens the calls generated",
                           "the next call reads them back, as replies"),

@@ -30,7 +30,7 @@ def test_a_drill_prints_a_table_that_has_only_a_residual_row(tmp_path):
                           "%s=%s" % (CAUSE, schema.STARTING_CONTEXT), "--by", TOOL)
     assert code == 0, err
     assert re.search(r"^by %s\s" % TOOL, out, re.M)
-    assert re.search(r"^%s\s+%s\s+3\s+-$" % (re.escape(tables.RESIDUAL_ROW), format(3000, ",d")),
+    assert re.search(r"^%s\s+%s\s+3\s+-$" % (re.escape(tables.RESIDUAL_ROW), format(253000, ",d")),
                      out, re.M)
     assert "; largest" not in fx.headline(out)
     assert re.search(r"^by %s\s.*\s+%s\s+share$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
@@ -45,9 +45,9 @@ def test_a_drill_prints_the_whole_window_checks_with_their_mass(tmp_path):
     assert fx.headline(out).startswith("%s%s over 3 changes where %s=%s in 3 windows" % (
         fx.total_line(CONTEXT.metric), format(3 * fx.EXACT_FIRST_DELTA, ",d"), CAUSE, schema.TOOL_RESULT))
     last = out.splitlines()[-1]
-    assert last.startswith("%s checks over the 3 whole windows (a drill is not reconciled): 4,860 added"
+    assert last.startswith("%s checks over the 3 whole windows (a drill is not reconciled): 254,860 added"
                            " - 300 %s = %s = the final window sizes; " % (
-                               tables.OK_MARK, glossary.marked(schema.SHRINK), format(3 * fx.FINAL_OCCUPANCY, ",d")))
+                               tables.OK_MARK, glossary.marked(schema.SHRINK), "254,560"))
     assert " %d gaps between calls (" % (3 * fx.INTERVALS) in last
     assert tables.TOTAL_LABEL not in out  # no total row on a drill
     whole = fx.run_cli("context", "--root", str(root))[1]
@@ -59,8 +59,8 @@ def test_by_fact_prints_the_checks_with_their_mass(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", "fact", "--limit", "1")
     assert code == 0, err
     last = out.splitlines()[-1]
-    assert last.startswith("%s checks: 4,860 added - 300 %s = %s = the final window sizes; " % (
-        tables.OK_MARK, glossary.marked(schema.SHRINK), format(3 * fx.FINAL_OCCUPANCY, ",d")))
+    assert last.startswith("%s checks: 254,860 added - 300 %s = %s = the final window sizes; " % (
+        tables.OK_MARK, glossary.marked(schema.SHRINK), "254,560"))
     assert " %d gaps between calls (" % (3 * fx.INTERVALS) in last
 
 
@@ -88,20 +88,18 @@ def test_a_drill_headline_counts_the_windows_its_facts_come_from(tmp_path):
                         ) == ["Bash"]  # the one tool every drilled fact shares leads nothing
 
 
-def test_a_drill_reports_the_peak_over_the_whole_windows_it_names(tmp_path):
+def test_a_drill_reports_the_average_over_the_whole_windows_it_names(tmp_path):
     root = fx.cli_corpus(tmp_path)
     facts = fx.load_facts(root)[1]
     drill = [(CAUSE, schema.TOOL_RESULT)]
     assert not [f for f in query.select(facts, drill) if fx.PEAK in f.metrics]  # a drill keeps no call
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "%s=%s" % drill[0])
     assert code == 0, err
-    headline, (peak,) = fx.headline(out), fx.peaks(out)
+    headline, (average,) = fx.headline(out), fx.average(out)
     assert " over 3 changes where %s=%s in 3 windows" % drill[0] in headline
-    top = query.largest(facts, fx.PEAK)
-    assert top.locator.file == "proj-a/sess-0001.jsonl"  # vacuity guard: one of the windows named
-    assert peak == "%s%s %s (of 3 windows), %s=%s" % (
-        fx.PEAK_LINE, format(fx.FINAL_OCCUPANCY, ",d"), fx.unit(fx.PEAK), schema.WINDOW_DIM,
-        schema.window_value(top.window))
+    mean, calls = query.mean(facts, fx.PEAK)
+    assert calls == 21 and mean > fx.FINAL_OCCUPANCY  # vacuity guard: every call of the 3 windows
+    assert average == "%s%s %s, over %d calls in 3 windows" % (fx.AVERAGE, tables.num(mean), fx.unit(fx.PEAK), calls)
 
 
 def test_a_main_window_is_selected_by_its_window_value_alone(tmp_path):

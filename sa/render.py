@@ -25,6 +25,7 @@ class View(NamedTuple):
     reconciles: bool
     notes: Tuple[str, ...]   # printed in the key, under the view's metric
     starts: Optional[str] = None  # the dimension the starting context splits by; None: no such line
+    leads: Tuple[str, ...] = ()  # declared-band dimensions the hint pins, at their last value, before the levers
 
 
 def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit: int,
@@ -43,17 +44,27 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
         body = leaves(sel.facts, view.metric, limit) + [""]
     else:
         dims = [by] if by else headline.open_dims(sel, view.tables, spec.carrier)
-        body, above = [], None
+        body, above, repeats = [], None, []
         for dim in dims:
             grouped = query.group(sel.facts, dim, view.metric)
+            if dim in view.leads:  # bands read fullest first, not by mass
+                order = schema.VOCABULARY[dim][::-1]
+                grouped = grouped._replace(rows=sorted(grouped.rows, key=lambda r: (
+                    r.kind != query.REGULAR, order.index(r.value) if r.kind == query.REGULAR else 0)))
             labels = above and query.relabels(sel.facts, above.dim, dim, view.metric)
             if labels and len(labels) <= limit:  # the table would repeat the one above
-                body.insert(-1, tables.relabelled(above, labels, dim, names))
+                repeats.append((dim, labels))
+                line = tables.relabelled(above, repeats, names)
+                if len(repeats) > 1:  # the tables repeating one table share its line
+                    body[-2] = line
+                else:
+                    body.insert(-1, line)
             elif grouped.rows:
-                above = grouped
+                above, repeats = grouped, []
                 total = _total(view, sel) if dim == schema.CAUSE_DIM else None
                 totalled = totalled or total is not None
-                body += table(grouped, view.metric, limit, whole=bool(by), total=total, names=names) + [""]
+                body += table(grouped, view.metric, limit, whole=bool(by), total=total, names=names,
+                              counts=window_counts(sel, dim)) + [""]
     scope = [style.tag(line, style.SCOPE, values=getattr(line, "values", ()))
              for line in population(view, sel, loaded, since_default)]
     above = (scope + [""] + headline.headline(view, sel, forest, names) + next_step(view, sel, by, names)
@@ -77,18 +88,43 @@ def subagent_names(loaded_types: Dict[str, str], facts: Iterable[Fact]) -> Dict[
     return {i: label for i, label in named.items() if seen[label] == 1}
 
 
+def window_counts(sel: Selection, dim: str) -> Optional[tables.Counts]:
+    """The count columns of a table by ``peak``: per band, the windows the
+    view's facts come from and the calls those whole windows hold; None
+    for any other table, which counts its carrier facts. A window has one
+    band, so each column adds up to the view's windows and calls."""
+    if dim != schema.PEAK_DIM:
+        return None
+    shown = {f.window for f in sel.facts}
+    per: Dict[str, Tuple[set, int]] = {}
+    for f in sel.window_facts:
+        if f.window in shown:
+            keys, calls = per.get(f.dims[dim], (set(), 0))
+            keys.add(f.window)
+            per[f.dims[dim]] = (keys, calls + (f.kind == schema.CALL))
+    return [("windows", {v: len(k) for v, (k, _) in per.items()}),
+            (schema.PLURAL[schema.CALL], {v: n for v, (_, n) in per.items()})]
+
+
 NEXT = "→ next: add "
 
 
 def next_step(view: View, sel: Selection, by: Optional[str],
               names: Optional[Dict[str, str]] = None) -> List[str]:
-    """One line under the headline: the pin that follows its own levers
-    (the top value of the first lever a pin left open: the top tool, then
-    within a pinned tool its top command), or ``--by fact`` once none is
-    open; none when the leaves already print or there is nothing to show."""
+    """One line under the headline: while the windows in view span more
+    than one ``peak`` band (the view's ``leads``), the fullest band: is
+    context a problem, then what fills those windows. Then the pin that
+    follows its own levers (the top value of the first lever a pin left
+    open: the top tool, then within a pinned tool its top command), or
+    ``--by fact`` once none is open; none when the leaves already print or
+    there is nothing to show."""
     carrier = schema.metric(view.metric).carrier
     if by == FACT or not any(f.kind == carrier for f in sel.facts):
         return []
+    for dim in headline.open_dims(sel, view.leads, carrier):  # the fullest band first
+        present = {f.dims.get(dim) for f in sel.facts if f.kind == carrier}
+        top = [v for v in schema.VOCABULARY[dim] if v in present][-1]
+        return [style.tag("%s--where %s=%s" % (NEXT, dim, top), style.HINT)]
     for dim in headline.open_dims(sel, view.levers, carrier):
         top = next((r for r in query.group(sel.facts, dim, view.metric).rows if r.kind == query.REGULAR), None)
         if top is not None:

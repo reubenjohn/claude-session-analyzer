@@ -95,7 +95,7 @@ into one or more changes:
 
 <!-- example: context | ✓ checks -->
 ```
-✓ checks: 4,860 added - 300 shrink = 4,560; 18 gaps between calls (21 calls - 3 windows): 6 to one source (33.3%), 9 ambiguous (50.0%), 3 shrank (16.7%)
+✓ checks: 254,860 added - 300 shrink = 254,560; 18 gaps between calls (21 calls - 3 windows): 6 to one source (33.3%), 9 ambiguous (50.0%), 3 shrank (16.7%)
 ```
 
 It holds by construction: a failure prints the reconciliation in full

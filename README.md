@@ -26,29 +26,30 @@ read: 4 files modified in the last 7d (default) under ~/.claude/projects, 0 line
 in view: 3 windows*, 33 changes*
          1 fork whose parent is missing: its copy counts as its own
 
-context tokens: 4,560 across 3 windows
-  starting context*  3,000  61.7%  = session starts 2,000 + forks 1,000
-  growth             1,860  38.3%  from Bash 750 → Bash:pytest 750
-largest single-call context 1,520 tokens (of 3 windows), window=aadeccf6
-→ next: add --where tool=Bash
+context tokens: 254,560 across 3 windows
+  starting context*  253,000  99.3%  = session starts 252,000 + forks 1,000
+  growth               1,860   0.7%  from Bash 750 → Bash:pytest 750
+average context per call* 84,709 tokens, over 21 calls in 3 windows
+→ next: add --where peak=200K+
 
-by cause          context tokens  changes  share of 4,860 added
-starting_context           3,000        3   61.7%
-tool_result                  750        3   15.4%
-ambiguous*                   606        9   12.5%
-user_text                    255        3    5.2%
-replies                      249       12    5.1%
+by cause          context tokens  changes  share of 254,860 added
+starting_context         253,000        3   99.3%
+tool_result                  750        3    0.3%
+ambiguous*                   606        9    0.2%
+user_text                    255        3    0.1%
+replies                      249       12    0.1%
 shrink* (signed)            -300        3       -
-= total                    4,560       33  ✓ = final window sizes
+= total                  254,560       33  ✓ = final window sizes
 
 * explained below · more on any of them: python3 -m sa explain window
-  window*           = one context window, from its start to its file's end or the next compaction
-  changes*          = one change of a window's context between two calls, booked to its cause
-  starting context* = what each window's first call already held: system prompt, tools, CLAUDE.md, first message
-  ambiguous*        = growth with no one contributor, left undivided; a tool's row counts it when every candidate is that tool's
-  shrink*           = the window got smaller (often a compaction); negative, in no share
+  window*                   = one context window, from its start to its file's end or the next compaction
+  changes*                  = one change of a window's context between two calls, booked to its cause
+  starting context*         = what each window's first call already held: system prompt, tools, CLAUDE.md, first message
+  average context per call* = what a call held, averaged over these calls; never added per call, never summed
+  ambiguous*                = growth with no one contributor, left undivided; a tool's row counts it when every candidate is that tool's
+  shrink*                   = the window got smaller (often a compaction); negative, in no share
 
-✓ checks: 4,860 added - 300 shrink = 4,560; 18 gaps between calls (21 calls - 3 windows): 6 to one source (33.3%), 9 ambiguous (50.0%), 3 shrank (16.7%)
+✓ checks: 254,860 added - 300 shrink = 254,560; 18 gaps between calls (21 calls - 3 windows): 6 to one source (33.3%), 9 ambiguous (50.0%), 3 shrank (16.7%)
 ```
 
 `--since 30d` or `--since all` widens the window; `python3 -m sa explain [TERM]`
@@ -56,9 +57,9 @@ says what a term means. `python3 -m sa spend --by subagent`:
 
 <!-- example: spend --by subagent | by subagent -->
 ```
-by subagent  spend  calls  share of 988 (all but unassigned)
-agent-fake1    988      7  100.0%
-unassigned*  1,976     14       -
+by subagent    spend  calls  share of 988 (all but unassigned)
+agent-fake1      988      7  100.0%
+unassigned*  176,976     14       -
 ```
 
 Spend weights cache reads 0.1x, 5m writes 1.25x, 1h writes 2x; never

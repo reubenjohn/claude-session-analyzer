@@ -82,13 +82,15 @@ REASONS = (SEVERAL, LESS_THAN_REPLY, UNEXPLAINED)
 # ``subagent`` (D-AGENT-DIM). ``window`` is ``window_value`` of the window's
 # identity: the one dimension that isolates a window, a drill target, never
 # a default table. ``started_by`` names what began it (D-START-CAUSE).
+# ``peak`` is the band of the window's largest call (D-PEAK-BAND).
 # ``DIMENSIONS`` is the presentation order of the tables.
 PROJECT_DIM = "project"
 SESSION_DIM = "session"
 SUBAGENT_DIM = "subagent"
 WINDOW_DIM = "window"
 STARTED_BY_DIM = "started_by"
-WINDOW_DIMENSIONS = (PROJECT_DIM, SESSION_DIM, SUBAGENT_DIM, WINDOW_DIM, STARTED_BY_DIM)
+PEAK_DIM = "peak"
+WINDOW_DIMENSIONS = (PROJECT_DIM, SESSION_DIM, SUBAGENT_DIM, WINDOW_DIM, STARTED_BY_DIM, PEAK_DIM)
 CAUSE_DIM = "cause"
 TOOL_DIM = "tool"
 COMMAND_DIM = "command"
@@ -103,7 +105,18 @@ FORK = "fork"
 REPLAYED = "replayed"
 COMPACTION = "compaction"
 STARTS = (SESSION_START, SUBAGENT_START, FORK, REPLAYED, COMPACTION)
-VOCABULARY = {CAUSE_DIM: CAUSES, REASON_DIM: REASONS, STARTED_BY_DIM: STARTS}  # declared values
+# A window's ``peak``: the band its largest call's ``context_tokens`` falls
+# in, each band's lower edge inclusive (K = 1,000). A label, never a summed
+# peak; ASCII and shell-safe, so ``--where peak=200K+`` needs no quoting.
+BANDS = ("0-50K", "50-100K", "100-200K", "200K+")
+BAND_EDGES = (0, 50000, 100000, 200000)  # each band's lower edge, inclusive
+VOCABULARY = {CAUSE_DIM: CAUSES, REASON_DIM: REASONS, STARTED_BY_DIM: STARTS,
+              PEAK_DIM: BANDS}  # declared values
+
+
+def band(tokens: float) -> str:
+    """The ``peak`` band of a window whose largest call held ``tokens``."""
+    return [b for b, edge in zip(BANDS, BAND_EDGES) if tokens >= edge][-1]
 
 # Evidence keys: an ambiguous increment lists its contributors; a fork's
 # starting context names the parent ids its fork-context-ref gives; an inherited

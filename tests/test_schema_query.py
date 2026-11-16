@@ -160,5 +160,9 @@ def test_relabels_maps_only_dimensions_that_split_the_facts_alike(tmp_path):
     assert query.relabels(facts, schema.SUBAGENT_DIM, schema.SESSION_DIM, fx.DELTA) is None
     assert query.relabels(facts, schema.CAUSE_DIM, schema.TOOL_DIM, fx.DELTA) is None
     out = fx.run_cli("context", "--root", str(fx.cli_corpus(tmp_path / "cli")))[1]
-    assert "\nby %s: the rows above, labelled proj-a, proj-b\n" % schema.PROJECT_DIM in out
+    # Session and project both repeat the peak table (its 200K+ band is
+    # proj-b's one window): they share its one line, labels per row.
+    assert query.relabels(facts, schema.PEAK_DIM, schema.SESSION_DIM, fx.DELTA)  # vacuity guard
+    assert "\nby %s, %s: the rows above, labelled sess-0002 / proj-b, sess-0001 / proj-a\n" % (
+        schema.SESSION_DIM, schema.PROJECT_DIM) in out
     assert not re.search(r"^by %s\s" % schema.PROJECT_DIM, out, re.M)  # guard: no table besides

@@ -206,8 +206,25 @@ def test_no_peak_is_summed_across_the_segments_of_one_file(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(fx.window_corpus(tmp_path / "cli")),
                                 "--where", "%s=sess-0101" % schema.SESSION_DIM)
     assert code == 0, err
-    (peak,) = fx.peaks(out)
-    assert " %s %s (of " % (format(fx.W_FINALS[(fx.W_FORK, 1)], ",d"), fx.unit(fx.PEAK)) in peak
+    (average,) = fx.average(out)  # over the session's calls, never a sum of their peaks
+    mean, calls = query.mean(query.select(facts, [(schema.SESSION_DIM, "sess-0101")]), fx.PEAK)
+    assert average.startswith("%s%s %s, over %d calls" % (fx.AVERAGE, tables.num(mean), fx.unit(fx.PEAK), calls))
+    for key, peak in peaks.items():  # each window's band is its own largest call's
+        assert {f.dims[schema.PEAK_DIM] for f in mine if f.window == key} == {schema.band(peak)}
+
+
+def test_a_window_peak_band_includes_its_lower_edge_and_is_whole_window(tmp_path):
+    """D-PEAK-BAND: a call of exactly an edge is in the band above it; a
+    window's band is its largest call's, on every fact of the window, its
+    first small calls too, and the bands are declared in order."""
+    assert [schema.band(e) for e in schema.BAND_EDGES] == list(schema.BANDS)
+    assert [schema.band(e - 1) for e in schema.BAND_EDGES[1:]] == list(schema.BANDS[:-1])
+    _, facts = fx.load_facts(fx.every_corpus(tmp_path))
+    assert {f.dims[schema.PEAK_DIM] for f in facts} == set(schema.BANDS)  # vacuity guard: every band
+    for key in {f.window for f in facts}:
+        mine = [f for f in facts if f.window == key]
+        top = max(f.metrics[fx.PEAK] for f in mine if f.kind == CALL)
+        assert {f.dims[schema.PEAK_DIM] for f in mine} == {schema.band(top)}
 
 
 def test_segmenting_leaves_the_duplicate_count_unchanged(tmp_path):

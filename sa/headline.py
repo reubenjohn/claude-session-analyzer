@@ -1,6 +1,7 @@
 """The answer, under the scope: the total and how it was taken, then the
 starting context by what started each window and the growth walked down
-the view's levers (D-HEADLINE-TWO-LINES), then the single-call peak. A
+the view's levers (D-HEADLINE-TWO-LINES), then the average context per
+call (D-MEAN-CONTEXT). A
 ``--where`` pin omits every lever whose facts all share one value."""
 from typing import Dict, List, Optional, Tuple
 
@@ -60,7 +61,7 @@ def headline(view, sel: Selection, forest: List[Fact] = (), names: Names = None)
         top, path = _path(sel.facts, levers, view.metric, names)
         if top is not None and added:
             rows.append(("largest " + levers[0], top.mass, _name(top, levers, names) + path))
-    return [style.tag(line, style.HEADLINE)] + _block(rows, added, extra) + _peaks(sel)
+    return [style.tag(line, style.HEADLINE)] + _block(rows, added, extra) + _average(sel)
 
 
 def _name(row: query.Row, levers: List[str], names: Names) -> str:
@@ -202,16 +203,15 @@ def _path(facts: List[Fact], levers: List[str], metric: str,
     return top, text
 
 
-def _peaks(sel: Selection) -> List[str]:
-    """Every peak metric as the single call where it happened, over the
-    whole windows selected, named by its window: a drill keeps no call
-    facts, and a peak reports no value at a node and is never summed."""
-    lines = []
-    for name, spec in schema.METRICS.items():
-        if spec.aggregation == schema.PEAK:
-            top = query.largest(sel.window_facts, name)
-            if top is not None:
-                lines.append("largest single-call context %s %s (of %s), %s=%s"
-                             % (num(top.metrics[name]), spec.unit, count(sel.n_windows, "window"),
-                                schema.WINDOW_DIM, schema.window_value(top.window)))
-    return lines
+def _average(sel: Selection) -> List[str]:
+    """The average context per call: what a call held (its
+    ``context_tokens``), averaged over the calls of the whole windows
+    selected (a drill keeps no call facts), printed with that population.
+    It is never "added per call", and a mean never sums (``query.mean``)."""
+    mean, calls = query.mean(sel.window_facts, schema.CONTEXT_TOKENS)
+    if not calls:
+        return []
+    return ["%s %s %s, over %s in %s" % (
+        glossary.printed(glossary.AVERAGE).replace("_", " "), num(mean), schema.metric(schema.CONTEXT_TOKENS).unit,
+        count(calls, "call"), count(sel.n_windows, "window"))]
+

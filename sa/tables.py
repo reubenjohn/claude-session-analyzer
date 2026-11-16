@@ -167,16 +167,21 @@ def cut(label: str) -> str:
     return label if len(label) <= LABEL_WIDTH else "…" + label[1 - LABEL_WIDTH:]
 
 
+Counts = Sequence[Tuple[str, Optional[Dict[str, int]]]]  # a count column: its name, a count per value
+
+
 def table(grouped: query.Table, metric: str, limit: int, whole: bool,
-          total: Optional[str] = None, names: Optional[Dict[str, str]] = None) -> List[str]:
+          total: Optional[str] = None, names: Optional[Dict[str, str]] = None,
+          counts: Optional[Counts] = None) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
     still adds up, then the residual and signed rows. Those, and every row
     of the cause table, are never hidden.
     A label is cut to ``LABEL_WIDTH`` unless ``whole``, which an asked-for
     (``--by``) table is, so its labels can be copied into ``--where``.
     The mass column is named for the metric as printed (its unit is stated
-    once, on the headline), the count column for what it counts, the
-    metric's carrier kind. The share column is as wide as a share; its
+    once, on the headline), the count column for the carrier kind it
+    counts, or ``counts`` names the count columns and counts each value
+    (``-`` on the residual and signed rows). The share column is as wide as a share; its
     header names the base after it (``share_header``), and a table with no
     base prints ``share`` alone. ``total``, when given, closes the table
     with a row of every row's sum and that text in the share column. What
@@ -193,33 +198,43 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
     shown += [r for r in grouped.rows if r.kind != query.REGULAR]
     labels = [_label(r, whole, grouped.dim, names) for r in shown]
     width = max(len(label) for label in labels + [heading])
-    sums = (num(sum(r.mass for r in grouped.rows)), num(sum(r.count for r in grouped.rows)))
-    name, counts = glossary.printed(metric), schema.PLURAL[schema.metric(metric).carrier]
-    mw = max([len(name), len(sums[0])] + [len(num(r.mass)) for r in shown])
-    cw = max([len(counts), len(sums[1])] + [len(num(r.count)) for r in shown])
-    lines = [style.tag("%-*s  %*s  %*s  %s" % (width, heading, mw, name, cw, counts,
-                                               share_header(grouped).rjust(6)), style.HEADER)]
+    columns = counts or [(schema.PLURAL[schema.metric(metric).carrier], None)]
+
+    def cell(per: Optional[Dict[str, int]], i: int, r: query.Row) -> str:
+        if per is None or r.kind != query.REGULAR:
+            return "-" if per else num(r.count)
+        return num(sum(per.get(h.value, 0) for h in hidden) if i == values else per.get(r.value, 0))
+    cells = [[name] + [cell(per, i, r) for i, r in enumerate(shown)]
+             + [num(sum(per.values()) if per else sum(r.count for r in grouped.rows))] for name, per in columns]
+    cells.insert(0, [glossary.printed(metric)] + [num(r.mass) for r in shown] + [num(sum(r.mass for r in grouped.rows))])
+    widths = [max(map(len, column)) for column in cells]
+
+    def line(label: str, k: int, last: str) -> str:  # row ``k`` of every figure column
+        return "  ".join(["%-*s" % (width, label)] + ["%*s" % (w, c[k]) for w, c in zip(widths, cells)] + [last])
+
+    lines = [style.tag(line(heading, 0, share_header(grouped).rjust(6)), style.HEADER)]
+    mass, at = width + 2, width + sum(w + 2 for w in widths) + 2  # the figures' spans: mass and share
     for i, (label, r) in enumerate(zip(labels, shown)):
         share = grouped.share(r.mass) if r.kind == query.REGULAR else None
-        mass, cell = width + 2, width + mw + cw + 6  # the figures' spans: mass and share
         free = r.kind == query.REGULAR and grouped.dim not in schema.VOCABULARY  # a data value
-        lines.append(style.tag("%-*s  %*s  %*s  %6s" % (
-            width, label, mw, num(r.mass), cw, num(r.count), pct(share)),
-            style.ROW if i < values else style.OTHER, share, ((mass, mass + mw), (cell, cell + 6)),
-            ((0, width),) if free else ()))
+        lines.append(style.tag(line(label, i + 1, "%6s" % pct(share)), style.ROW if i < values else style.OTHER,
+                               share, ((mass, mass + widths[0]), (at, at + 6)), ((0, width),) if free else ()))
     if total is not None:
-        lines.append(style.tag("%-*s  %*s  %*s  %s" % (width, TOTAL_LABEL, mw, sums[0], cw, sums[1],
-                                                       total), style.TOTAL))
+        lines.append(style.tag(line(TOTAL_LABEL, -1, total), style.TOTAL))
     return lines
 
 
-def relabelled(grouped: query.Table, labels: Dict[str, str], dim: str,
+def relabelled(grouped: query.Table, relabels: List[Tuple[str, Dict[str, str]]],
                names: Optional[Dict[str, str]] = None) -> str:
-    """The one line a table that repeats ``grouped`` row for row prints in
-    its place, under it: its labels for the regular rows, in their order,
-    each cut as a default table's."""
-    head = "%s: the rows above, labelled " % title(dim)
-    text = head + ", ".join(cut(value(dim, labels[r.value], names)) for r in grouped.rows if r.kind == query.REGULAR)
+    """The one line that the tables repeating ``grouped`` row for row print
+    in their place, under it: each ``(dim, labels)``'s labels for the
+    regular rows, in their order, each cut as a default table's; several
+    such tables share the line, their labels for a row joined by `` / ``."""
+    rows = [r.value for r in grouped.rows if r.kind == query.REGULAR]
+    head = "%s: the rows above, labelled " % ", ".join(
+        [title(relabels[0][0])] + [dim for dim, _ in relabels[1:]])
+    text = head + ", ".join(" / ".join(cut(value(dim, labels[v], names)) for dim, labels in relabels)
+                            for v in rows)
     return style.tag(text, "", values=((len(head), len(text)),))
 
 

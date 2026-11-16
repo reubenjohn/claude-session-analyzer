@@ -153,7 +153,8 @@ def walk(source: SourceFile, usages: Usages, cut: Optional[List[Window]] = None,
     named = {k: v for k, v in named.items() if v is not None}
     for k, win in enumerate(windows_module.cut(source, usages) if cut is None else cut):
         dims = dict(named)
-        dims.update({schema.WINDOW_DIM: schema.window_value(win.key), schema.STARTED_BY_DIM: win.start})
+        dims.update({schema.WINDOW_DIM: schema.window_value(win.key), schema.STARTED_BY_DIM: win.start,
+                     schema.PEAK_DIM: schema.band(max(usage.usage_context(c.usage) for c in win.calls))})
         yield from _window(source, live, uses, win, dims, inherit if k == 0 else None)
 
 

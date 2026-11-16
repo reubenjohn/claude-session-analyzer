@@ -68,7 +68,7 @@ def test_unknown_value_of_a_closed_vocabulary_dimension_is_refused(tmp_path, dim
 
 @pytest.mark.parametrize("bogus,message,good", [
     (["%s=bash" % TOOL], "%s=bash; present: Bash" % TOOL, ["%s=Bash" % TOOL]),
-    (["%s=proj-c" % schema.PROJECT_DIM], "%s=proj-c; present: proj-a, proj-b" % schema.PROJECT_DIM,
+    (["%s=proj-c" % schema.PROJECT_DIM], "%s=proj-c; present: proj-b, proj-a" % schema.PROJECT_DIM,
      ["%s=proj-a" % schema.PROJECT_DIM]),
     # Narrowed pair by pair: project b has no agent window, project a has one.
     (["%s=proj-b" % schema.PROJECT_DIM, "%s=agent-fake1" % schema.SUBAGENT_DIM],
