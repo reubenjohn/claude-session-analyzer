@@ -30,8 +30,8 @@ def test_a_drill_prints_a_table_that_has_only_a_residual_row(tmp_path):
                           "%s=%s" % (CAUSE, schema.STARTING_CONTEXT), "--by", TOOL)
     assert code == 0, err
     assert re.search(r"^by %s\s" % TOOL, out, re.M)
-    assert re.search(r"^%s\s+%s\s+3\s+-$" % (re.escape(tables.RESIDUAL_ROW), format(253000, ",d")),
-                     out, re.M)
+    assert re.search(r"^%s\s+%s\s+3\s+-  no tool: %s$" % (re.escape(tables.RESIDUAL_ROW), format(253000, ",d"),
+                                                          schema.STARTING_CONTEXT), out, re.M)  # all it holds
     assert "; largest" not in fx.headline(out)
     assert re.search(r"^by %s\s.*\s+%s\s+share$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
     assert "share of" not in out

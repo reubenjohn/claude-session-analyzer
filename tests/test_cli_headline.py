@@ -170,7 +170,7 @@ def test_headline_share_is_of_the_added_while_the_table_share_is_of_its_base(tmp
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", TOOL)
     assert code == 0, err
-    assert re.search(r"^%s\s+254,110\s+\d+\s+-$" % re.escape(tables.RESIDUAL_ROW), out, re.M)
+    assert re.search(r"^%s\s+254,110\s+\d+\s+-  no tool: " % re.escape(tables.RESIDUAL_ROW), out, re.M)
     assert re.search(r"^%s \(signed\)\s+-300\s" % re.escape(glossary.marked(schema.SHRINK)), out, re.M)
     assert " 253,000 99.3% " in fx.headline(out) and " 1,860 0.7% " in fx.headline(out)  # of the 254,860
     assert out.splitlines()[-1].startswith("%s checks: 254,860 added - 300 %s = 254,560" % (tables.OK_MARK, schema.SHRINK))

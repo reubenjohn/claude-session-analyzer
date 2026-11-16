@@ -51,7 +51,7 @@ says what a term means. `python3 -m sa spend --by subagent`:
 ```
 by subagent    spend  calls  share of 988 (all but unassigned)
 agent-fake1      988      7  100.0%
-unassigned*  176,976     14       -
+unassigned*  176,976     14       -  main windows
 ```
 
 Spend weights cache reads 0.1x, 5m writes 1.25x, 1h writes 2x; never

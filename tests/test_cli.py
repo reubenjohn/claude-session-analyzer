@@ -7,7 +7,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, glossary, headline, render, schema, tables, walk
+from sa import cli, glossary, headline, render, residual, schema, tables, walk
 from sa.schema import INCREMENT
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
@@ -106,7 +106,8 @@ def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
     assert code == 0, err
     assert re.search(r"; largest %s [\d,]+ 0\.6%% agent-fake1$"
                      % schema.SUBAGENT_DIM, fx.headline(out))  # the one subagent, beside a 200K+ window
-    assert re.search(r"^%s\s+[\d,]+\s+14\s+-$" % re.escape(tables.RESIDUAL_ROW), out, re.M)
+    assert re.search(r"^%s\s+[\d,]+\s+14\s+-  %s$" % (re.escape(tables.RESIDUAL_ROW),  # what it holds here
+                     residual.RESIDUAL_NOTES[schema.SUBAGENT_DIM][0]), out, re.M)
     assert (tables.RESIDUAL_LABEL, glossary.brief(tables.RESIDUAL_LABEL)) in fx.key(out)
     assert "%s=main" % schema.SUBAGENT_DIM not in out
     facts = fx.load_facts(root)[1]

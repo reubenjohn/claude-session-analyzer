@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Sequence, Tuple
 
-from . import glossary, query, schema, style
+from . import glossary, query, residual, schema, style
 from .schema import Fact
 
 RESIDUAL_LABEL = glossary.RESIDUAL_LABEL  # the row for facts that lack the grouped dimension
@@ -184,8 +184,9 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
     (``-`` on the residual and signed rows). The share column is as wide as a share; its
     header names the base after it (``share_header``), and a table with no
     base prints ``share`` alone. ``total``, when given, closes the table
-    with a row of every row's sum and that text in the share column. What
-    the rows mean is the key's (``notes``)."""
+    with a row of every row's sum and that text in the share column. The
+    residual row ends with what it holds here (``residual.residual_note``);
+    what the rows mean is the key's."""
     heading = title(grouped.dim)
     regular = [r for r in grouped.rows if r.kind == query.REGULAR]
     if grouped.dim == schema.CAUSE_DIM:
@@ -214,10 +215,13 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
 
     lines = [style.tag(line(heading, 0, share_header(grouped).rjust(6)), style.HEADER)]
     mass, at = width + 2, width + sum(w + 2 for w in widths) + 2  # the figures' spans: mass and share
+    held = residual.residual_note(grouped.dim, grouped.residual) if (
+        grouped.dim in residual.RESIDUAL_NOTES and grouped.residual) else ""  # what this table's residual holds
     for i, (label, r) in enumerate(zip(labels, shown)):
         share = grouped.share(r.mass) if r.kind == query.REGULAR else None
         free = r.kind == query.REGULAR and grouped.dim not in schema.VOCABULARY  # a data value
-        lines.append(style.tag(line(label, i + 1, "%6s" % pct(share)), style.ROW if i < values else style.OTHER,
+        last = "%6s" % pct(share) + ("  " + held if held and r.kind == query.RESIDUAL else "")
+        lines.append(style.tag(line(label, i + 1, last), style.ROW if i < values else style.OTHER,
                                share, ((mass, mass + widths[0]), (at, at + 6)), ((0, width),) if free else ()))
     if total is not None:
         lines.append(style.tag(line(TOTAL_LABEL, -1, total), style.TOTAL))
