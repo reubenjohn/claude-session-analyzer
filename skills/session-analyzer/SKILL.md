@@ -39,25 +39,26 @@ replies, tool-call inputs included), `tool_result`, `user_text`,
 
 **`spend`** sums each call's price-weighted input tokens: uncached
 input, cache writes (1h 2.0x, 5m 1.25x), cache reads 0.1x; output
-apart, in `other call totals`. Context shares are not cost shares.
+apart (`-v`: `other call totals`). Context shares are not cost shares.
 
 The `context` headline opens with `average context per call* N tokens,
 over C calls in W windows` (what a call held; never summed, never "added
 per call"), then the starting context by `started_by` and the `growth`:
-the top tool `→` its largest command. A drill pin's headline says its
-part: `Bash: 214 of the 84,709-token average call · 3 changes in 3
-windows, 21 calls`. A pin omits tables that would have one row.
+`largest:` the top tool `→` its largest command. A drill pin's headline
+says its part: `Bash: 214 of the 84,709-token average call, over 21
+calls in 3 windows`, then its changes. A pin omits tables that would have one row.
 
 ## The path: is it a problem -> what -> where -> what to fix
 
 ```bash
-python3 -m sa context                                  # average, its tables
-python3 -m sa context peak=200K+                       # what fills the fullest windows
-python3 -m sa context peak=200K+ tool=Bash             # where: top tool
-python3 -m sa context peak=200K+ tool=Bash by change   # file:line
+python3 -m sa context                        # average, its tables
+python3 -m sa context tool=Bash              # where: top tool, its commands
+python3 -m sa context tool=Bash by change    # file:line
+python3 -m sa context peak=200K+ tool=Bash   # pins stack: the fullest windows
 ```
 
-`by change` groups the changes by window (its file, `window=`), each row
+`by change` names the directory the files share once, then groups the
+changes by window (its file under it, `window=`), each row
 `part of avg  tokens  held  :line` and the dims that vary; an ambiguous
 one's `candidates:` under it. It ends `Σ N changes: X tokens × held ÷ C
 calls = Y ✓ the headline's Y`. A `command` is a Bash call's first
@@ -68,32 +69,33 @@ only window dims).
 
 ## Reading the output
 
-The scope is `read:` (files, `--since`, root, lines skipped, duplicates
-excluded: corpus-wide) and `in view where <window pins>:` (windows,
+The scope is `read:` (files, `--since`, root; lines skipped and
+duplicates excluded when any: corpus-wide) and `in view where <window pins>:` (windows,
 `changes` or `calls`). Quote both with a figure. Each table: the metric
 (`part of avg`, `spend`), its count, `share`; `= 100%` is the base of the
-shares; the catch-all row (`no tool`, `main windows`: facts lacking the
+shares; the catch-all row (`no tool`, `main`: facts lacking the
 dimension) shows its parts; `shrink` is signed, in no share. The
 `context` cause table ends `= average call  ✓ = mean call size`. The
-default screen shows the cause, tool and command tables; `also by:`
-names the rest, each `by DIM` away. Sessions print as 8 hex, like
+default screen shows the cause, tool and command tables, then the
+command for the rest (`by DIM`, `also by` the others) and for `-v`. Sessions print as 8 hex, like
 subagents and windows; `session=` takes any unique prefix. The checks
-are one line, the rate of gaps between calls traced to one source; `-v`
-works them in this run's numbers:
+say what is checked, in plain words, then the `ambiguous` share of the
+average (what could not be traced); `-v` works them in this run's numbers:
 
 <!-- example: context -v | ✓ numbers add up -->
 ```
-✓ numbers add up · 33.3% of gaps between calls traced to one source  (-v: how it's checked)
-  each change × the calls that held it  1,778,890
-  ÷ calls in view                              21
-  = average call                           84,709  ✓ same as the mean measured call size
-  added 254,860 - shrink 300            = 254,560  ✓ same as the final window sizes
-  18 gaps between calls = 21 calls - 3 windows
-                        = 6 one source + 9 ambiguous + 3 shrank  ✓
+✓ numbers add up over 3 windows in view: rows to the average call, changes to window sizes
+  ambiguous: 0.2% of the average call, not traced to one source
+  each change × the calls that held it       1,778,890
+  ÷ calls in view                                   21
+  = average call                                84,709  ✓ same as the mean measured call size
+  context tokens added 254,860 - shrink 300  = 254,560  ✓ same as the final window sizes
+  18 calls after their window's first = 21 calls - 3 windows
+    = 6 (33.3%) one source + 9 ambiguous + 3 shrank  ✓
 ```
 
 A material `ambiguous` (10%+ of the average) or `shrink` (1%+) gets a
-`!` line with the command that lists it. A failure prints `MISMATCH` in
+`!` line with the command that shows it. A failure prints `MISMATCH` in
 full, a bug in this tool, exit 1. A drill's checks name the whole
 windows they apply to.
 

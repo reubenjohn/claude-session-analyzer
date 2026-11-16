@@ -17,7 +17,7 @@ def _cause(cause: str) -> Callable[[dict], bool]:
 # tool (by tool) or no one command (by command); a tool_result, when its
 # tool_use did not resolve (by tool) or its tool has no command (by command).
 RESIDUAL_NOTES: Dict[str, Tuple[str, List[Case]]] = {
-    schema.SUBAGENT_DIM: ("main windows", []),
+    schema.SUBAGENT_DIM: ("main", []),  # typable as printed: subagent=main
     schema.TOOL_DIM: ("no tool", [(c, _cause(c)) for c in (
         schema.STARTING_CONTEXT, schema.REPLIES, schema.USER_TEXT, schema.INHERITED,
         schema.AMBIGUOUS)] + [("an unresolved %s" % schema.TOOL_RESULT, _cause(schema.TOOL_RESULT))]),
@@ -47,6 +47,6 @@ def residual_cases(dim: str) -> str:
 
 def label(dim: str) -> str:
     """The catch-all row's label in a table by ``dim``: what its facts
-    lack (``no tool``, ``main windows``). Printed as is, it pins that row:
+    lack (``no tool``, ``main``). Printed as is, it pins that row:
     ``query.select`` reads its value as None."""
     return RESIDUAL_NOTES[dim][0] if dim in RESIDUAL_NOTES else "no " + dim

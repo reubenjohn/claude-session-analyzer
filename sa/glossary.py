@@ -5,8 +5,8 @@ entry. It shrinking is progress (UX_PRINCIPLES 2).
 
 A term is its internal key (``schema``'s spelling); ``PRINTED`` names the
 few the output spells otherwise, and ``key_of`` accepts either. ``marked``
-terms, the irreducible concepts, print with ``MARKER``; ``brief`` is the
-one clause the key prints for an entry, the full text staying here.
+terms, the irreducible concepts, print with ``MARKER``. A ``meaning`` is
+one sentence, read first; ``surprise`` holds the edge cases, read after.
 """
 from typing import Dict, NamedTuple
 
@@ -14,7 +14,6 @@ from . import schema
 from .schema import SchemaError
 
 GROWTH = "growth"  # the headline's line for what the windows added after their start
-GAP = "gap"  # the checks' unit: one call to the next
 AVERAGE = "average_context_per_call"  # the headline's level: what a call held, averaged
 AVG_CALL = "avg_call"  # a window row's own average call size, beside its part of the average
 # D-NO-VERDICT: where to start, in plain words; no measured rot threshold exists, so no number.
@@ -26,25 +25,22 @@ PROG = "python3 -m sa"  # the real invocation, wherever a runnable command print
 # total say "context tokens", the counts "changes" and "calls".
 PRINTED = {schema.CONTEXT_DELTA: "context tokens", schema.CONTEXT_HELD: "part of avg", AVG_CALL: "avg call",
            schema.INCREMENT: schema.PLURAL[schema.INCREMENT],
-           schema.CALL: schema.PLURAL[schema.CALL], GAP: "gaps between calls"}
+           schema.CALL: schema.PLURAL[schema.CALL]}
 
 
 class Term(NamedTuple):
     meaning: str
     surprise: str
     marked: bool = False
-    brief: str = ""  # one clause; the meaning when empty
     gloss: str = ""  # a cause's few words beside its row, where the line has room
 
 
 GLOSSARY: Dict[str, Term] = {
     schema.WINDOW_DIM: Term(
-        "one context window: from a session start, subagent, fork, replay or compaction to"
-        " its file's end or the next compaction; named by the 8 hex characters by window"
-        " prints: pin one with window=<those 8>",
-        "a file holds one window per compaction that a call follows; a file with no call"
-        " is read but is no window", True,
-        "one context window, from its start to its file's end or the next compaction"),
+        "one context window, from its start to its file's end or the next compaction",
+        "it starts at a session start, subagent, fork, replay or compaction; pin one by the 8 hex"
+        " characters by window prints (window=<those 8>); a file holds one window per compaction"
+        " that a call follows; a file with no call is read but is no window", True),
     schema.STARTED_BY_DIM: Term("what began the window: " + ", ".join(schema.STARTS),
                                 "a compaction starts a new window in the same file; its starting"
                                 " context re-counts the system prompt"),
@@ -59,36 +55,29 @@ GLOSSARY: Dict[str, Term] = {
                       " branch call not found, the copy counts as the fork's own, which the scope"
                       " warns of when the fork's file marks it one; an unmarked fork with its"
                       " parent missing reads as subagent_start, unwarned"),
-    schema.REPLAYED: Term("a main window whose file opens by repeating another file's records"
-                          " (a branched or continued session), then goes on",
+    schema.REPLAYED: Term("a session that opens by repeating another's records (resumed or branched)",
                           "the repeated records count once, in the file that holds them first;"
                           " the copy is one inherited change; without that file it reads as a"
-                          " session start, its copy its own, unwarned: only the parent shows it", True,
-                          "a session that opens by repeating another's records (resumed or branched)"),
+                          " session start, its copy its own, unwarned: only the parent shows it", True),
     schema.CALL: Term("one assistant message, its split records merged: what spend is read from",
                       "a message written as several records counts once"),
-    schema.INCREMENT: Term("one booked change of a window's context, at its start (its starting"
-                           " context) or between two calls: what context tokens are read from",
-                           "one ambiguous change can name several tool results", True,
-                           "one change of a window's context, at its start or between two calls,"
-                           " booked to its cause"),
+    schema.INCREMENT: Term("one change of a window's context, at its start or between two calls",
+                           "booked to its cause; what context tokens are read from; the step between"
+                           " two calls can book two (the previous reply, then the rest), so changes"
+                           " outnumber calls; one ambiguous change can name several tool results", True),
     schema.CONTEXT_DELTA: Term(
         "context tokens booked to what put them in a window; summed, they equal the"
         " windows' final sizes",
         "it is net: what a compaction or other shrink removed is not counted, so a window"
         " that grew to 700K and compacted to 70K reports 70K"),
-    schema.SPEND: Term("what the calls billed, as input tokens weighted by price: cache reads"
-                       " x0.1, cache writes x1.25 (5-minute) or x2.0 (1-hour); output excluded",
-                       "every call re-reads its whole context, so spend grows with context times"
-                       " calls; it is never quoted in dollars", True),
+    schema.SPEND: Term("input tokens weighted by price: cache reads x0.1, cache writes x1.25 (5m) or x2.0 (1h)",
+                       "output excluded; every call re-reads its whole context, so spend grows with"
+                       " context times calls; it is never quoted in dollars", True),
     AVERAGE: Term(
-        "what a call held (its context size), averaged over the calls in view: the size the"
-        " model reasoned over at a typical call. Every context figure is a part of it: each"
-        " change times the calls that held it, over those calls, so a table's rows add up to it",
-        "not what a call added: every call re-reads its whole window, so long windows hold most"
-        " calls; a mean of one population, never summed or averaged with another's", True,
-        "what a call held, averaged over these calls; never added per call, never summed"
-        " across populations"),
+        "what a call held (its context size), averaged over the calls in view",
+        "every context figure is a part of it: each change times the calls that held it, over"
+        " those calls, so a table's rows add up to it; not what a call added: every call re-reads"
+        " its whole window, so long windows hold most calls; never summed across populations", True),
     schema.CONTEXT_HELD: Term(
         "a row's part of the average context per call, not its own average: its changes'"
         " tokens times the calls that held them (from the call each entered at to the window's"
@@ -115,7 +104,7 @@ GLOSSARY: Dict[str, Term] = {
                              "session= keeps the subagents too; window= isolates one"),
     schema.SUBAGENT_DIM: Term("a subagent: its type and the first 8 of its id where the transcripts"
                               " record the type, else its id; a pin takes either; a main window has none",
-                              "main windows are the catch-all row of by subagent"),
+                              "main windows are the catch-all row of by subagent, main: pin them with subagent=main"),
     schema.CAUSE_DIM: Term("what kind of thing put the tokens in the context",
                            "starting_context is often the largest and cannot be split further"),
     schema.TOOL_DIM: Term("the tool whose result put the tokens there",
@@ -125,13 +114,11 @@ GLOSSARY: Dict[str, Term] = {
                              "never a path; python3 x.py is Bash:python3"),
     schema.REASON_DIM: Term("why a change is ambiguous", "only ambiguous changes have one"),
     schema.STARTING_CONTEXT: Term(
-        "what a window held at its first call: the system prompt, tools, CLAUDE.md and the first"
-        " message or prompt, or a compaction's summary; a fork's copy of its parent is apart,"
-        " in an inherited row that appears only when a fork with its parent is in view",
-        "it is not split by content: the transcript records no size for each part. The lever is"
-        " how many windows start (subagent starts are usually most of it) and what each start"
-        " loads", True, "what a window held at its first call: system prompt, tools, CLAUDE.md,"
-        " first message or summary", gloss="held at a window's first call"),
+        "what a window held at its first call: system prompt, tools, CLAUDE.md, prompt",
+        "after a compaction, its summary; not split by content: the transcript records no size for each"
+        " part; a fork's copy of its parent is apart, an inherited row, when the parent is in view."
+        " The lever is how many windows start (subagent starts are usually most) and what each loads",
+        True, gloss="held at a window's first call"),
     schema.INHERITED: Term("what a fork or replayed window copied: its parent window's size at"
                            " the branch call",
                            "every fork call held it, so the average counts it per fork call, as the"
@@ -145,18 +132,14 @@ GLOSSARY: Dict[str, Term] = {
     schema.USER_TEXT: Term("text typed into the window (by you or a hook)",
                            "usually small: typing rarely fills a window", gloss="typed by you or a hook"),
     schema.AMBIGUOUS: Term(
-        "the growth between two calls not booked to one contributor: " + ", ".join(
-            "%s (%s)" % r for r in ((schema.SEVERAL, "more than one entered"),
-                                    (schema.LESS_THAN_REPLY, "grew by less than the previous call's reply"),
-                                    (schema.UNEXPLAINED, "none did")))
-        + "; never spread over them",
-        "it still names a tool when every candidate came from one; by change lists the"
-        " candidates", True, "growth with no one contributor, left undivided; a tool's row"
-        " counts it when every candidate is that tool's", gloss="no one contributor: undivided"),
-    schema.SHRINK: Term("a window that got smaller between two calls (often, not always, a"
-                        " compaction): a negative row",
-                        "excluded from every share, always in the checks", True,
-                        "the window got smaller (often a compaction); negative, in no share",
+        "growth between two calls not traced to one contributor, left undivided",
+        ", ".join("%s (%s)" % r for r in ((schema.SEVERAL, "more than one entered"),
+                                          (schema.LESS_THAN_REPLY, "grew by less than the previous call's reply"),
+                                          (schema.UNEXPLAINED, "none did")))
+        + "; never spread over them; it still names a tool when every candidate came from one;"
+        " by change lists the candidates", True, gloss="no one contributor: undivided"),
+    schema.SHRINK: Term("a window that got smaller between two calls (often, not always, a compaction)",
+                        "a negative row: excluded from every share, always in the checks", True,
                         gloss="the window got smaller; in no share"),
     schema.SEVERAL: Term("several results or texts entered between two calls",
                          "the tokens are not split between them"),
@@ -165,14 +148,10 @@ GLOSSARY: Dict[str, Term] = {
     schema.UNEXPLAINED: Term("the context grew with nothing recorded to explain it",
                              "declared so it is labelled should it appear"),
     GROWTH: Term("what the windows added after their start: every change between two calls,"
-                 " shrinks aside. Its line names the largest tool and its tokens, then (→) the"
+                 " shrinks aside. Its line names its largest part, a tool, then (→) the"
                  " largest command within that tool; '; top command' names a larger one elsewhere",
                  "its share is of the average before shrink, starting context included, so it often"
                  " looks small: it is the part a tool or command can cut"),
-    GAP: Term("the step from one call to the next in a window: N calls make N - 1 gaps; each"
-              " gap's growth is booked to one source (exact), left ambiguous, or shrank",
-              "a gap can book two changes (the previous reply, then the rest) and each window's"
-              " start is one more, so changes outnumber gaps"),
 }
 
 _KEYS = {printed: key for key, printed in PRINTED.items()}
@@ -201,8 +180,3 @@ def marked(term: str) -> str:
     """The term as printed, with the marker when the glossary marks it."""
     entry = GLOSSARY.get(term)
     return printed(term) + MARKER if entry and entry.marked else printed(term)
-
-
-def brief(term: str) -> str:
-    entry = GLOSSARY[term]
-    return entry.brief or entry.meaning

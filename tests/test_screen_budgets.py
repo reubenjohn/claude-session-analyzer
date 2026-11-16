@@ -153,14 +153,15 @@ def test_neither_view_requires_a_flag(homes, view):
 
 
 @pytest.mark.parametrize("args", [a for a in matrix() if "-v" in a], ids=" ".join)
-def test_v_adds_at_most_what_its_footer_announces_and_six_lines_a_term(homes, args):
-    plain = ok(homes["fixture"], *[a for a in args if a != "-v"]).splitlines()
-    footer = [line for line in plain if line.startswith(notes.HEAD) and FOOTER.search(line)]
-    assert len(footer) == 1, plain  # vacuity guard: the footer is there to be read
-    announced = int(FOOTER.search(footer[0]).group(1))
+def test_v_adds_exactly_what_its_pointer_announces_and_six_lines_a_term(homes, args):
+    plain = ok(homes["fixture"], *[a for a in args if a != "-v"])
+    pointer = [line for line in plain.splitlines() if line.startswith(PROG) and FOOTER.search(line)]
+    assert len(pointer) == 1, plain  # vacuity guard: the pointer is there to be read, a command
+    assert shlex.split(pointer[0].split("  ")[0])[-1] == "-v"
+    announced = int(FOOTER.search(pointer[0]).group(1))
     verbose = ok(homes["fixture"], *args).splitlines()
-    block = [line for line in verbose if line not in plain or line.startswith(notes.HEAD)]
-    assert 0 < len(verbose) - (len(plain) - 1) <= announced, (announced, len(verbose), len(plain))
+    assert len(verbose) - len(plain.splitlines()) == announced  # what it costs, exactly
+    block = [line for line in verbose if line not in plain.splitlines() or line.startswith(notes.HEAD)]
     entries = []
     for line in block:
         if line.startswith(notes.INDENT) and entries:
@@ -169,6 +170,8 @@ def test_v_adds_at_most_what_its_footer_announces_and_six_lines_a_term(homes, ar
             entries.append([line])
     assert entries, block  # vacuity guard: something was explained
     assert max(len(e) for e in entries) <= TERM_LINES, max(entries, key=len)
+    terms = [e for e in entries if re.match(r"^  [\w ]+: ", e[0])]
+    assert all(len(e[0]) <= grammar.WIDTH and not e[0].startswith(notes.INDENT) for e in terms)  # one line first
 
 
 def _mangled(word):

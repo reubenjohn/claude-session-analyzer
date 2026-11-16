@@ -40,6 +40,13 @@ by side, never averaged. The temp dir is deleted at the end unless `--keep`.
    and reply, and that output, and returns a verdict with a quote plus
    findings, each citing a principle. No score.
 
+## Auditing the screens yourself
+
+`python3 scripts/screens.py [--root DIR] [--since all]` prints every screen
+an audit reads (bare, `-h`, both defaults, a pin, a table, `by change`,
+`-v`, three refusals), each as `===== $ cmd`, its output and `[exit N]`.
+Read it line by line before and after a change; the eval finds what you miss.
+
 ## Measures (per persona x journey, side by side, never summed)
 
 verdict; first command and what the agent saw; sa commands; how many the

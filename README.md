@@ -25,18 +25,18 @@ One grammar: `python3 -m sa spend|context [by DIM] [DIM=VALUE ...] [-v]`.
 The context path, pin by pin:
 
 ```
-python3 -m sa context                              # average context per call, its tables
-python3 -m sa context peak=200K+                   # what fills the fullest windows
-python3 -m sa context peak=200K+ tool=Bash         # their top tool
-python3 -m sa context peak=200K+ tool=Bash by change   # the changes, file:line
+python3 -m sa context                          # average context per call, its tables
+python3 -m sa context tool=Bash                # the top tool: its commands
+python3 -m sa context tool=Bash by change      # the changes, file:line
+python3 -m sa context peak=200K+ tool=Bash     # pins stack: the fullest windows
 ```
 
 <!-- example: context | average context per call -->
 ```
 average context per call* 84,709 tokens, over 21 calls in 3 windows
-  starting context*  84,333  99.5%  = session starts 84,000 + forks 333
-  growth                433   0.5%  from Bash 214 → Bash:pytest 214
-→ next: python3 -m sa context peak=200K+
+  starting context*  84,333  99.5%  = session_start 84,000 + fork 333
+  growth                433   0.5%  largest: Bash 214 → Bash:pytest 214
+→ next: python3 -m sa context tool=Bash
 ```
 
 A table's rows are the values you can pin (`DIM=VALUE`, as printed);
@@ -57,10 +57,10 @@ mean. `python3 -m sa spend by subagent`:
 
 <!-- example: spend by subagent | by subagent -->
 ```
-by subagent     spend  calls  share
-agent-fake1       988      7  100.0%
-= 100%            988      7  shares' base: the rows above, not the main windows row
-main windows  176,976     14       -
+by subagent    spend  calls  share
+agent-fake1      988      7  100.0%
+= 100%           988      7  shares' base: the rows above, not the main row
+main         176,976     14       -  = session_start 176,976
 ```
 
 Spend weights cache reads 0.1x, 5m writes 1.25x, 1h writes 2x; never
@@ -77,15 +77,15 @@ window` lists them); the rest drill, the headline naming the pin as a
 part of the average. Closed values match in any case or by prefix
 (`peak=200k`), a session by any unique prefix; a
 catch-all row pins by its label (`'tool=no tool'`,
-`'subagent=main windows'`). A command is a Bash call's first command
+`subagent=main`). A command is a Bash call's first command
 word (`Bash:pytest`) or a file tool's extension (`Read:py`). A mistake
 exits 2 in two lines: the nearest valid input, and where the choices
 live.
 
 The default `context` screen prints the cause, tool and command tables
-(`spend`: subagent); `also by:` names the rest. A default table shows 5
-rows; the rest fold into `+N more`, ending with the command that prints
-them. Every table ends with `= 100%`, the base
+(`spend`: subagent), then commands for the rest (`by DIM`) and `-v`.
+A default table shows 5 rows; the rest fold into `+N more` and the
+command that prints them. Every table ends with `= 100%`, the base
 of its shares; the catch-all row (what lacks the dimension) shows its
 parts; `shrink` (a window that got smaller) is signed, in no share. `by
 change` (spend: `by call`) lists the facts, each with `held`, the calls

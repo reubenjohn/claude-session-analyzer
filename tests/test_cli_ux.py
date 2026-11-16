@@ -27,7 +27,7 @@ def test_the_first_line_names_the_files_the_default_window_and_the_root(tmp_path
     _age(old, 30)
     n = len(list(root.rglob("*.jsonl")))
     out = fx.run_cli("context", "--root", str(root))[1]
-    rest = "; 0 lines skipped, 0 duplicates"  # the one read line
+    rest = ""  # the one read line: nothing set aside, so nothing said
     assert out.splitlines()[0] == "read: %d files from the last %gd (default) under %s%s" % (
         n - 1, grammar.DEFAULT_SINCE, root, rest)
     out = fx.run_cli("context", "--root", str(root), "--since", grammar.ALL)[1]
@@ -44,7 +44,7 @@ def test_home_prints_as_a_tilde(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("HOME", str(tmp_path))
     assert cli.main(["context", "--root", str(root)]) == 0
     out = capsys.readouterr().out
-    assert " under ~/%s; " % root.relative_to(tmp_path).as_posix() in out.splitlines()[0]
+    assert out.splitlines()[0].endswith(" under ~/%s" % root.relative_to(tmp_path).as_posix())
     assert str(tmp_path) not in out  # the next command's --root too
     assert " --root ~/%s" % root.relative_to(tmp_path).as_posix() in out
     assert tables.tilde(tmp_path.parent) == str(tmp_path.parent)  # vacuity guard: only under home
@@ -53,15 +53,19 @@ def test_home_prints_as_a_tilde(tmp_path, monkeypatch, capsys):
 
 def test_sections_read_scope_answer_tables_also_footer_checks(tmp_path):
     root = fx.cli_corpus(tmp_path)
-    sections = fx.sections(fx.run_cli("context", "--root", str(root))[1])
+    out = fx.run_cli("context", "--root", str(root))[1]
+    sections = fx.sections(out)
     firsts = [s[0] for s in sections]
     assert firsts[0].startswith("read: ") and sections[0][1].startswith("in view: ")
-    assert firsts[1].startswith(fx.total_line(CONTEXT.metric)) and sections[1][-1].startswith(render.NEXT)
+    assert firsts[1].startswith(fx.total_line(CONTEXT.metric)) and fx.hint(out)
+    assert fx.joined("\n".join(sections[1])).splitlines()[-1] == fx.hint(out)  # the answer ends with the next step
     tables_at = [i for i, line in enumerate(firsts) if line.startswith("by ")]
     assert tables_at == list(range(2, 2 + len(tables_at))) and tables_at  # contiguous, non-empty
     for dim in CONTEXT.tables:  # each printed, or relabelled under the table it repeats
         assert re.search(r"^by (?:[\w /]+, )*%s[\s:,]" % dim, "\n".join(sum(sections[2:2 + len(tables_at)], [])), re.M), dim
-    assert firsts[-2].startswith(render.ALSO) and sections[-2][1].startswith(notes.HEAD)  # the ways deeper
+    deeper = fx.joined("\n".join(sections[-2])).splitlines()  # the ways deeper: a table, then -v, as commands
+    commands = [l for l in deeper if l.startswith(grammar.PROG)]
+    assert len(commands) == 2 and fx.also(out) and commands[1] == fx.pointer_v(out).split("  ")[0]
     assert firsts[-1].startswith(checks.OK)
     assert len(sections) == 4 + len(tables_at)
     assert all(len(line) <= tables.WIDTH for section in sections for line in section
@@ -75,16 +79,21 @@ def test_the_v_footer_says_what_v_prints_and_v_prints_it_in_its_place(tmp_path):
     root = fx.cli_corpus(tmp_path)
     out = fx.run_cli("context", "--root", str(root))[1]
     verbose = fx.run_cli("context", "--root", str(root), "-v")[1]
-    (footer,) = [l for l in out.splitlines() if l.startswith(notes.HEAD)]
-    m = re.match(r"^%s(\d+) figures worked, checks shown, (\d+) marked words and \d+ catch-all rows?"
-                 r" explained \(\+(\d+) lines\)$" % re.escape(notes.HEAD), footer)
-    figures, words, lines = map(int, m.groups())
+    footer = fx.pointer_v(out)
+    m = re.match(r"^%s -v +how it's computed and checked, \* words \(\+(\d+) lines\)$" % (
+        re.escape(grammar.run("context", "--root", str(root)))), footer)
+    lines = int(m.group(1))
     block, worked = fx.verbose(verbose), fx.worked(verbose)
-    assert len(block) + worked.count("\n") == lines and footer not in verbose and worked
-    assert verbose.replace("\n".join(block), footer).replace(worked, "") == out  # in place, then the checks worked
+    assert len(verbose.splitlines()) - len(out.splitlines()) == lines  # what it costs, exactly
+    assert len(block) + worked.count("\n") > lines and footer not in verbose and worked  # less the pointer
+    ways = fx.sections(out)[-2]
+    raw = "\n".join(ways[max(i for i, l in enumerate(ways) if l.startswith(grammar.PROG)):])  # as printed
+    assert verbose.replace("\n".join(block), raw).replace(worked, "") == out  # in place, then the checks worked
     heads = [i for i, l in enumerate(block) if l.startswith(notes.HEAD)]
-    assert len(heads) == 2
-    assert len([l for l in block[:heads[1]] if not l.startswith((notes.HEAD, notes.INDENT))]) == figures
+    assert len(heads) == 2  # how the figures are computed; what the marked words mean
+    entries = [l for l in block if not l.startswith((notes.HEAD, notes.INDENT))]  # each opens an entry
+    figures = len([l for l in block[:heads[1]] if not l.startswith((notes.HEAD, notes.INDENT))])
+    words = len([l for l in entries[figures:] if "(%s " % grammar.BY not in l])
     keyed = fx.key(verbose)
     terms = [label for label, _ in keyed[figures:] if "(%s " % grammar.BY not in label]
     assert len(terms) == words == len(set(terms)) and terms  # vacuity guard: there are words
@@ -124,7 +133,7 @@ def test_v_defines_a_marked_word_from_the_glossary_and_explain_is_refused_naming
     out = fx.run_cli("context", "--root", str(root), "-v")[1]
     entry = glossary.GLOSSARY[schema.STARTING_CONTEXT]
     text = dict(fx.key(out))[glossary.printed(schema.STARTING_CONTEXT).replace("_", " ")]
-    assert text == "%s; %s" % (entry.meaning, entry.surprise)
+    assert text == "%s %s" % (entry.meaning, entry.surprise)  # the sentence, then its edge cases
     assert all(len(l) <= tables.WIDTH for l in fx.verbose(out))
     code, said, err = fx.run_cli("explain", schema.STARTING_CONTEXT)
     assert code == 2 and not said and grammar.RETIRED["explain"] in err and len(err.splitlines()) <= 2
@@ -143,7 +152,7 @@ def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
     asked = {q.group(1): q.group(0) for q in questions}
     assert "Cost aside" in asked["context"] and "aside" not in asked["spend"]  # the premise is context's
     assert "(DIM=VALUE)" in out  # pin is defined at its first use
-    assert "%s context %s=%s" % (cli.PROG, schema.PEAK_DIM, schema.BANDS[-1]) in out  # the fullest band leads
+    assert "%s context %s=Bash %s=Bash:" % (cli.PROG, schema.TOOL_DIM, schema.COMMAND_DIM) in out  # the levers
     assert "by %s" % grammar.FACTS["context"] in out and " -v " in out
     for flag in ("--since", "--root", "--color", "-v"):
         assert flag in out, flag
@@ -169,7 +178,9 @@ def test_an_encoded_home_prints_as_a_tilde_and_selects_as_printed(tmp_path, monk
     assert encoded in "".join(p.name for p in root.iterdir())  # vacuity guard: the name is encoded
     assert encoded not in out and re.search(r"^~-work\s", out, re.M)
     assert cli.main(["context", "--root", str(root), "by", grammar.FACTS["context"]]) == 0
-    assert re.search(r"^~-work/sess-0001\.jsonl  ", capsys.readouterr().out, re.M)
+    out = capsys.readouterr().out  # a file prints as on disk, under the directory named once: it opens
+    assert "\nby change, files in ~/%s/%s/\n" % (root.relative_to(tmp_path).as_posix(), encoded) in out
+    assert re.search(r"^sess-0001\.jsonl  ", out, re.M) and (root / encoded / "sess-0001.jsonl").is_file()
     assert cli.main(["context", "--root", str(root), "%s=~-work" % schema.PROJECT_DIM]) == 0
     assert "\nin view where %s=~-work: " % schema.PROJECT_DIM in capsys.readouterr().out
     # A refusal names the nearest value with home as ~ too.
@@ -181,14 +192,14 @@ def test_an_encoded_home_prints_as_a_tilde_and_selects_as_printed(tmp_path, monk
 def test_the_answer_and_checks_words_each_explain(tmp_path):
     """Unmarked words a reader meets in the default output are explained
     where they print or under ``-v``: a cause's gloss beside its row, the
-    checks' gaps by their working; growth keeps its glossary entry."""
+    checks' calls by their working; growth keeps its glossary entry."""
     root = fx.cli_corpus(tmp_path)
     out = fx.run_cli("context", "--root", str(root))[1]
-    for word in (glossary.GROWTH, schema.REPLIES, glossary.printed(glossary.GAP)):
+    for word in (glossary.GROWTH, schema.REPLIES):
         assert re.search(r"(?<![\w_])%s(?![\w_])" % re.escape(word), out), word  # vacuity guard: printed
     assert re.search(r"^%s\s.*%%  %s$" % (schema.REPLIES, re.escape(render.GLOSSES[schema.REPLIES])), out, re.M)
     verbose = fx.run_cli("context", "--root", str(root), "-v")[1]
-    assert "\n  18 %s = 21 calls - 3 windows\n" % glossary.printed(glossary.GAP) in fx.worked(verbose)
+    assert "\n  18 calls after their window's first = 21 calls - 3 windows\n" in fx.worked(verbose)
     assert " → " in out and "→" in glossary.GLOSSARY[glossary.GROWTH].meaning
 
 

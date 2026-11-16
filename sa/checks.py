@@ -1,22 +1,24 @@
-"""The checks, last (UX_PRINCIPLES 2, 3): ALWAYS one line, a ``✓`` printed
-only over arithmetic that reconciles; ON REQUEST (``-v``) that arithmetic
-as a vertical worked equation in the run's own numbers; ON TRIGGER a short
-line per material uncertainty, and the reconciliation in full when it
-fails (exit 1, decided by the selection, never here).
+"""The checks, last (UX_PRINCIPLES 2, 3): ALWAYS a ``✓`` line saying what
+is checked, in plain words, printed only over arithmetic that reconciles;
+ON REQUEST (``-v``) that arithmetic as a vertical worked equation in the
+run's own numbers; ON TRIGGER a short line per material uncertainty, and
+the reconciliation in full when it fails (exit 1, decided by the selection, never here).
 
 Context checks the two identities ``walk`` holds by construction, over
 whole windows: each change times the calls that held it, over the calls,
 is the mean measured call size; the tokens added less the shrinks are the
-final window sizes; and the gaps between calls (calls - windows) split
-into one source, ambiguous and shrank. The one line names the measured
-rate of gaps traced to one source. Material, a line of its own: an
+final window sizes; and the calls after their window's first (calls -
+windows) split into one source, ambiguous and shrank, the measured rates
+``-v`` prints. ALWAYS too, the ambiguous share of the average: what could
+not be traced, with its base. Material, a ``!`` line of its own: an
 ``ambiguous`` share of the average at or above ``AMBIGUOUS_MATERIAL``, or a
 ``shrink`` at or beyond ``SHRINK_MATERIAL`` (of the average before shrink,
 the cause table's ``= 100%`` row, whole windows), each with the command
-that lists those changes.
+that shows those changes, the pins kept; none when the cause is pinned.
 
-Spend reconciles no window, so it checks what it prints: each table's
-rows, its catch-all and signed rows included, sum to the headline."""
+Spend reconciles no window, so it checks what it prints, as its one line:
+each table's rows, its catch-all and signed rows included, sum to the
+headline, in the screen's own numbers."""
 from typing import Callable, List, Optional, Sequence, Tuple
 
 from . import glossary, query, reconciliation, residual, schema, style, tables
@@ -25,7 +27,6 @@ from .tables import count, num
 
 AMBIGUOUS_MATERIAL = 0.10  # of the average before shrink: an ambiguous share worth its own line
 SHRINK_MATERIAL = 0.01     # likewise, |shrink|
-HOW = "  (-v: how it's checked)"
 OK = "%s numbers add up" % tables.OK_MARK
 INDENT = "  "
 
@@ -53,19 +54,14 @@ def _reconciliation(r: reconciliation.Reconciliation) -> List[str]:
 
 
 def gaps(n: int) -> str:
-    """The reconciliation's unit: one gap between two calls of a window, so
-    a window of N calls has N - 1; a change is one booked part of a gap."""
-    return count(n, "gap between calls", glossary.printed(glossary.GAP))
+    """The reconciliation's unit, in calls: each call after its window's
+    first grew (or shrank) from the one before, so a window of N calls has
+    N - 1; one such step can book two changes."""
+    return count(n, "call") + " after their window's first"
 
 
 def _rate(r: reconciliation.Reconciliation, n: int) -> str:
     return "%s (%.1f%%)" % (num(n), 100.0 * n / r.intervals) if r.intervals else "0"
-
-
-def _line(text: str) -> str:
-    """The one line, the ``-v`` pointer kept when the line has room: the
-    same line with and without ``-v``, which only adds below it."""
-    return text + (HOW if len(text) + len(HOW) < tables.WIDTH else "")
 
 
 def _worked(rows: Sequence[Tuple[str, str, str]]) -> List[str]:
@@ -78,37 +74,36 @@ def _worked(rows: Sequence[Tuple[str, str, str]]) -> List[str]:
 
 
 def context(sel: Selection, more: Optional[Callable[[str], str]] = None) -> Tuple[List[str], List[str]]:
-    """The context view's lines (the one line and any trigger lines) and
-    its ``-v`` worked equation; a failed reconciliation in full instead."""
+    """The context view's lines (what is checked, in plain words; the
+    ambiguous share of the average, with its trigger) and its ``-v``
+    worked equation; a failed reconciliation in full instead."""
     r = sel.reconciliation
     if not r.holds:
         return _reconciliation(r), []
-    scope = " over the %s" % count(sel.n_windows, "whole window") if sel.drill else ""
-    rate = "%.1f%%" % (100.0 * r.exact / r.intervals) if r.intervals else "-"
-    text = _line("%s%s · %s of %s traced to one source" % (OK, scope, rate, glossary.printed(glossary.GAP)))
-    lines = [style.tag(text, style.GOOD)] + _material(sel, more)
+    lines = [style.tag("%s over %s in view: rows to the average call, changes to window sizes" % (
+        OK, count(sel.n_windows, "window")), style.GOOD)] + _material(sel, more)
     shrink = r.by_cause[schema.SHRINK]
-    added = ("added %s - %s %s" % (num(r.booked - shrink), schema.SHRINK, num(-shrink)) if shrink
-             else "tokens added")
-    split = " + ".join("%s %s" % (num(n), name) for n, name in (
-        (r.exact, "one source"), (r.ambiguous, schema.AMBIGUOUS), (r.shrink, "shrank")))
+    added = ("context tokens added %s - %s %s" % (num(r.booked - shrink), schema.SHRINK, num(-shrink)) if shrink
+             else "context tokens added")
+    split = " + ".join("%s %s" % (what, name) for what, name in (
+        (_rate(r, r.exact), "one source"), (num(r.ambiguous), schema.AMBIGUOUS), (num(r.shrink), "shrank")))
     worked = _worked([
         ("each change × the calls that held it", num(r.held), ""),
         ("÷ calls in view", num(r.calls), ""),
         ("= %s" % tables.TOTAL_LABEL[2:], num(r.held / max(r.calls, 1)),
          "%s same as the mean measured call size" % tables.OK_MARK),
         (added, "= " + num(r.booked), "%s same as the final window sizes" % tables.OK_MARK)])
-    pad = INDENT + " " * (len(gaps(r.intervals)) + 1)
     worked += [style.tag(line, style.KEY) for line in (
         "%s%s = %s - %s" % (INDENT, gaps(r.intervals), count(r.calls, "call"), count(r.windows, "window")),
-        "%s= %s  %s" % (pad, split, tables.OK_MARK))]
+        "%s  = %s  %s" % (INDENT, split, tables.OK_MARK))]
     return lines, worked
 
 
 def _material(sel: Selection, more: Optional[Callable[[str], str]]) -> List[str]:
-    """ON TRIGGER: a line for an ambiguous or shrink share of the whole
-    windows' average at or beyond its threshold, with the command that
-    lists those changes (``more``, given the cause)."""
+    """ALWAYS the ambiguous share of the whole windows' average (the cause
+    table's, the answer to "what could not be traced"); ON TRIGGER, it or
+    a shrink at or beyond its threshold, ``!`` and the command that shows
+    what it holds (``more``, given the cause; none when the cause is pinned)."""
     held = {}
     for f in sel.window_facts:
         if f.kind == schema.INCREMENT:
@@ -118,14 +113,15 @@ def _material(sel: Selection, more: Optional[Callable[[str], str]]) -> List[str]
     lines = []
     for cause, floor in ((schema.AMBIGUOUS, AMBIGUOUS_MATERIAL), (schema.SHRINK, SHRINK_MATERIAL)):
         share = held.get(cause, 0) / base if base else 0
-        if abs(share) >= floor:
-            text = "%s! %s of the average is %s, %s %s%.0f%%: " % (
-                INDENT, tables.pct(share), cause, "over" if share > 0 else "beyond", "" if share > 0 else "-",
-                100 * floor)
-            command = more(cause) if more else ""
-            lines += [text + command] if len(text) + len(command) <= tables.WIDTH else [
-                text.rstrip(": ") + ":", INDENT * 2 + command]
-    return [style.tag(line, style.HINT) for line in lines]
+        hit = abs(share) >= floor
+        if not (hit or cause == schema.AMBIGUOUS and share):
+            continue
+        lines.append("%s%s: %s of the average call%s" % (INDENT, cause, tables.pct(share), (
+            ", not traced to one source" if cause == schema.AMBIGUOUS else "")))
+        if hit and more:
+            lines += [style.tag(line, style.HINT) for line in tables.command_lines("%s! %s %s%.0f%%: " % (
+                INDENT, "over" if share > 0 else "beyond", "" if share > 0 else "-", 100 * floor), more(cause))]
+    return lines
 
 
 def spend(sel: Selection, shown: Sequence[query.Table]) -> Tuple[List[str], List[str]]:
@@ -142,12 +138,11 @@ def spend(sel: Selection, shown: Sequence[query.Table]) -> Tuple[List[str], List
         holds = holds and ok
         terms = ["%s %s" % (tables.BASE_LABEL, num(regular))] + [
             "%s %s" % (residual.label(grouped.dim) if r.kind == query.RESIDUAL else v, num(r.mass)) for r, v in others]
-        worked.append(style.tag("%s%s: %s = %s  %s" % (
-            INDENT, tables.title(grouped.dim), " + ".join(terms), num(total),
+        worked.append(style.tag("%s%s: %s = %s %s  %s" % (
+            INDENT, tables.title(grouped.dim), " + ".join(terms), glossary.printed(schema.SPEND), num(total),
             "%s the headline's" % tables.OK_MARK if ok else "%s not the headline's %s" % (
                 tables.BAD_MARK, num(sel.total))), style.KEY))
     if not holds:
         return [style.tag(line.strip(), style.BAD) for line in worked], []
-    noun = "table's rows sum" if len(shown) == 1 else "table's rows sum, each,"
-    text = _line("%s · the %s to the headline's %s" % (OK, noun, num(sel.total)))
-    return [style.tag(text, style.GOOD)], worked
+    return [style.tag("%s: %s" % (OK, line.strip().split(": ", 1)[1].rsplit("  ", 1)[0]), style.GOOD)
+            for line in worked], []

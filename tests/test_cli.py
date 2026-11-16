@@ -30,34 +30,37 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     assert len(windows) == 3 and tables.num(sum(held) / len(held)) == "84,709"
     assert re.search(r"^%s\s+84,333\s" % schema.STARTING_CONTEXT, out, re.M)
     assert first == ("%s84,709 %s, over %d calls in 3 windows; starting context%s 84,333 99.5%% = %s 84,000"
-                     " + %s 333; growth 433 0.5%% from Bash 214 → Bash:pytest 214") % (
+                     " + %s 333; growth 433 0.5%% %sBash 214 → Bash:pytest 214") % (
         fx.total_line(CONTEXT.metric), fx.unit(CONTEXT.metric), len(held), glossary.MARKER,
-        headline.START_LABELS[schema.SESSION_START], headline.START_LABELS[schema.FORK])
+        schema.SESSION_START, schema.FORK, headline.LARGEST)  # a start by its typable value
     assert fx.average(out) == [answer[0]]  # the level is the first line, not a line of its own
     assert re.search(r"^%s\s+84,333\s+\d+\s+99\.5%%  %s$" % (  # one base, and its gloss
         schema.STARTING_CONTEXT, re.escape(render.GLOSSES[schema.STARTING_CONTEXT])), out, re.M)
-    assert read == ("read: %d files from the last 7d (default) under %s; 0 lines skipped,"
-                    " 0 duplicates" % (len(loaded.files), root))
+    assert read == "read: %d files from the last 7d (default) under %s" % (
+        len(loaded.files), root)  # nothing skipped or duplicated: nothing said
     assert kept == "in view: 3 windows%s, %d %s%s" % (
         glossary.MARKER, sum(f.kind == INCREMENT for f in facts), schema.PLURAL[INCREMENT], glossary.MARKER)
     assert orphan == " " * len("in view: ") + "1 fork whose parent is missing: its copy counts as its own"
     rooted = [line for line in out.splitlines() if str(root) in line]  # locators are root-relative
-    assert rooted == [read, next(l for l in answer if l.startswith(render.NEXT))]  # the next command keeps --root
+    assert rooted[0] == read and len(rooted) > 1  # every command keeps --root, wrapped to the line budget
+    assert all(l.lstrip().startswith((grammar.PROG, render.NEXT, "--root")) for l in rooted[1:]), rooted
     # The cause table closes with its rows' sum, the average, against the
     # mean call; the summed total, then the gaps, are the two checks lines, last.
     assert re.search(r"^%s\s+84,709\s+%d\s+%s = mean call size$" % (
         tables.TOTAL_LABEL, sum(f.kind == INCREMENT for f in facts), tables.OK_MARK), out, re.M)
-    assert fx.checks(out) == "%s · 33.3%% of gaps between calls traced to one source%s" % (
-        checks.OK, checks.HOW)  # one line: the measured rate of gaps traced to one source
+    assert fx.checks(out) == (  # what is checked, in plain words; what could not be traced, with its base
+        "%s over 3 windows in view: rows to the average call, changes to window sizes\n"
+        "  %s: 0.2%% of the average call, not traced to one source" % (checks.OK, schema.AMBIGUOUS))
     worked = fx.run_cli("context", "--root", str(root), "-v")[1].splitlines()
+    added = "context tokens added 254,860 - shrink 300"  # the widest label sets the figures' column
+    row = lambda label, figure, after="": ("  %-*s  %9s  %s" % (len(added), label, figure, after)).rstrip()
     assert worked[-6:] == [  # -v: the vertical worked equation, in this run's numbers
-        "  each change × the calls that held it  %9s" % tables.num(sum(held)),
-        "  ÷ calls in view                       %9s" % len(held),
-        "  = average call                        %9s  ✓ same as the mean measured call size" % "84,709",
-        "  added 254,860 - shrink 300            %9s  ✓ same as the final window sizes" % (
-            "= " + format(3 * fx.FINAL_OCCUPANCY + 250000, ",d")),
-        "  18 gaps between calls = 21 calls - 3 windows",
-        " " * len("  18 gaps between calls ") + "= 6 one source + 9 ambiguous + 3 shrank  ✓"]
+        row("each change × the calls that held it", tables.num(sum(held))),
+        row("÷ calls in view", len(held)),
+        row("= average call", "84,709", "✓ same as the mean measured call size"),
+        row(added, "= " + format(3 * fx.FINAL_OCCUPANCY + 250000, ",d"), "✓ same as the final window sizes"),
+        "  18 calls after their window's first = 21 calls - 3 windows",
+        "    = 6 (33.3%) one source + 9 ambiguous + 3 shrank  ✓"]
     assert "reconciliation" not in out and "MISMATCH" not in out  # full detail only on failure
     titles = [line.split(":")[0].split("  ")[0] for line in out.splitlines() if line.startswith("by ")]
     for dim in CONTEXT.tables:  # a table, or a line its rows share with the tables repeating it
@@ -67,8 +70,8 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     for dim in drillable:
         assert not re.search(r"^by %s\s" % dim, out, re.M)
         assert re.search(r"^by %s\s" % dim, fx.run_cli("context", "--root", str(root), "by", dim)[1], re.M)
-    also = next(l for l in out.splitlines() if l.startswith(render.ALSO))[len(render.ALSO):]
-    assert dim in also.split(", ")  # named on the also-by line, a table away
+    also = fx.also(out)
+    assert dim in also  # named on the table pointer, a table away
     verbose = fx.run_cli("context", "--root", str(root), "-v")[1]  # never split by content: -v says so
     starting = glossary.printed(schema.STARTING_CONTEXT).replace("_", " ")
     assert "\n".join(notes.define(starting)) in verbose and starting not in "\n".join(fx.verbose(out))
@@ -86,8 +89,8 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     assert first.startswith(fx.total_line(SPEND.metric)) and fx.unit(SPEND.metric) in first
     # project is pinned; subagent is spend's lever, and the fork bills exactly
     # what its parent does, so it is half the total.
-    assert re.search(r"over 14 calls in 2 windows where project=proj-a; largest %s [\d,]+ 50\.0%%%s agent-fake1$"
-                     % (schema.SUBAGENT_DIM, headline.OF_ALL + fx.printed(SPEND.metric)), first)
+    assert re.search(r"over 14 calls in 2 windows where project=proj-a; largest %s [\d,]+ agent-fake1$"
+                     % schema.SUBAGENT_DIM, first)  # its share is its table's: one share a figure
     verbose = fx.run_cli("spend", "--root", str(root), "project=proj-a", "-v")[1]
     assert average.startswith(fx.AVERAGE) and cli.SPEND_NOTE in dict(fx.key(verbose))[fx.printed(SPEND.metric)]
     assert cli.SPEND_NOTE not in out  # -v adds it
@@ -95,9 +98,9 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
               if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE
               and name != SPEND.metric]
     assert others  # vacuity guard
-    assert "\nother call totals, over 14 calls in 2 windows where project=proj-a\n" in out
-    for name in others:
-        assert re.search(r"^%s\s+[\d,]+$" % name, out, re.M)
+    totals = dict(fx.key(verbose))["other call totals"]  # -v works them, over the calls in view
+    assert all(re.search(r"\b%s [\d,]+\b" % name, totals) for name in others), totals
+    assert all(name not in out for name in others)
     assert "\nin view where project=proj-a: 2 windows%s, 14 calls\n" % glossary.MARKER in out  # spend reads calls only
     assert re.search(r"^by %s\s+%s\s+%s\s+share$"
                      % (schema.SUBAGENT_DIM, fx.printed(SPEND.metric), fx.count_column(SPEND.metric)),
@@ -116,11 +119,13 @@ def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("spend", "--root", str(root), "by", schema.SUBAGENT_DIM)
     assert code == 0, err
-    assert re.search(r"; largest %s [\d,]+ 0\.6%%%s agent-fake1$"  # the one subagent, beside a 200K+ window
-                     % (schema.SUBAGENT_DIM, headline.OF_ALL + fx.printed(SPEND.metric)), fx.headline(out))
-    assert re.search(r"^%s\s+[\d,]+\s+14\s+-$" % re.escape(residual.label(schema.SUBAGENT_DIM)),
+    assert re.search(r"; largest %s [\d,]+ agent-fake1$"  # the one subagent, beside a 200K+ window
+                     % schema.SUBAGENT_DIM, fx.headline(out))
+    assert re.search(r"^%s\s+[\d,]+\s+14\s+-(  |$)" % re.escape(residual.label(schema.SUBAGENT_DIM)),
                      out, re.M)  # labelled by what its windows lack
-    assert "%s=main" % schema.SUBAGENT_DIM not in out
+    pinned = fx.run_cli("spend", "--root", str(root), "%s=%s" % (schema.SUBAGENT_DIM, residual.label(
+        schema.SUBAGENT_DIM)))  # the label as printed is typable input, unquoted
+    assert pinned[0] == 0 and "14 calls" in pinned[1] and " " not in residual.label(schema.SUBAGENT_DIM)
     facts = fx.load_facts(root)[1]
     by_file = {f.locator.file: f.dims.get(schema.SUBAGENT_DIM) for f in facts}
     assert by_file == {"proj-a/sess-0001.jsonl": None, "proj-b/sess-0002.jsonl": None,

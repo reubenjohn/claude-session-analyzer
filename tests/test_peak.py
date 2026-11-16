@@ -25,14 +25,13 @@ def test_one_band_opens_no_peak_table_and_no_peak_hint(tmp_path):
     assert len({f.window for f in facts}) == 2 and len({f.dims[PEAK] for f in facts}) == 1  # one band
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
-    also = next(l for l in out.splitlines() if l.startswith(render.ALSO))[len(render.ALSO):].split(", ")
-    assert "%s=" % PEAK not in out and PEAK not in also
-    hint = [line for line in out.splitlines() if line.startswith(render.NEXT)]
+    also = fx.also(out)
+    assert also and "%s=" % PEAK not in out and PEAK not in also
+    hint = [fx.hint(out)]
     assert hint == [render.NEXT + grammar.Invocation("context", root=str(root)).command(
         add=[(schema.TOOL_DIM, "Bash")])]  # the levers next
     several = fx.run_cli("context", "--root", str(fx.cli_corpus(tmp_path / "cli")))[1]  # vacuity guard
-    assert PEAK in next(l for l in several.splitlines() if l.startswith(render.ALSO))
-    assert " %s=%s " % (PEAK, schema.BANDS[-1]) in several  # the next command, before its --root
+    assert PEAK in fx.also(several)  # several bands: a table away
 
 
 def test_bands_print_fullest_first_in_every_view(tmp_path):

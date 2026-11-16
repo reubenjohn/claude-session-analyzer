@@ -10,7 +10,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from sa import corpus as corpus_module, glossary, notes, schema, walk
+from sa import corpus as corpus_module, glossary, schema, walk
+from screen import (AVERAGE, also, average, checks, headline, hint, joined, key, pointer_v,  # noqa: F401
+                    sections, verbose, worked)
 
 SESSION = "sess-0001"
 FORK_PARENT = "sess-0000"
@@ -191,58 +193,7 @@ def run_cli(*args):
     return done.returncode, done.stdout, done.stderr
 
 
-def sections(out):
-    """The report's blank-line-separated sections, each a list of lines:
-    scope, answer, tables, key, checks."""
-    return [s.splitlines() for s in out.rstrip("\n").split("\n\n")]
-
-
-def headline(out):
-    """The answer as one string: the total line, then the block's lines,
-    padding collapsed, ``; ``-joined in reading order."""
-    first, *rest = sections(out)[1]
-    return "; ".join([first] + [re.sub(r" +", " ", line.strip()) for line in rest if line.startswith("  ")])
-
-
-def checks(out):
-    """The checks, last: its lines joined, the identities then the gaps."""
-    return "\n".join(sections(out)[-1])
-
-
-def worked(out):
-    """The ``-v`` worked equation under the checks line: the lines after
-    it, its trigger lines (``!``) aside, joined with a leading newline."""
-    lines = sections(out)[-1]
-    return "".join("\n" + line for line in lines[1:] if not line.lstrip().startswith("!") and glossary.PROG not in line)
-
-
-def average(out):
-    return [line for line in sections(out)[1] if line.startswith(AVERAGE)]
-
-
-AVERAGE = glossary.marked(glossary.AVERAGE).replace("_", " ") + " "
 LEAF = re.compile(r"\s+(-?[\d,-]+\s+){1,3}:\d+(\s|$)")  # a by change/call row: its figures, then :line
-
-
-def verbose(out):
-    """The ``-v`` block's lines (``notes.HEAD`` opens each part), as printed."""
-    lines = out.splitlines()
-    start = next((i for i, line in enumerate(lines) if line.startswith(notes.HEAD)), len(lines))
-    end = next((i for i in range(start, len(lines)) if not lines[i]), len(lines))
-    return lines[start:end]
-
-
-def key(out):
-    """The ``-v`` block's entries as (label, text), wrapped lines joined: a
-    figure's ``name = working``, a marked word's ``word: meaning; surprise``,
-    a catch-all's ``label (by DIM): cases``. Run with ``-v``."""
-    entries = []
-    for line in verbose(out):
-        if line.startswith(notes.INDENT):
-            entries[-1] += " " + line.strip()
-        elif not line.startswith(notes.HEAD):
-            entries.append(line.strip())
-    return [(m.group(1), m.group(2)) for m in (re.match(r"^(.+?)(?:: | = )(.*)$", e) for e in entries)]
 
 
 def marker(uuid):
@@ -329,3 +280,5 @@ def every_corpus(tmp_path):
     cause, reason and start is carried by some fact."""
     cli_corpus(tmp_path)
     return window_corpus(tmp_path)
+
+

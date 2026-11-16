@@ -45,36 +45,41 @@ CHANGE = grammar.FACTS["context"]
 
 
 @pytest.mark.parametrize("args, by, add", [
-    (("context",), None, [(schema.PEAK_DIM, schema.BANDS[-1])]),  # the fullest band first
-    (("context", "peak=0-50K"), None, [(schema.TOOL_DIM, "Bash")]),  # one band: no lead
+    (("context",), None, [(schema.TOOL_DIM, "Bash")]),  # the headline's own walk: its top tool
+    (("context", "peak=0-50K"), None, [(schema.TOOL_DIM, "Bash")]),
     (("context", "tool=Bash"), CHANGE, []),  # past a drill pin, no band: its command is implied
     (("context", "command=Bash:pytest"), CHANGE, []),  # a command pinned: the leaves next
     (("context", "peak=200K+", "tool=Bash"), CHANGE, []),  # its command is implied
     (("context", "peak=200K+", "command=Bash:pytest"), CHANGE, []),
     (("spend",), None, [(schema.SUBAGENT_DIM, "agent-fake1")]),
     (("spend", "subagent=agent-fake1"), grammar.FACTS["spend"], []),
-    (("context", "by", CHANGE), None, None)])
+    (("context", "by", CHANGE), CHANGE, [(schema.WINDOW_DIM, "first")]),  # the window printed first
+    (("context", "by", CHANGE, "window=%s" % fx.window_value("proj-a/sess-0001.jsonl")), None, None)])
 def test_the_hint_follows_the_headline_levers(tmp_path, args, by, add):
+    """The headline's walk, then the facts, then the window printed first;
+    one window's facts are the end of the path."""
     root = fx.cli_corpus(tmp_path)
     out = fx.run_cli(*args, "--root", str(root))[1]
-    hints = [line for line in out.splitlines() if line.startswith(render.NEXT)]
+    hint = fx.hint(out)
     pins = [tuple(a.split("=", 1)) for a in args[1:] if "=" in a]
-    assert hints == ([_next(args[0], root, by, add, pins)] if add is not None else [])
+    if add and add[0][1] == "first":
+        add = [(schema.WINDOW_DIM, re.search(r"^\S+\.jsonl  %s=(\w+)" % schema.WINDOW_DIM, out, re.M).group(1))]
+    assert hint == (_next(args[0], root, by, add, pins) if add is not None else None)
     if add is not None:  # the last line of the answer, before the tables; it pastes and runs
-        assert fx.sections(out)[1][-1] == hints[0]
-        assert fx.run_cli(*hints[0][len(render.NEXT + grammar.PROG) + 1:].split())[0] == 0
+        assert fx.joined("\n".join(fx.sections(out)[1])).splitlines()[-1] == hint
+        assert fx.run_cli(*hint[len(render.NEXT + grammar.PROG) + 1:].split())[0] == 0
 
 
 def test_the_help_path_is_the_hint_chain():
-    """The -h path pins what each hint pins, in order: the view's leads,
-    then its levers, then the facts."""
+    """The -h path pins what each hint pins, in order: the view's levers,
+    then the facts."""
     view = cli.VIEWS["context"]
     path = [line.split("  ")[1] for line in grammar.HELP.splitlines()
             if line.startswith("  %s context" % grammar.PROG)]
     pinned = []
     for step in path:
         pinned += [w.split("=")[0] for w in step.split() if "=" in w and w.split("=")[0] not in pinned]
-    chain = list(view.leads + view.levers)
+    chain = list(view.levers)
     assert len(pinned) >= 2 and pinned == chain[:len(pinned)]  # vacuity guard: the path pins
     assert any("%s %s" % (grammar.BY, CHANGE) in step for step in path)
 

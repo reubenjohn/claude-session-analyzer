@@ -12,6 +12,7 @@ A line is a ``str``; one that styles is a ``style.Line`` naming its role,
 which ``style`` paints only when the CLI asks for it, so every test
 compares plain text."""
 import re
+import shlex
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -110,15 +111,34 @@ Counts = Sequence[Tuple[str, Optional[Dict[str, int]]]]  # a count column: its n
 
 
 def parts_text(parts: Sequence[Tuple[str, float]], room: int) -> str:
-    """``= a 1 + b 2 + other 3``: the catch-all's parts, largest first, as
-    many as ``room`` columns hold, the rest folded into ``other``."""
+    """``= a 1 + b 2 + 3 more 4``: the catch-all's parts, largest first, as
+    many as ``room`` columns hold, the rest folded as a table folds its
+    rows; one part names what the whole row is."""
     terms = ["%s %s" % (what, num(mass)) for what, mass in parts]
     for keep in range(len(terms), 0, -1):
-        rest = sum(m for _, m in parts[keep:])
-        text = "= " + " + ".join(terms[:keep] + (["other %s" % num(rest)] if keep < len(terms) else []))
+        rest = parts[keep:]
+        text = "= " + " + ".join(terms[:keep] + (["%d more %s" % (len(rest), num(sum(m for _, m in rest)))]
+                                                 if rest else []))
         if len(text) <= room or keep == 1:
-            return text if len(parts) > 1 else ""  # one part is the row itself
+            return text
     return ""
+
+
+def command_lines(lead: str, command: str, indent: str = "    ") -> List[str]:
+    """``lead`` then ``command`` within the line budget, broken between
+    words (a flag kept with its value) with a shell's `` \\`` continuation
+    when it must be, so it still pastes and runs."""
+    words: List[str] = []
+    for word in shlex.split(command, posix=False):  # quotes kept: a quoted word stays whole
+        words[-1:] = [words[-1] + " " + word] if words and words[-1].startswith("--") and " " not in words[-1] \
+            else words[-1:] + [word]
+    lines, line = [], lead
+    for word in words:
+        if line.strip() and len(line) + 1 + len(word) + 2 > WIDTH:
+            lines.append(line + " \\")
+            line = indent
+        line += ("" if line.endswith(" ") or not line else " ") + word
+    return lines + [line]
 
 
 def table(grouped: query.Table, metric: str, limit: Optional[int], total: Optional[str] = None,
@@ -195,7 +215,8 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
             if r.kind == query.RESIDUAL:
                 note = parts_text(parts, WIDTH - 4)
             lines.append(style.tag(text, role, share, ((mass, mass + widths[0]), (at, at + 6))))
-            lines.append(style.tag("    " + note, style.HINT if i == values else "", values=((4, 4 + len(note)),)))
+            lines += [style.tag(part, style.HINT if i == values else "", values=((4, len(part)),))
+                      for part in (command_lines("    ", note) if i == values else ["    " + note])]
             continue
         text = text + "  " + note if note else text
         lines.append(style.tag(text, role, share, ((mass, mass + widths[0]), (at, at + 6)),

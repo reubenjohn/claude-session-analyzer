@@ -77,7 +77,7 @@ def test_a_zero_base_table_truncates_without_a_share():
     lines = tables.table(zero, M, limit=1)
     assert lines[0].endswith("  share")
     assert re.match(r"\+2 more\s+0\s+2\s+-$", lines[2])
-    assert headline._block([("largest tool", 0, "Bash")], 5, [])[0].split()[3] == "0.0%"
+    assert headline._block([("growth", 0, 0 / 5, "Bash")], [])[0].split()[2] == "0.0%"
 
 
 def _inc(mass, line, tool=None, head=None, cause=schema.TOOL_RESULT):
@@ -95,12 +95,13 @@ FACTS = [_inc(60, 1, "Bash", "Bash:cat"), _inc(30, 2, "Bash", "Bash:ls"),
 
 def test_headline_block_shares_the_mass_added_never_the_table_base():
     """The tool table's share column is over its base, 100 (the total less
-    the residual and signed rows); the headline's block says each line's
-    share of the mass it is given, the added, aligned in columns."""
+    the residual and signed rows); the headline's block says a line's
+    share of the added when it has one (a largest row's is its table's:
+    one share a figure), aligned in columns."""
     assert query.group(FACTS, TOOL, fx.DELTA).base == 100 != query.total(FACTS, fx.DELTA) == 98
     assert _top(FACTS, [TOOL], fx.DELTA) == "Bash 90"
-    block = headline._block([("starting", 8, ""), ("largest tool", 90, "Bash")], 98, [])
-    assert block == ["  starting       8   8.2%", "  largest tool  90  91.8%  Bash"]
+    block = headline._block([("starting", 8, 8 / 98, ""), ("largest tool", 90, None, "Bash")], [])
+    assert block == ["  starting       8   8.2%", "  largest tool  90  Bash"]
     assert block[1].values == ((len(block[1]) - len("Bash"), len(block[1])),)  # a value, never a term
     assert _top(FACTS[3:], [TOOL], fx.DELTA) == ""  # no regular row
     assert _top(FACTS, [], fx.DELTA) == ""          # every lever pinned
@@ -177,7 +178,8 @@ def test_a_row_named_like_a_cause_folds_and_gets_no_note_outside_the_cause_table
 
 def test_the_ambiguous_entry_names_every_declared_reason_and_the_gloss_none():
     """The gloss beside the row is a few words; ``-v`` the reasons."""
-    meaning, gloss = glossary.GLOSSARY[schema.AMBIGUOUS].meaning, render.GLOSSES[schema.AMBIGUOUS]
+    entry, gloss = glossary.GLOSSARY[schema.AMBIGUOUS], render.GLOSSES[schema.AMBIGUOUS]
+    meaning = entry.meaning + " " + entry.surprise  # -v prints both: the sentence, then the cases
     assert len(schema.REASONS) > 1 and all(reason in meaning for reason in schema.REASONS)
     assert gloss and not any(reason in gloss for reason in schema.REASONS)
 
@@ -185,10 +187,10 @@ def test_the_ambiguous_entry_names_every_declared_reason_and_the_gloss_none():
 def test_the_glossary_states_the_measured_conditions():
     """ambiguous covers the negative remainder, and a shrink is not always a
     compaction (measured: 3 of 8 carried no compaction marker)."""
-    meaning = lambda term: glossary.GLOSSARY[term].meaning
+    meaning = lambda term: glossary.GLOSSARY[term].meaning + " " + glossary.GLOSSARY[term].surprise
     condition = "less than the previous call's reply"
     assert condition in meaning(schema.AMBIGUOUS)
-    assert condition in glossary.GLOSSARY[schema.LESS_THAN_REPLY].meaning  # the same wording
+    assert condition in meaning(schema.LESS_THAN_REPLY)  # the same wording
     assert "compaction" in meaning(schema.SHRINK) and "not always" in meaning(schema.SHRINK)
 
 

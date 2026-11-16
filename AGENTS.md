@@ -40,8 +40,8 @@ increment, held by the fork's calls; a parentless fork is counted, not
 fixed (D-MISSING-PARENT).
 
 CLI: `python3 -m sa -h`, one grammar (`grammar`). Order: scope (`read:`, `in view:`;
-`--since` 7d unless `all`), answer, `View.tables`, `also by:` and the
-`-v` footer, a `✓` line (`checks`). Context is
+`--since` 7d unless `all`), answer, `View.tables`, the `by DIM` and
+`-v` commands, the `✓` lines (`checks`). Context is
 per call (D-PER-CALL): each change x the calls that held it
 (`context_held`) over the calls in view; rows add up to the headline's
 average, shares of it before shrink; `query.per` refuses it without one

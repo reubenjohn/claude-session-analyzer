@@ -9,7 +9,7 @@ import pytest
 
 import fixtures as fx
 import fixtures_edge as fe
-from sa import cli, corpus, grammar, query, render, schema
+from sa import cli, corpus, grammar, query, schema
 
 CONTEXT = cli.VIEWS["context"]
 CAUSE, TOOL = schema.CAUSE_DIM, schema.TOOL_DIM
@@ -99,10 +99,10 @@ def test_a_declared_value_no_fact_carries_is_a_measured_zero(tmp_path):
     for reason in absent:
         code, out, err = fx.run_cli("context", "--root", str(root), "%s=%s" % (schema.REASON_DIM, reason))
         assert code == 0, err
-        assert fx.headline(out) == "%s: 0 of the 1,150-token average call · 0 changes in 0 of 1 window, 2 calls" % (
-            reason)
-        assert "\nin view: 1 window*, " in out and render.ALSO not in out  # no fact: no table to offer
-    assert render.ALSO in fx.run_cli("context", "--root", str(root))[1]  # vacuity guard
+        assert fx.headline(out) == ("%s: 0 of the 1,150-token average call, over 2 calls in 1 window; from 0"
+                                    " changes in 0 of those windows" % reason)
+        assert "\nin view: 1 window*, " in out and not fx.also(out)  # no fact: no table to offer
+    assert fx.also(fx.run_cli("context", "--root", str(root))[1])  # vacuity guard
     code, out, err = fx.run_cli("context", "--root", str(root), "%s=bogus" % schema.REASON_DIM)
     assert code == 2 and not out and "unknown %s" % schema.REASON_DIM in err  # a typo is still refused
 
@@ -139,8 +139,8 @@ def test_since_excludes_a_parent_before_dedup_so_its_continuation_owns_the_repla
     root = fx.corpus(tmp_path, {"proj-a/sess-0001.jsonl": original, "proj-a/sess-0002.jsonl": continuation})
     args = ("context", "--root", str(root), "--since", "1d", "%s=%s" % (CAUSE, schema.STARTING_CONTEXT),
             "by", "change")
-    headline = " · %s in %s, %s"
-    first, second = "proj-a/sess-0001.jsonl", "proj-a/sess-0002.jsonl"
+    headline = ", over %s in %s; from %s in %s"
+    first, second = "sess-0001.jsonl", "sess-0002.jsonl"  # under the directory they share, named once
 
     def heads(out):  # each starting context's raw tokens (the leaves' second column) under its file
         found, file = [], None
@@ -155,15 +155,16 @@ def test_since_excludes_a_parent_before_dedup_so_its_continuation_owns_the_repla
     # 200: the continuation's head less what it inherited (1,300, in its inherited change)
     assert heads(out) == [(200, second), (1000, first)]
     assert "%s=%s" % (schema.STARTED_BY_DIM, schema.REPLAYED) in out  # the continuation's window header
-    assert headline % ("2 changes", "2 windows", "10 calls") in fx.headline(out)
-    assert "read: 2 files from the last 1d under " in out and "; 0 lines skipped, 5 duplicates\n" in out
+    assert headline % ("10 calls", "2 windows", "2 changes", "2 windows") in fx.headline(out)
+    assert "\nby change, files in %s/proj-a/\n" % root in out
+    assert "read: 2 files from the last 1d under " in out and "; 5 duplicates\n" in out
     stale = time.time() - 2 * corpus.DAY
     os.utime(root / "proj-a" / "sess-0001.jsonl", (stale, stale))
     code, out, err = fx.run_cli(*args)
     assert code == 0, err
     assert heads(out) == [(1000, second)]  # booked from its first record now
-    assert headline % ("1 change", "1 window", "5 calls") in fx.headline(out)
-    assert "read: 1 file from the last 1d under " in out and "; 0 lines skipped, 0 duplicates\n" in out
+    assert headline % ("5 calls", "1 window", "1 change", "1 window") in fx.headline(out)
+    assert "read: 1 file from the last 1d under %s\n" % root in out  # nothing set aside: nothing said
     facts = fx.load_facts(root, 1)[1]
     assert {f.dims[schema.STARTED_BY_DIM] for f in facts} == {schema.SESSION_START}
 

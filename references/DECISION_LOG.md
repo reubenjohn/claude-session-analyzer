@@ -238,9 +238,10 @@ the dimension's declared order, fullest first, in every view
 calls, share; under a drill, whole windows with a matching change),
 before `session` (the path's order). A default table, lever or hint
 opens only when the windows in view carry more than one value, pinned
-or not: one band prints no `by peak`. The hint pins the fullest band
-before the tool drill, and only before any drill pin: a pinned command
-hints `--by fact`. Tables that repeat one
+or not: one band prints no `by peak`. The hint follows the headline's
+own walk (tool, then command, then `by change`): amended iter2, display
+only, since a band the default screen no longer prints did not motivate
+it (audit F4); `by peak` stays a table away. Tables that repeat one
 table row for row share its one relabel line (`by session, project:`),
 which keeps the fixture output at 46 lines / 2,872 chars, D-OUTPUT-CAP
 unchanged. The "calls holding over 200K" figure (1,860 of 24,563 [O])

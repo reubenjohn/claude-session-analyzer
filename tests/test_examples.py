@@ -41,7 +41,7 @@ def test_the_default_output_stays_within_its_baseline(tmp_path):
     out = resync.run(home, "context --since 7d")
     assert out.startswith("read: ") and "\n" + fx.total_line(fx.HELD) in out  # vacuity guard: the headline
     assert "\n  %s%s " % (schema.STARTING_CONTEXT.replace("_", " "), glossary.MARKER) in out  # its block
-    assert "\n  growth " in out and " from Bash " in out
+    assert "\n  growth " in out and " largest: Bash " in out
     assert str(home) not in out and resync.re.sub(r"[^A-Za-z0-9]", "-", str(home)) not in out  # pinned
     assert len(out.splitlines()) <= CAP_LINES, out
     assert len(out) <= CAP_CHARS, out

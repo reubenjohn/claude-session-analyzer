@@ -45,12 +45,13 @@ and answers two questions:
   context  Cost aside, is context degrading the model? What an average call
            held, and what put it there.
 
-Start broad, then narrow; every screen ends with the next command to run:
-  %(p)s context                         the answer and its tables
-  %(p)s context by tool                 one table, every row
-  %(p)s context peak=200K+ tool=Bash    pin rows you saw (DIM=VALUE); pins stack
-  %(p)s context tool=Bash by change     the changes themselves, file:line
-  %(p)s context tool=Bash -v            how each figure on screen is computed
+Start broad, then narrow; each screen suggests the next command and ends
+with its checks (✓): what it verified, in plain words.
+  %(p)s context                             the answer and its tables
+  %(p)s context by tool                     one table, every row
+  %(p)s context tool=Bash command=Bash:cat  pin rows you saw (DIM=VALUE); pins stack
+  %(p)s context tool=Bash by change         the changes themselves, file:line
+  %(p)s context tool=Bash -v                how each figure is computed and checked
 
 --since 30d|all  files modified in the last N days (default 7d); --root DIR;
 --color auto|always|never""" % {"p": PROG}
@@ -116,8 +117,10 @@ def parse(argv: Sequence[str]) -> Args:
         if view in RETIRED:
             raise UsageError("%s is retired: %s" % (view, RETIRED[view]),
                              "e.g. %s context -v" % PROG if view == "explain" else "see %s -h" % PROG)
-        raise UsageError("unknown command %r: the commands are spend and context" % view,
-                         "start here: %s context" % PROG)
+        near = difflib.get_close_matches(view, VIEWS, 1, 0.6)
+        raise UsageError("unknown command %r: %s" % (view, "did you mean %s?" % near[0] if near else
+                                                       "the commands are spend and context"),
+                         "start here: %s %s" % (PROG, near[0] if near else "context"))
     found: Dict[str, object] = {"view": view}
     pins, bare = [], []
     while words:
@@ -251,6 +254,12 @@ def run(*words: str) -> str:
     return " ".join([PROG] + [quote(w) for w in words])
 
 
+# A pin that implies others: a command its tool, a window every window dimension; a
+# printed command leaves the implied pins out, the facts it selects the same.
+IMPLIES = {schema.COMMAND_DIM: (schema.TOOL_DIM,),
+           schema.WINDOW_DIM: tuple(d for d in schema.WINDOW_DIMENSIONS if d != schema.WINDOW_DIM)}
+
+
 class Invocation(NamedTuple):
     """What was asked, printed back: any command derived from it pastes
     and runs, the pins as the tables print them, a non-default ``--since``
@@ -263,7 +272,9 @@ class Invocation(NamedTuple):
     def command(self, by: Optional[str] = None, add: Sequence[Tuple[str, str]] = (),
                 verbose: bool = False) -> str:
         words = [self.view] + ([BY, by] if by else [])
-        words += ["%s=%s" % p for p in list(self.pins) + list(add)]
+        pins = list(self.pins) + list(add)
+        implied = {d for p in pins if p[1] != residual.label(p[0]) for d in IMPLIES.get(p[0], ())}
+        words += ["%s=%s" % p for p in pins if p[0] not in implied]
         flags = (["--since", self.since_text] if self.since_text else [])
         root = ""
         if self.root:

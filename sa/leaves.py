@@ -10,11 +10,12 @@ A row stays within the line budget: the window's file and dimensions
 print once above its rows, the locator is ``:line`` in it (a physical
 line is unique in its file, so no uuid), and a dimension every row
 shares, or a pin, prints no column."""
+import posixpath
 from typing import Callable, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from . import glossary, query, schema, style
 from .schema import Fact
-from .tables import OK_MARK, BAD_MARK, WIDTH, count, home, num, value
+from .tables import OK_MARK, BAD_MARK, WIDTH, command_lines, count, num, value
 
 HELD = "held"  # the column of the calls that held a change
 # The window's own dimensions, named on its header when they vary; the
@@ -36,7 +37,8 @@ def _varying(facts: Sequence[Fact], dims: Sequence[str], pinned: Sequence[str]) 
 
 def leaves(facts: List[Fact], metric: str, calls: Optional[int], total: float,
            pinned: Sequence[str] = (), names: Optional[Dict[str, str]] = None,
-           limit: Optional[int] = None, more: Optional[Callable[[Optional[str]], str]] = None) -> List[str]:
+           limit: Optional[int] = None, more: Optional[Callable[[Optional[str]], str]] = None,
+           root: str = "") -> List[str]:
     """Every carrier fact under its window's header, windows by their
     facts' |figure| summed, largest first, and within one the largest
     |figure| first (a shrink is as large as its size); evidence indented
@@ -45,7 +47,9 @@ def leaves(facts: List[Fact], metric: str, calls: Optional[int], total: float,
     the command that lists every window; while several windows print, each
     lists its ``2 × limit`` largest facts, the rest folded alike with
     ``more(window)``, the command that lists them all. Then the Σ line,
-    over every fact, against ``total``, the headline's."""
+    over every fact, against ``total``, the headline's. The directory the
+    windows' files share, under ``root``, prints once; each file under it
+    as it is on disk, so ``cd`` there and it opens as printed."""
     spec = schema.metric(metric)
     per_call = spec.aggregation == schema.PER_CALL
     divisor = query.per(metric, calls)  # a per-call metric without its population raises
@@ -82,27 +86,33 @@ def leaves(facts: List[Fact], metric: str, calls: Optional[int], total: float,
                 + "  " + "  ".join(cells[figs:] if tagged else
                                    ["%-*s" % (w, c) for w, c in zip(widths[figs:], cells[figs:])])).rstrip()
         return text
-    lines = [style.tag("by %s" % ("change" if spec.carrier == schema.INCREMENT else "call"), style.HEADER),
-             style.tag(line(header), style.HEADER)]
     hidden = order[limit:] if limit is not None else []
+    shown = order[:len(order) - len(hidden)]
+    common = posixpath.commonpath([posixpath.dirname(k.file) for k in shown]) if shown else ""
+    under = posixpath.join(root, common, "") if root else ""
+    title = "by %s" % ("change" if spec.carrier == schema.INCREMENT else "call")
+    lines = [style.tag(title + (", files in " + under if under else ""), style.HEADER),
+             style.tag(line(header), style.HEADER)]
+    said: List[str] = []  # the candidates' order is said once
     noun = schema.PLURAL[spec.carrier]
 
     def folded(rest: List[Fact], what: str, command: str) -> List[str]:
         text = "%s, %s %s: " % (what, glossary.printed(metric), num(sum(f.metrics[metric] for f in rest) / divisor))
-        return [text + command] if len(text + command) <= WIDTH else [text.rstrip(": ") + ":", "    " + command]
-    for key in order[:len(order) - len(hidden)]:
+        return [text + command] if len(text + command) <= WIDTH else [text.rstrip(": ") + ":"] + command_lines(
+            "    ", command)
+    for key in shown:
         mine = sorted(by_window[key], key=lambda f: -abs(f.metrics[metric]))
         cut = mine[2 * limit:] if limit is not None and len(order) > 1 and more else []
         mine = mine[:len(mine) - len(cut)]
         dims_of = mine[0].dims
         tags = "  ".join("%s=%s" % (d, schema.window_value(key) if d == schema.WINDOW_DIM else dims_of.get(d))
                          for d in heads)
-        lines += _window_head(home(key.file), tags)
+        lines += _window_head(posixpath.relpath(key.file, common or "."), tags)
         for f in mine:
             text = line(rows[id(f)])
             for part in _fit(text, lead + sum(w + 2 for w in widths[:len(names_)])):
                 lines.append(style.tag(part, "", values=((0, len(part)),)))
-            lines += list(_evidence(f.evidence, key.file))
+            lines += list(_evidence(f.evidence, key.file, said))
         if cut:
             lines += folded(cut, "  +%s more %s" % (format(len(cut), ",d"), noun), more(schema.window_value(key)))
     if hidden and more:
@@ -174,17 +184,20 @@ PAD = " " * 6
 
 def _at(locator: schema.Locator, file: str) -> str:
     """A locator in this window's file as ``:line``, elsewhere whole."""
-    return (":%d" % locator.line) if locator.file == file else "%s:%d" % (home(locator.file), locator.line)
+    return (":%d" % locator.line) if locator.file == file else "%s:%d" % (locator.file, locator.line)
 
 
-def _evidence(evidence: dict, file: str) -> Iterator[str]:
+def _evidence(evidence: dict, file: str, said: List[str]) -> Iterator[str]:
     """Each key once; the candidates one per line under theirs, largest
     recorded size first (an unknown size last), each with its line, its
     size as recorded (``recorded``) and the tool and command it would have
     booked: the order says which is heavy, the change stays undivided."""
     for key, val in evidence.items():
         if key == schema.CANDIDATES:
-            yield ("%s%s: %s" % (PAD, key, HEAVIEST if any(c.chars for c in val) else ("" if val else "none"))).rstrip()
+            how = HEAVIEST if any(c.chars for c in val) else ("" if val else "none")
+            if how not in said:  # said once a screen: the lines under it read alike
+                yield ("%s%s: %s" % (PAD, key, how)).rstrip()
+                said.append(how)
             for c in sorted(val, key=lambda c: -(c.chars or -1)):
                 tags = " ".join("%s=%s" % (d, c.dims[d]) for d in ROW_DIMS if d in c.dims)
                 yield ("%s  %s  %s  %s" % (PAD, _at(c.locator, file), recorded(c), tags)).rstrip()
@@ -196,9 +209,10 @@ def _evidence(evidence: dict, file: str) -> Iterator[str]:
             yield "%s%s: %s" % (PAD, key, val)
 
 
-def figure_names(metric: str) -> List[Tuple[str, str]]:
-    """The fact list's own figures and how each is computed, for ``-v``."""
+def figure_names(metric: str) -> List[Tuple[str, str, str]]:
+    """The fact list's own figures and how each is computed, for ``-v``:
+    the list's Σ line works them in this run's numbers."""
     if schema.metric(metric).aggregation != schema.PER_CALL:
-        return [("Σ", "the rows' %s summed: the headline's figure" % glossary.printed(metric))]
-    return [(HELD, "the calls of its window from the one it entered at to the window's end"),
-            (glossary.printed(metric), "tokens × held ÷ the calls in view; Σ of the rows = the headline")]
+        return [("Σ", "the rows' %s summed" % glossary.printed(metric), "the Σ line: the headline's figure")]
+    return [(HELD, "the calls of its window from the one it entered at to the window's end", "a row's held column"),
+            (glossary.printed(metric), "tokens × held ÷ the calls in view", "the Σ line: the rows, = the headline")]
