@@ -324,3 +324,55 @@ CLAUDE.md pointer (one line, under "Pointers, never copies"):
   per-call figure, including spend's call count.
 - `python3 -m sa.sweep` now takes about 35 s on this corpus (it walks the
   forest several times for the per-session comparison).
+
+## Second opinion
+
+Review: `LOCAL SWEEP 2026-11-16T01:21Z` (612 windows, 24,563 calls;
+the corpus grew): identity, inherited and peaks reproduce; average
+110,108; top command differs in 11 of 57 sessions (was 12).
+
+1. **Identity: AGREE-WITH-CHANGE.** It holds by construction: `walk`
+   books each call's occupancy as the running sum of its window's
+   increments (0 calls differ), so the identity is algebra. It
+   tests `held()`, not the corpus. `held()` is right (replies, shrink,
+   compaction cuts, inherited). Call it a test, not evidence.
+2. **Rankings: AGREE to defer B, for another reason.** The population
+   matters. 8 of the 11 flips were within 5.7 pts under
+   the sum (12 of 57 sessions are within 5): near-ties. Today's sum over
+   the 49 windows peaking above 200,000 (5,794 calls) moves causes 17.7
+   pts (starting_context 34.1% > 16.4%; tool_result first, 37.0%; replies
+   26.6%); weighting by the calls above 200,000 agrees (tool_result 41.9%,
+   starting_context 15.6%). Average vs sum: 2.3 pts. By command all four
+   keep Bash:cat first. §4 "move no top ranking" is false for main windows
+   by command (Bash:git 1>2). Cheaper than B: a window filter by peak,
+   additive, reconciliation untouched.
+3. **Purpose: AGREE-WITH-CHANGE.** A gives the level, not the cause or
+   the fix. The shape line does not solve 800 at 30K vs 30 at 800K:
+   window percentiles count windows, so the 30 (3.6%) sit above p90 and
+   only the max shows them. Every window's last call is its peak (612 of
+   612), so the line is percentiles of the final sizes the total already
+   sums. Count calls instead: 1,860 of 24,563 calls (7.6%) held over
+   200,000; call median / p90 96,628 / 185,578. Cause: item 2's filter.
+4. **MEAN vs peak: AGREE-WITH-CHANGE.** Sound: the sum is never printed;
+   the mean is a size. But `query.total` does not refuse PEAK today (only
+   `group`): add it for both. A second metric on the same field mints a
+   copy on every call fact; simpler: `query.mean(facts, context_tokens)`
+   over one population. Unenforced on this branch.
+5. **Missing parent: AGREE-WITH-CHANGE.** Parents are never older than
+   their forks (10 of 10), so `--since` and age-based cleanup drop the
+   fork first: insurance only. Gap: with the parent deleted no `inherited`
+   row exists today; the copies cannot be told from live records (dedup
+   is cross-file), so "a deleted parent leaves the row" needs a copy
+   detector or is unbuildable. A force-read file must show on `read:`.
+   The D-INHERITED-ONCE wording fix (one copied call): AGREE.
+6. **Output: AGREE-WITH-CHANGE.** The mock's figures reproduce
+   and fit 44 / 2,370. Vocabulary fine; `average context per call*` is
+   the first multi-word key term. README draft 4,561 bytes, plain, but
+   promises a fix A does not give. The CLAUDE.md pointer FAILS its cap
+   (6,987 + 117 = 7,104 > 7,000); its purpose line has no draft.
+7. **Omitted:** one average blends main (120,554) and subagent windows
+   (108,295; 85% calls).
+
+Recommendation: A, the call count over a threshold in place of the
+window-peak line; then a window filter by peak; defer B, C; D only with a
+copy detector.
