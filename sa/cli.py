@@ -113,7 +113,7 @@ Flags (all: %(prog)s context --help, %(prog)s spend --help):
 Marked %(marker)s in the output: %(marked)s.
 %(prog)s explain TERM says what any term means.""" % {"prog": PROG,
     "residual": glossary.RESIDUAL_LABEL, "marker": glossary.MARKER, "limit": DEFAULT_LIMIT,
-    "marked": ", ".join(t for t, e in glossary.GLOSSARY.items() if e.marked)}
+    "marked": ", ".join(glossary.printed(t) for t, e in glossary.GLOSSARY.items() if e.marked)}
 
 
 def _dimensions_help() -> str:
@@ -193,9 +193,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("\033[K", end="", file=sys.stderr, flush=True)
     try:
         forest = walk.forest(loaded)
-        sel = query.selection(forest, args.where, view.metric, view.reconciles)
+        names = render.subagent_names(loaded.agent_types, forest)
+        printed = {label: id_ for id_, label in names.items()}  # a subagent pins by its name or id
+        where = [(d, printed.get(v, v) if d == schema.SUBAGENT_DIM else v) for d, v in args.where]
+        sel = query.selection(forest, where, view.metric, view.reconciles)
         lines = render.report(view, sel, loaded, args.by, args.limit,
-                              since_default=args.since is None, forest=forest)
+                              since_default=args.since is None, forest=forest, names=names)
     except schema.SchemaError as error:
         print("%s %s: error: %s" % (PROG, args.view, tables.home_text(str(error))), file=sys.stderr)
         return 2

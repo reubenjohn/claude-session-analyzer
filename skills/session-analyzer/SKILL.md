@@ -18,7 +18,7 @@ Pin, then drill:
 | Flag | Meaning |
 |---|---|
 | `--since 30d` | files modified in the last N days (default 7d; `all`: every file) |
-| `--where project=` / `session=` / `subagent=` / `window=` / `started_by=` | project as printed (`~-work-app`), sessionId, agentId, a window's hex (`--by window`) or what began it; keeps whole windows |
+| `--where project=` / `session=` / `subagent=` / `window=` / `started_by=` | project as printed (`~-work-app`), sessionId, subagent as printed or its id, a window's hex (`--by window`) or what began it; keeps whole windows |
 | `--where DIM=VALUE` | a pin, repeatable, exact; dims: project, session, subagent, window, started_by, cause, tool, command, reason |
 | `--by DIM` | one dimension's table |
 | `--by fact` | one change (spend: call) per row: `<metric>  file:line  uuid  dims`, evidence under |
@@ -42,12 +42,11 @@ project, session, subagent; `--by subagent` answers "which subagent was
 expensive", its `unassigned` row the main windows. Context shares are not
 cost shares.
 
-Whatever `--by` shows, the `context` headline states one total (`% of
-this total`, or of the N added: shrink out), then two lines:
-`starting_context` by `started_by` (what was there at window start,
-never a window size), then `growth`: the top tool, its largest command
-(`100.0% of Bash, 15.4%`), then a larger command under another tool.
-`spend` names the largest subagent. Never a cause or a window row. A
+Whatever `--by` shows, the `context` headline states one total, then a
+block (shares of the mass added, shrink out): the starting context as a
+sum by `started_by` (what was there at window start, never a window
+size), then `growth`: the top tool `→` its largest command, then a
+larger `top command`. `spend` names the largest subagent. Never a cause or a window row. A
 `--where` pin omits the default tables and levers it implies (a command
 its tool, a window its subagent, session, project). A drill's headline
 names its pins and the windows hit (`… in 1 of 2 windows`); `largest single-call context N tokens (of W windows), window=<hex>`
@@ -96,7 +95,7 @@ into one or more changes:
 
 <!-- example: context | ✓ checks -->
 ```
-✓ checks: 18 gaps between calls (21 calls - 3 windows): 6 exact (33.3%), 9 ambiguous (50.0%), 3 shrink (16.7%)
+✓ checks: 4,860 added - 300 shrink = 4,560; 18 gaps between calls (21 calls - 3 windows): 6 to one source (33.3%), 9 ambiguous (50.0%), 3 shrank (16.7%)
 ```
 
 It holds by construction: a failure prints the reconciliation in full

@@ -235,10 +235,11 @@ def sections(out):
 
 
 def headline(out):
-    """The answer as one string: the total line, then each lever clause
-    indented under it, ``; ``-joined in reading order."""
+    """The answer as one string: the total line, then each line of the
+    block under it, its column padding collapsed, ``; ``-joined in reading
+    order."""
     first, *rest = sections(out)[1]
-    return "; ".join([first] + [line.strip() for line in rest if line.startswith("  ")])
+    return "; ".join([first] + [re.sub(r" +", " ", line.strip()) for line in rest if line.startswith("  ")])
 
 
 def peaks(out):
@@ -252,7 +253,8 @@ def key(out):
     """The key's entries as (label, text): the one place notes print."""
     keyed = [s for s in sections(out) if s[0].startswith(tables_module.KEY_TITLE)]
     assert len(keyed) <= 1
-    return [re.match(r"^  (.+?)\*? += (.*)$", line).groups() for line in (keyed[0][1:] if keyed else [])]
+    entries = [re.match(r"^  (.+?)\*? += (.*)$", line).groups() for line in (keyed[0][1:] if keyed else [])]
+    return [(label.replace(" ", "_"), text) for label, text in entries]  # keyed as first printed
 
 
 def marker(uuid):

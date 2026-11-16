@@ -17,9 +17,10 @@ DIM = schema.PROJECT_DIM  # declared, with no residual note
 TOOL, HEAD = schema.TOOL_DIM, schema.COMMAND_DIM
 
 
-def _top(*args, **kwargs):
-    """The lever walk's clauses as the headline reads them, ``; ``-joined."""
-    return "".join("; " + clause for clause in headline._top(*args, **kwargs))
+def _top(facts, levers, metric):
+    """The lever walk as the headline reads it: the top row, then the path."""
+    top, path = headline._path(facts, levers, metric)
+    return "" if top is None else "%s %s%s" % (top.value, tables.num(top.mass), path)
 
 
 def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
@@ -70,12 +71,7 @@ def test_a_zero_base_table_truncates_without_a_share():
     lines = tables.table(zero, M, limit=1, whole=False)
     assert lines[0].endswith("  share") and "share of" not in lines[0]
     assert re.match(r"\+2 more rows\s+0\s+2\s+-$", lines[2])
-    facts = [f._replace(metrics={fx.DELTA: 0}) for f in FACTS[:3]]
-    assert _top(facts, [TOOL], fx.DELTA, total=0) == ""
-    assert _top(facts, [TOOL], fx.DELTA, total=5) == (
-        "; %s=Bash 0 (0.0%%)" % TOOL)  # vacuity guard
-    assert _top(facts, [TOOL, HEAD], fx.DELTA, total=5).endswith(
-        "; %s=Bash:cat 0 (- of Bash, 0.0%%)" % HEAD)  # no share of a 0 row
+    assert headline._block([("largest tool", 0, "Bash")], 5, [])[0].split()[3] == "0.0%"
 
 
 def _inc(mass, line, tool=None, head=None, cause=schema.TOOL_RESULT):
@@ -91,65 +87,54 @@ FACTS = [_inc(60, 1, "Bash", "Bash:cat"), _inc(30, 2, "Bash", "Bash:ls"),
          _inc(-7, 5, cause=schema.SHRINK)]
 
 
-def test_headline_top_row_shares_the_total_it_is_given_never_the_table_base():
+def test_headline_block_shares_the_mass_added_never_the_table_base():
     """The tool table's share column is over its base, 100 (the total less
-    the residual and signed rows); the headline says the row's share of the
-    headline total, which the total line names once."""
+    the residual and signed rows); the headline's block says each line's
+    share of the mass it is given, the added, aligned in columns."""
     assert query.group(FACTS, TOOL, fx.DELTA).base == 100 != query.total(FACTS, fx.DELTA) == 98
-    assert _top(FACTS, [TOOL], fx.DELTA, total=98) == (
-        "; %s=Bash 90 (91.8%%)" % TOOL)
-    assert _top(FACTS, [TOOL], fx.DELTA, total=100) == (
-        "; %s=Bash 90 (90.0%%)" % TOOL)
-    assert _top(FACTS[3:], [TOOL], fx.DELTA, total=98) == ""  # no regular row
-    assert _top(FACTS, [], fx.DELTA, total=98) == ""          # every lever pinned
+    assert _top(FACTS, [TOOL], fx.DELTA) == "Bash 90"
+    block = headline._block([("starting", 8, ""), ("largest tool", 90, "Bash")], 98, [])
+    assert block == ["  starting       8   8.2%", "  largest tool  90  91.8%  Bash"]
+    assert block[1].values == ((len(block[1]) - len("Bash"), len(block[1])),)  # a value, never a term
+    assert _top(FACTS[3:], [TOOL], fx.DELTA) == ""  # no regular row
+    assert _top(FACTS, [], fx.DELTA) == ""          # every lever pinned
 
 
-def test_the_headline_refines_the_top_row_and_names_both_bases():
-    """The head within the top tool Bash is Bash:cat, 60 of Bash's 90 and
-    of the 98 total: both shares print, the first naming Bash, since a
-    lone share would read as a share of Bash. Here it is also the top
-    head overall, so nothing follows."""
-    assert _top(FACTS, [TOOL, HEAD], fx.DELTA, total=98) == (
-        "; %s=Bash 90 (91.8%%); %s=Bash:cat 60 (66.7%% of Bash, 61.2%%)" % (TOOL, HEAD))
+def test_the_headline_refines_the_top_row():
+    """The head within the top tool Bash is Bash:cat, 60 of Bash's 90.
+    Here it is also the top head overall, so nothing follows."""
+    assert _top(FACTS, [TOOL, HEAD], fx.DELTA) == "Bash 90 → Bash:cat 60"
 
 
-def test_a_top_row_under_another_lead_follows_the_refinement_naming_what_it_lies_under():
+def test_a_larger_head_under_another_lead_follows_the_refinement():
     """Bash = Bash:ls 60 + Bash:make 40 and Read:py 70: the head within
-    Bash is Bash:ls, but the top head overall is Read:py, under Read, so
-    it is named too with its tool and its share of the total."""
+    Bash is Bash:ls, but the top head overall is Read:py, so it is named
+    too."""
     other = [_inc(60, 1, "Bash", "Bash:ls"), _inc(40, 2, "Bash", "Bash:make"),
              _inc(70, 3, "Read", "Read:py")]
-    assert _top(other, [HEAD], fx.DELTA, total=170) == (
-        "; %s=Read:py 70 (41.2%%)" % HEAD)  # the top head on its own
-    assert _top(other, [TOOL, HEAD], fx.DELTA, total=170) == (
-        "; %s=Bash 100 (58.8%%); %s=Bash:ls 60 (60.0%% of Bash, 35.3%%); %s=Read:py 70 (41.2%%)"
-        " under %s=Read" % (TOOL, HEAD, HEAD, TOOL))
-    assert "under" not in _top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
-    with pytest.raises(ValueError):  # Bash lies under two heads: the levers must nest
-        _top(other, [HEAD, TOOL], fx.DELTA, total=170)
+    assert _top(other, [HEAD], fx.DELTA) == "Read:py 70"  # the top head on its own
+    assert _top(other, [TOOL, HEAD], fx.DELTA) == "Bash 100 → Bash:ls 60; top %s Read:py 70" % HEAD
+    assert "; top" not in _top(FACTS, [TOOL, HEAD], fx.DELTA)  # vacuity guard
 
 
 def test_an_equal_head_under_another_tool_is_not_named_as_the_top():
     """Read:py 60 ties Bash:ls 60 within Bash and, booked first, wins the
-    head table's stable sort: ``under`` names only a strictly larger head."""
+    head table's stable sort: only a strictly larger head is named."""
     tie = [_inc(60, 1, "Read", "Read:py"), _inc(60, 2, "Bash", "Bash:ls"), _inc(40, 3, "Bash", "Bash:make")]
     assert headline._largest(query.group(tie, HEAD, fx.DELTA)).value == "Read:py"
-    assert _top(tie, [TOOL, HEAD], fx.DELTA, total=160) == (
-        "; %s=Bash 100 (62.5%%); %s=Bash:ls 60 (60.0%% of Bash, 37.5%%)" % (TOOL, HEAD))
+    assert _top(tie, [TOOL, HEAD], fx.DELTA) == "Bash 100 → Bash:ls 60"
     larger = [tie[0]._replace(metrics={fx.DELTA: 61})] + tie[1:]  # vacuity guard
-    assert _top(larger, [TOOL, HEAD], fx.DELTA, total=161).endswith(
-        "; %s=Read:py 61 (37.9%%) under %s=Read" % (HEAD, TOOL))
+    assert _top(larger, [TOOL, HEAD], fx.DELTA).endswith("; top %s Read:py 61" % HEAD)
 
 
-def test_a_top_tool_with_no_head_still_names_the_top_head_under_its_tool():
+def test_a_top_tool_with_no_head_still_names_the_top_head():
     """Agent 90 carries no head, so nothing is within it; the top head
-    anywhere, Bash:cat 60 under Bash, is still named. With no head anywhere
-    the tool clause stands alone."""
+    anywhere, Bash:cat 60, is still named. With no head anywhere the tool
+    stands alone."""
     headless = [_inc(90, 1, "Agent"), _inc(60, 2, "Bash", "Bash:cat")]
-    assert _top(headless, [TOOL, HEAD], fx.DELTA, total=150) == (
-        "; %s=Agent 90 (60.0%%); %s=Bash:cat 60 (40.0%%) under %s=Bash" % (TOOL, HEAD, TOOL))
-    assert _top(headless[:1], [TOOL, HEAD], fx.DELTA, total=90) == "; %s=Agent 90 (100.0%%)" % TOOL
-    assert "%s=" % HEAD in _top(FACTS, [TOOL, HEAD], fx.DELTA, total=98)  # vacuity guard
+    assert _top(headless, [TOOL, HEAD], fx.DELTA) == "Agent 90; top %s Bash:cat 60" % HEAD
+    assert _top(headless[:1], [TOOL, HEAD], fx.DELTA) == "Agent 90"
+    assert "→" in _top(FACTS, [TOOL, HEAD], fx.DELTA)  # vacuity guard
 
 
 def test_the_cause_table_prints_whole_whatever_the_limit(tmp_path):

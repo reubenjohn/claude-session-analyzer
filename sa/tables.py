@@ -82,19 +82,29 @@ KEY_TITLE = glossary.MARKER + " explained below"  # the key's header opens with 
 def footnote(lines: List[str]) -> Tuple[List[str], List[str]]:
     """Each marked glossary term, at its first appearance in ``lines`` (a
     table's header aside: its rows carry the mark, the residual's always),
-    takes the marker (a table row gives up one space of its padding, so
-    its columns hold); the terms marked, in the order they first appear."""
+    takes the marker (a padded line gives up one space of its padding, so
+    its columns hold); never inside a line's value spans: a project or a
+    tool named like a term is a value, not the term. A term spelt with
+    ``_`` is found spelt with a space too, and keyed as found. The terms
+    marked, in the order they first appear."""
     found = []
     for term in (glossary.printed(t) for t, e in glossary.GLOSSARY.items() if e.marked):
-        word = re.compile(r"(?<![\w=*-])%s(s?)(?![\w=-])" % re.escape(term))
+        word = re.compile(r"(?<![\w=*-])%s(s?)(?![\w=-])" % re.escape(term).replace("_", "[_ ]"))
         for i, line in enumerate(lines):
-            m = None if getattr(line, "role", "") == style.HEADER else word.search(line)
+            spans = getattr(line, "values", ())
+            m = None if getattr(line, "role", "") == style.HEADER else next(
+                (m for m in word.finditer(line) if not any(a <= m.start() < b for a, b in spans)), None)
             if m:
-                found.append((i, m.start(), term))
+                found.append((i, m.start(), line[m.start():m.end() - len(m.group(1))]))
                 if line[m.end():m.end() + 1] != glossary.MARKER:
-                    rest = line[m.end():]
-                    lines[i] = style.retag(line, line[:m.end()] + glossary.MARKER
-                                           + (rest[1:] if rest.startswith("  ") else rest))
+                    end = m.end()
+                    pad = line.find("  ", end)  # padding gives up a space: the columns hold
+                    pad = len(line) if pad < 0 else pad
+                    text = line[:end] + glossary.MARKER + line[end:pad] + line[pad + 1:]
+
+                    def moved(at: int) -> int:
+                        return at + (end <= at <= pad) if pad < len(line) else at + (at >= end)
+                    lines[i] = style.retag(line, text, [(moved(a), moved(b)) for a, b in spans])
                 break
     return lines, [term for _, _, term in sorted(found)]
 
@@ -180,8 +190,15 @@ def tags(dims: dict) -> str:
     return " ".join("%s=%s" % (d, home(dims[d])) for d in schema.DIMENSIONS if d in dims)
 
 
-def _label(row: query.Row, whole: bool) -> str:
+def value(dim: str, text: str, names: Optional[Dict[str, str]] = None) -> str:
+    """A value as printed: a subagent by its name when ``names`` has one
+    (``render.subagent_names``), anything else with home as ``~``."""
+    return (names or {}).get(text, text) if dim == schema.SUBAGENT_DIM else home(text)
+
+
+def _label(row: query.Row, whole: bool, dim: str = "", names: Optional[Dict[str, str]] = None) -> str:
     label = RESIDUAL_ROW if row.kind == query.RESIDUAL else (
+        value(dim, row.value, names) if row.kind == query.REGULAR else
         home(row.value) + (" (signed)" if row.kind == query.SIGNED else ""))
     return label if whole else cut(label)
 
@@ -192,7 +209,7 @@ def cut(label: str) -> str:
 
 
 def table(grouped: query.Table, metric: str, limit: int, whole: bool,
-          total: Optional[str] = None) -> List[str]:
+          total: Optional[str] = None, names: Optional[Dict[str, str]] = None) -> List[str]:
     """The top ``limit`` regular rows, one line for the rest so the column
     still adds up, then the residual and signed rows. Those, and every row
     of the cause table, are never hidden.
@@ -215,7 +232,7 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
                                sum(r.count for r in hidden), query.REGULAR))
     values = len(shown) - bool(hidden)  # rows of one value each; the rest print italic
     shown += [r for r in grouped.rows if r.kind != query.REGULAR]
-    labels = [_label(r, whole) for r in shown]
+    labels = [_label(r, whole, grouped.dim, names) for r in shown]
     width = max(len(label) for label in labels + [heading])
     sums = (num(sum(r.mass for r in grouped.rows)), num(sum(r.count for r in grouped.rows)))
     name, counts = glossary.printed(metric), schema.PLURAL[schema.metric(metric).carrier]
@@ -226,21 +243,25 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
     for i, (label, r) in enumerate(zip(labels, shown)):
         share = grouped.share(r.mass) if r.kind == query.REGULAR else None
         mass, cell = width + 2, width + mw + cw + 6  # the figures' spans: mass and share
+        free = r.kind == query.REGULAR and grouped.dim not in schema.VOCABULARY  # a data value
         lines.append(style.tag("%-*s  %*s  %*s  %6s" % (
             width, label, mw, num(r.mass), cw, num(r.count), pct(share)),
-            style.ROW if i < values else style.OTHER, share, ((mass, mass + mw), (cell, cell + 6))))
+            style.ROW if i < values else style.OTHER, share, ((mass, mass + mw), (cell, cell + 6)),
+            ((0, width),) if free else ()))
     if total is not None:
         lines.append(style.tag("%-*s  %*s  %*s  %s" % (width, TOTAL_LABEL, mw, sums[0], cw, sums[1],
                                                        total), style.TOTAL))
     return lines
 
 
-def relabelled(grouped: query.Table, labels: Dict[str, str], dim: str) -> str:
+def relabelled(grouped: query.Table, labels: Dict[str, str], dim: str,
+               names: Optional[Dict[str, str]] = None) -> str:
     """The one line a table that repeats ``grouped`` row for row prints in
     its place, under it: its labels for the regular rows, in their order,
     each cut as a default table's."""
-    return "%s: the rows above, labelled %s" % (
-        title(dim), ", ".join(cut(home(labels[r.value])) for r in grouped.rows if r.kind == query.REGULAR))
+    head = "%s: the rows above, labelled " % title(dim)
+    text = head + ", ".join(cut(value(dim, labels[r.value], names)) for r in grouped.rows if r.kind == query.REGULAR)
+    return style.tag(text, "", values=((len(head), len(text)),))
 
 
 def leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:
@@ -256,6 +277,7 @@ def leaves(facts: List[Fact], metric: str, limit: int) -> List[str]:
         lines.append("%16s  %s  %s  %s" % (num(f.metrics[metric]), at(f.locator),
                                            uuid(f.locator), tags(f.dims)))
         lines += list(_evidence(f.evidence))
+    lines[1:] = [style.tag(line, "", values=((0, len(line)),)) for line in lines[1:]]  # values only
     return lines
 
 

@@ -23,11 +23,11 @@ python3 -m sa context --by cause
 <!-- example: context --by cause -->
 ```
 read: 4 files modified in the last 7d (default) under ~/.claude/projects, 0 lines skipped, 0 duplicates excluded
-in view: 3 windows*, 33 changes
+in view: 3 windows*, 33 changes*
 
-context tokens: 4,560 = the 3 windows' final sizes summed (% of the 4,860 added)
-  starting_context* 3,000 (61.7%) at window start: session_start 2,000, fork 1,000
-  growth 1,860 (38.3%): tool=Bash 750 (15.4%), command=Bash:pytest 750 (100.0% of Bash, 15.4%)
+context tokens: 4,560 across 3 windows
+  starting context*  3,000  61.7%  = session starts 2,000 + forks 1,000
+  growth             1,860  38.3%  from Bash 750 → Bash:pytest 750
 largest single-call context 1,520 tokens (of 3 windows), window=aadeccf6
 → next: add --where tool=Bash
 
@@ -37,15 +37,17 @@ tool_result                  750        3   15.4%
 ambiguous*                   606        9   12.5%
 user_text                    255        3    5.2%
 replies                      249       12    5.1%
-shrink (signed)             -300        3       -
+shrink* (signed)            -300        3       -
 = total                    4,560       33  ✓ = final window sizes
 
 * explained below · more on any of them: python3 -m sa explain window
   window*           = one context window, from its start to its file's end or the next compaction
-  starting_context* = already in the first call, not assigned to any tool
-  ambiguous*        = growth with no one contributor, left undivided
+  changes*          = one change of a window's context between two calls, booked to its cause
+  starting context* = what each window's first call already held: system prompt, tools, CLAUDE.md, first message
+  ambiguous*        = growth with no one contributor, left undivided; a tool's row counts it when every candidate is that tool's
+  shrink*           = the window got smaller (often a compaction); negative, in no share
 
-✓ checks: 18 gaps between calls (21 calls - 3 windows): 6 exact (33.3%), 9 ambiguous (50.0%), 3 shrink (16.7%)
+✓ checks: 4,860 added - 300 shrink = 4,560; 18 gaps between calls (21 calls - 3 windows): 6 to one source (33.3%), 9 ambiguous (50.0%), 3 shrank (16.7%)
 ```
 
 `--since 30d` or `--since all` widens the window; `python3 -m sa explain [TERM]`
@@ -77,11 +79,11 @@ lists them); the rest drill, named on the headline with the windows
 hit. `cause=bogus` or `tool=bash` (absent) exits 2, naming what is
 declared or present. A command is a Bash call's first command word
 (`Bash:pytest`) or a file tool's extension (`Read:py`). Under one total
-the headline gives the starting context by `started_by` (what entered,
-not a window size), then the growth: the top tool, its largest command
-(`of Bash`), then a larger command `under` another tool (`spend`: the
-top subagent), whatever `--by` shows, never a cause or window row;
-shares are of the mass added. A pin omits what it implies; a table that
+the headline's block gives the starting context as a sum by `started_by`
+(what entered, not a window size), then the growth: the top tool, `→`
+its largest command, then a larger `top command` (`spend`: the top
+subagent, as `<type> <8 hex>`), whatever `--by` shows, never a cause or
+window row; shares are of the mass added. A pin omits what it implies; a table that
 repeats the one above row for row prints as one line. `--limit` (5)
 never folds the cause table, `unassigned` or a signed row. `--by fact` lists the
 leaves with `file:line  uuid  dimensions`, an ambiguous one's

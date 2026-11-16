@@ -67,7 +67,7 @@ def test_a_tool_keeps_one_hue_across_the_headline_and_the_tables(tmp_path):
     out = "\n".join(line for line in out.splitlines() if render.NEXT not in style.plain(line))  # cyan whole
     tool = next(line for line in style.plain(out).splitlines() if line.startswith("by tool"))
     first = style.plain(out).splitlines()[style.plain(out).splitlines().index(tool) + 1].split()[0]
-    headline = [line for line in out.splitlines() if "tool=" in line]
+    headline = [line for line in out.splitlines() if " from " in style.plain(line)]
     assert headline and first in style.plain(headline[0])  # vacuity guard: the walk names it
     assert set(_hues(out, first)) == {style.TOOL_HUES[0]}
 

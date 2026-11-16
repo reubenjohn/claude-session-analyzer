@@ -7,7 +7,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import cli, glossary, schema, tables, walk
+from sa import cli, glossary, headline, render, schema, tables, walk
 from sa.schema import INCREMENT
 
 CONTEXT, SPEND = cli.VIEWS["context"], cli.VIEWS["spend"]
@@ -24,13 +24,14 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     # starting_context is the largest cause (3,000 of 4,560) but cause is no
     # lever: it is the starting context, by started_by; the growth walks down
     # the top tool and its top command. Every share is of the 4,860 added
-    # (the shrink row out), as in the cause table, named once.
+    # (the shrink row out), as in the cause table, which the checks state.
     assert re.search(r"^%s\s+3,000\s" % schema.STARTING_CONTEXT, out, re.M)
-    assert first == ("%s%s = the 3 windows' final sizes summed (%% of the 4,860 added); %s 3,000"
-                     " (61.7%%) at window start: %s 2,000, %s 1,000; growth 1,860 (38.3%%):"
-                     " %s=Bash 750 (15.4%%), %s=Bash:pytest 750 (100.0%% of Bash, 15.4%%)") % (
-        fx.total_line(CONTEXT.metric), format(3 * fx.FINAL_OCCUPANCY, ",d"),
-        tables.marked(schema.STARTING_CONTEXT), schema.SESSION_START, schema.FORK, TOOL, HEAD)
+    assert first == ("%s%s across 3 windows; starting context%s 3,000 61.7%% = %s 2,000 + %s 1,000;"
+                     " growth 1,860 38.3%% from Bash 750 → Bash:pytest 750") % (
+        fx.total_line(CONTEXT.metric), format(3 * fx.FINAL_OCCUPANCY, ",d"), glossary.MARKER,
+        headline.START_LABELS[schema.SESSION_START], headline.START_LABELS[schema.FORK])
+    assert out.splitlines()[-1].startswith("%s checks: 4,860 added - 300 %s = 4,560; " % (
+        tables.OK_MARK, schema.SHRINK))  # the shares' base, and what shrank
     assert fx.unit(CONTEXT.metric) == fx.printed(CONTEXT.metric)  # so the total line states it once
     assert re.search(r"^%s\s+3,000\s+\d+\s+61\.7%%$" % schema.STARTING_CONTEXT, out, re.M)  # one base
     windows = {f.window for f in facts}
@@ -40,16 +41,17 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
         schema.window_value(top.window))
     assert read == ("read: %d files modified in the last 7d (default) under %s, 0 lines skipped,"
                     " 0 duplicates excluded" % (len(loaded.files), root))
-    assert kept == "in view: 3 windows%s, %d %s" % (
-        glossary.MARKER, sum(f.kind == INCREMENT for f in facts), schema.PLURAL[INCREMENT])
+    assert kept == "in view: 3 windows%s, %d %s%s" % (
+        glossary.MARKER, sum(f.kind == INCREMENT for f in facts), schema.PLURAL[INCREMENT], glossary.MARKER)
     assert out.count(str(root)) == 1  # locators are root-relative
     # The cause table closes with its total against the final sizes; the
     # intervals collapse to one checks line, last.
     assert re.search(r"^%s\s+%s\s+%d\s+%s = final window sizes$" % (
         tables.TOTAL_LABEL, format(3 * fx.FINAL_OCCUPANCY, ",d"), sum(f.kind == INCREMENT for f in facts),
         tables.OK_MARK), out, re.M)
-    assert out.splitlines()[-1] == ("%s checks: 18 gaps between calls (21 calls - 3 windows): 6 exact (33.3%%)"
-                                    ", 9 ambiguous (50.0%%), 3 shrink (16.7%%)" % tables.OK_MARK)
+    assert out.splitlines()[-1] == ("%s checks: 4,860 added - 300 shrink = 4,560; 18 gaps between calls"
+                                    " (21 calls - 3 windows): 6 to one source (33.3%%), 9 ambiguous (50.0%%),"
+                                    " 3 shrank (16.7%%)" % tables.OK_MARK)
     assert "reconciliation" not in out and "MISMATCH" not in out  # full detail only on failure
     for dim in CONTEXT.tables:
         assert "by " + dim in out
@@ -73,8 +75,8 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     assert first.startswith(fx.total_line(SPEND.metric)) and fx.unit(SPEND.metric) in first
     # project is pinned; subagent is spend's lever, and the fork bills exactly
     # what its parent does, so it is half the total.
-    assert re.search(r"over 14 calls in 2 windows \(%% of this total\); largest %s=agent-fake1 [\d,]+"
-                     r" \(50\.0%%\)$" % schema.SUBAGENT_DIM, first)
+    assert re.search(r"over 14 calls in 2 windows; largest %s [\d,]+ 50\.0%% agent-fake1$"
+                     % schema.SUBAGENT_DIM, first)
     assert peak.startswith(fx.PEAK_LINE) and (SPEND.metric, cli.SPEND_NOTE) in fx.key(out)
     others = [name for name, spec in schema.METRICS.items()  # footer totals name their population
               if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE
@@ -100,7 +102,7 @@ def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("spend", "--root", str(root), "--by", schema.SUBAGENT_DIM)
     assert code == 0, err
-    assert re.search(r"; largest %s=agent-fake1 [\d,]+ \(33\.3%%\)$"
+    assert re.search(r"; largest %s [\d,]+ 33\.3%% agent-fake1$"
                      % schema.SUBAGENT_DIM, fx.headline(out))  # one of three like windows
     assert re.search(r"^%s\s+[\d,]+\s+14\s+-$" % re.escape(tables.RESIDUAL_ROW), out, re.M)
     assert (tables.RESIDUAL_LABEL, glossary.brief(tables.RESIDUAL_LABEL)) in fx.key(out)
@@ -124,10 +126,38 @@ def test_a_reconciliation_mismatch_is_exit_status_1(tmp_path, monkeypatch, capsy
     first = fx.headline(out)
     assert "final size" not in first  # the headline never claims the sum it failed to match
     if not drill:
-        assert " booked over 3 windows (reconciliation MISMATCH below)" in first
+        assert " across 3 windows (reconciliation MISMATCH below)" in first
         assert "%s does not match the final window sizes (below)" % tables.BAD_MARK in out
     monkeypatch.undo()
     assert cli.main(["context", "--root", str(root)] + drill) == 0  # vacuity guard
     out = capsys.readouterr().out
-    assert ("final sizes summed" in fx.headline(out)) == (not drill)
+    assert ("across 3 windows; " in fx.headline(out)) == (not drill)
     assert ": MISMATCH" not in out and tables.OK_MARK + " checks" in out
+
+
+def test_a_subagent_prints_by_its_recorded_type_and_pins_by_either_name(tmp_path):
+    """A subagent file's ``.meta.json`` sidecar records its type: tables, the
+    headline and the hint print ``<type> <first 8 of the id>``, and
+    ``--where subagent=`` takes that or the whole id. The id stays the value."""
+    root = fx.cli_corpus(tmp_path)
+    sub = root / "proj-a/sess-0001/subagents/agent-fake1.jsonl"
+    plain = fx.run_cli("spend", "--root", str(root))[1]
+    assert "Explore" not in plain and "agent-fake1" in fx.headline(plain)  # vacuity guard: no sidecar
+    sub.with_suffix(".meta.json").write_text('{"agentType": "Explore"}')
+    label = "Explore agent-fa"
+    code, out, err = fx.run_cli("spend", "--root", str(root), "--by", schema.SUBAGENT_DIM)
+    assert code == 0, err
+    assert fx.headline(out).endswith(" %s" % label)
+    assert re.search(r"^%s\s+[\d,]+\s+7\s" % label, out, re.M)
+    assert "%s--where '%s=%s'" % (render.NEXT, schema.SUBAGENT_DIM, label) in out
+    pinned = [fx.run_cli("spend", "--root", str(root), "--where", "%s=%s" % (schema.SUBAGENT_DIM, v))
+              for v in (label, "agent-fake1")]
+    assert pinned[0][0] == 0 and pinned[0][1] == pinned[1][1] and "7 calls" in pinned[0][1]
+
+
+def test_two_subagents_one_label_keep_their_whole_ids():
+    def fact(agent, file):
+        return schema.Fact(schema.CALL, {schema.SUBAGENT_DIM: agent}, {}, schema.Locator(file, 1, None), {}, None)
+    facts = [fact("a1234567aa", "x.jsonl"), fact("a1234567bb", "y.jsonl"), fact("a7654321cc", "z.jsonl")]
+    names = render.subagent_names({"x.jsonl": "Plan", "y.jsonl": "Plan", "z.jsonl": "Plan"}, facts)
+    assert names == {"a7654321cc": "Plan a7654321"}  # the two that share a label are not renamed

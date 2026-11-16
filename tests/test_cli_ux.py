@@ -73,14 +73,15 @@ def test_the_key_prints_each_note_once_and_names_the_command_for_its_first_term(
     keyed = fx.key(out)
     labels = [label for label, _ in keyed]
     assert len(labels) == len(set(labels)) and labels  # vacuity guard: there is a key
-    terms = [label.split()[0] for label in labels]
+    terms = labels
     assert all(glossary.key_of(t) in glossary.GLOSSARY and glossary.MARKER not in t for t in terms)
     head = next(line for line in out.splitlines() if line.startswith(tables.KEY_TITLE))
     command = head.split(": ", 1)[1]
     assert command == "%s explain %s" % (cli.PROG, terms[0])
     code, said, err = fx.run_cli(*command.split()[3:])
     assert code == 0 and said.startswith(glossary.marked(glossary.key_of(terms[0])) + ": "), err
-    assert len({line.index(" = ") for line in out.splitlines() if re.match(r"^  \S.* = ", line)}) == 1
+    key = next(sec for sec in fx.sections(out) if sec[0].startswith(tables.KEY_TITLE))[1:]
+    assert len({line.index(" = ") for line in key}) == 1 and len(key) > 1
 
 
 def test_the_share_column_names_its_base(tmp_path):
@@ -132,7 +133,7 @@ def test_top_level_help_teaches_the_views_the_workflow_and_the_flags():
         assert re.search(r"^  %s " % flag, out, re.M), flag
     assert "%s context --help" % cli.PROG in out and "%s explain TERM" % cli.PROG in out
     for term in (t for t, e in glossary.GLOSSARY.items() if e.marked):
-        assert term in out  # the marked terms are named where the marker is explained
+        assert glossary.printed(term) in out  # the marked terms are named where the marker is explained
 
 
 @pytest.mark.parametrize("view", list(cli.VIEWS))

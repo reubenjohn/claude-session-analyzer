@@ -4,7 +4,7 @@ What each view prints unnarrowed is ``test_cli``."""
 import re
 
 import fixtures as fx
-from sa import cli, query, schema, tables
+from sa import cli, glossary, query, schema, tables
 
 CONTEXT = cli.VIEWS["context"]
 CAUSE, TOOL, HEAD = schema.CAUSE_DIM, schema.TOOL_DIM, schema.COMMAND_DIM
@@ -45,8 +45,9 @@ def test_a_drill_prints_the_whole_window_checks_with_their_mass(tmp_path):
     assert fx.headline(out).startswith("%s%s over 3 changes where %s=%s in 3 windows" % (
         fx.total_line(CONTEXT.metric), format(3 * fx.EXACT_FIRST_DELTA, ",d"), CAUSE, schema.TOOL_RESULT))
     last = out.splitlines()[-1]
-    assert last.startswith("%s checks over the 3 whole windows (a drill is not reconciled): %s booked"
-                           % (tables.OK_MARK, format(3 * fx.FINAL_OCCUPANCY, ",d")))
+    assert last.startswith("%s checks over the 3 whole windows (a drill is not reconciled): 4,860 added"
+                           " - 300 %s = %s = the final window sizes; " % (
+                               tables.OK_MARK, glossary.marked(schema.SHRINK), format(3 * fx.FINAL_OCCUPANCY, ",d")))
     assert " %d gaps between calls (" % (3 * fx.INTERVALS) in last
     assert tables.TOTAL_LABEL not in out  # no total row on a drill
     whole = fx.run_cli("context", "--root", str(root))[1]
@@ -58,7 +59,8 @@ def test_by_fact_prints_the_checks_with_their_mass(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", "fact", "--limit", "1")
     assert code == 0, err
     last = out.splitlines()[-1]
-    assert last.startswith("%s checks: %s booked" % (tables.OK_MARK, format(3 * fx.FINAL_OCCUPANCY, ",d")))
+    assert last.startswith("%s checks: 4,860 added - 300 %s = %s = the final window sizes; " % (
+        tables.OK_MARK, glossary.marked(schema.SHRINK), format(3 * fx.FINAL_OCCUPANCY, ",d")))
     assert " %d gaps between calls (" % (3 * fx.INTERVALS) in last
 
 
@@ -117,11 +119,13 @@ def test_a_main_window_is_selected_by_its_window_value_alone(tmp_path):
     code, out, err = fx.run_cli("context", "--root", str(root),
                                 "--where", "%s=%s" % (schema.WINDOW_DIM, main))
     assert code == 0, err
-    assert "= the 1 window's final size (" in fx.headline(out)
-    assert "\nin view where %s=%s: 1 window*, 11 changes\n" % (schema.WINDOW_DIM, main) in out
+    assert fx.headline(out).startswith("%s%s across 1 window; " % (
+        fx.total_line(CONTEXT.metric), format(fx.FINAL_OCCUPANCY, ",d")))
+    assert "\nin view where %s=%s: 1 window*, 11 changes*\n" % (schema.WINDOW_DIM, main) in out
     assert re.search(r"^%s\s+%s\s.*%s = final window sizes$" % (
         tables.TOTAL_LABEL, format(fx.FINAL_OCCUPANCY, ",d"), tables.OK_MARK), out, re.M)
-    assert out.splitlines()[-1].startswith("%s checks: 6 gaps between calls (7 calls - 1 window): " % tables.OK_MARK)
+    assert out.splitlines()[-1].startswith("%s checks: 1,620 added - 100 shrink = 1,520; 6 gaps between"
+                                           " calls (7 calls - 1 window): " % tables.OK_MARK)
     for view in cli.VIEWS:
         assert schema.WINDOW_DIM not in cli.VIEWS[view].tables
         code, out, err = fx.run_cli(view, "--root", str(root), "--by", schema.WINDOW_DIM)
@@ -166,7 +170,7 @@ def test_each_pin_is_named_beside_the_one_count_it_narrows(tmp_path):
     assert population == [l for l in unpinned.splitlines() if l.startswith(("read: ", "in view"))] == [
         "read: 4 files modified in the last 7d (default) under %s, 0 lines skipped,"
         " 0 duplicates excluded" % root,
-        "in view where %s: 2 windows*, 22 changes" % window]
+        "in view where %s: 2 windows*, 22 changes*" % window]
     assert drill not in "".join(population)
     assert fx.headline(out).startswith("%s%s over 2 changes where %s in 2 windows" % (
         fx.total_line(CONTEXT.metric), format(2 * fx.EXACT_FIRST_DELTA, ",d"), drill))

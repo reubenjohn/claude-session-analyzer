@@ -24,10 +24,12 @@ def _split(out):
 def test_the_marked_terms_and_the_key_terms_are_one_set(tmp_path, args):
     out = fx.run_cli(*args, "--root", str(fx.cli_corpus(tmp_path)))[1]
     body, key = _split(out)
-    keyed = [re.match(r"^  (\S+)%s +=" % STAR, line).group(1) for line in key]
+    keyed = [re.match(r"^  (\S+(?: \S+)?)%s +=" % STAR, line).group(1) for line in key]
     known = {glossary.printed(t) for t in glossary.GLOSSARY}
-    marked = [w if w in known else w[:-1] for w in re.findall(r"(\w+)%s" % STAR, "\n".join(body))]
+    spelt = sorted(known | {t.replace("_", " ") for t in known}, key=len, reverse=True)  # as printed
+    marked = re.findall(r"(?<![\w-])(%s)s?%s" % ("|".join(map(re.escape, spelt)), STAR), "\n".join(body))
     assert keyed and marked  # vacuity guard
+    assert len(re.findall(STAR, "\n".join(body))) == len(marked)  # every marker is on a term
     assert set(marked) == set(keyed) and len(keyed) == len(set(keyed))
     assert all(glossary.key_of(t) in glossary.GLOSSARY for t in keyed)
     once = [t for t in keyed if t != tables.RESIDUAL_LABEL]  # every table labels its residual row
@@ -65,3 +67,17 @@ def test_explain_unassigned_says_what_it_holds_in_each_table():
     assert code == 0, err
     for dim in tables.RESIDUAL_NOTES:
         assert "  by %s: %s" % (dim, tables.residual_cases(dim)) in out.splitlines()
+
+
+def test_a_value_named_like_a_term_is_never_marked(tmp_path):
+    """Projects named ``unassigned`` and ``ambiguous`` are values: their
+    rows take no marker, while the term ``ambiguous`` is still marked
+    where the checks print it, and the key holds only what is marked."""
+    root = fx.cli_corpus(tmp_path, projects=(tables.RESIDUAL_LABEL, schema.AMBIGUOUS))
+    out = fx.run_cli("context", "--root", str(root), "--by", schema.PROJECT_DIM)[1]
+    rows = [line for line in out.splitlines()
+            if line.split()[:1] in ([tables.RESIDUAL_LABEL], [schema.AMBIGUOUS])]
+    assert len(rows) == 2 and not any(glossary.MARKER in row for row in rows)  # vacuity guard: both print
+    assert glossary.marked(schema.AMBIGUOUS) in out.splitlines()[-1]  # the term, where it is one
+    keyed = [label for label, _ in fx.key(out)]
+    assert schema.AMBIGUOUS in keyed and tables.RESIDUAL_LABEL not in keyed

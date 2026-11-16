@@ -2,7 +2,7 @@
 population), answer (headline, lever walk, peak), tables or leaves, one key,
 checks. The tables are grouped here from the selection's facts; its total
 and reconciliation come with it, so nothing here decides the exit status."""
-from typing import List, NamedTuple, Optional, Tuple
+from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 from . import glossary, headline, query, schema, style, tables, windows
 from .corpus import Corpus
@@ -28,7 +28,8 @@ class View(NamedTuple):
 
 
 def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit: int,
-           since_default: bool = False, forest: List[Fact] = ()) -> List[str]:
+           since_default: bool = False, forest: List[Fact] = (),
+           names: Optional[Dict[str, str]] = None) -> List[str]:
     """Every line of the view, in reading order: the scope (what was read
     and kept), the answer (the headline and its lever walk, the peak), the
     tables a pin left open (``--by`` one dimension's table with its labels
@@ -47,23 +48,40 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
             grouped = query.group(sel.facts, dim, view.metric)
             labels = above and query.relabels(sel.facts, above.dim, dim, view.metric)
             if labels and len(labels) <= limit:  # the table would repeat the one above
-                body.insert(-1, tables.relabelled(above, labels, dim))
+                body.insert(-1, tables.relabelled(above, labels, dim, names))
             elif grouped.rows:
                 above = grouped
                 total = _total(view, sel) if dim == schema.CAUSE_DIM else None
                 totalled = totalled or total is not None
-                body += table(grouped, view.metric, limit, whole=bool(by), total=total) + [""]
-    scope = [style.tag(line, style.SCOPE) for line in population(view, sel, loaded, since_default)]
-    above = scope + [""] + headline.headline(view, sel, forest) + next_step(view, sel, by) + [""] + body
+                body += table(grouped, view.metric, limit, whole=bool(by), total=total, names=names) + [""]
+    scope = [style.tag(line, style.SCOPE, values=getattr(line, "values", ()))
+             for line in population(view, sel, loaded, since_default)]
+    above = (scope + [""] + headline.headline(view, sel, forest, names) + next_step(view, sel, by, names)
+             + [""] + body)
     lines, terms = tables.footnote(above + footer(view, sel, totalled))
     keyed = tables.key([(t, notes.get(t) or glossary.brief(glossary.key_of(t))) for t in terms])
     return lines[:len(above)] + keyed + ([""] if keyed else []) + lines[len(above):]
 
 
+def subagent_names(loaded_types: Dict[str, str], facts: Iterable[Fact]) -> Dict[str, str]:
+    """Each subagent id whose file's type ``loaded_types`` records (by file
+    name, ``corpus.agent_type``), as ``<type> <first 8 of its id>``, unless
+    that label would name two ids: those keep their whole id. Display and
+    ``--where`` only: the id stays the dimension's value."""
+    named = {f.dims[schema.SUBAGENT_DIM]: loaded_types[f.locator.file] for f in facts
+             if schema.SUBAGENT_DIM in f.dims and f.locator.file in loaded_types}
+    named = {i: "%s %s" % (kind, i[:8]) for i, kind in named.items()}
+    seen: Dict[str, int] = {}
+    for label in named.values():
+        seen[label] = seen.get(label, 0) + 1
+    return {i: label for i, label in named.items() if seen[label] == 1}
+
+
 NEXT = "→ next: add "
 
 
-def next_step(view: View, sel: Selection, by: Optional[str]) -> List[str]:
+def next_step(view: View, sel: Selection, by: Optional[str],
+              names: Optional[Dict[str, str]] = None) -> List[str]:
     """One line under the headline: the pin that follows its own levers
     (the top value of the first lever a pin left open: the top tool, then
     within a pinned tool its top command), or ``--by fact`` once none is
@@ -74,7 +92,9 @@ def next_step(view: View, sel: Selection, by: Optional[str]) -> List[str]:
     for dim in headline.open_dims(sel, view.levers, carrier):
         top = next((r for r in query.group(sel.facts, dim, view.metric).rows if r.kind == query.REGULAR), None)
         if top is not None:
-            return [style.tag("%s--where %s=%s" % (NEXT, dim, top.value), style.HINT)]
+            pin = "%s=%s" % (dim, tables.value(dim, top.value, names))
+            text = "%s--where %s" % (NEXT, "'%s'" % pin if " " in pin else pin)
+            return [style.tag(text, style.HINT, values=((len(NEXT), len(text)),))]
     return [style.tag("%s--by %s" % (NEXT, FACT), style.HINT)]
 
 
@@ -114,10 +134,12 @@ def population(view: View, sel: Selection, loaded: Corpus, since_default: bool =
                  % (count(sum(marks.values()), "compaction"), num(marks["started"]), num(marks["ended"]))
                  ] if marks else []
     plural = schema.PLURAL[carrier]
-    return ["read: %s %s under %s, %s skipped, %s excluded"
-            % (count(len(loaded.files), "file"), since, tables.tilde(loaded.root),
-               count(loaded.skipped_lines, "line"), count(loaded.duplicate_records, "duplicate"))
-            ] + compacted + [
+    head = "read: %s %s under " % (count(len(loaded.files), "file"), since)
+    root = tables.tilde(loaded.root)  # a value: a directory named like a term is not the term
+    read = style.tag(head + root + ", %s skipped, %s excluded" % (
+        count(loaded.skipped_lines, "line"), count(loaded.duplicate_records, "duplicate")), "",
+        values=((len(head), len(head) + len(root)),))
+    return [read] + compacted + [
             "%s%s: %s, %s"
             % (KEPT, headline.pins(sel.window_where), count(sel.n_windows, _window),
                count(sum(f.kind == carrier for f in sel.window_facts), plural[:-1], plural))]
@@ -154,17 +176,24 @@ def _rate(r: query.Reconciliation, n: int) -> str:
 
 def _checks(r: query.Reconciliation, totalled: bool, scope: str = "") -> str:
     """The one line a holding reconciliation prints, a drill and ``--by
-    fact`` included: the gaps between calls (one fewer than a window's calls; a
-    change is one booked part of a gap) split into exact, ambiguous and shrink,
-    each with its rate (R4), and the booked total against the final sizes
-    unless a cause table's total row already said it. ``scope`` names the
-    whole windows a drill sits in."""
-    mass = "" if totalled else "%s booked = the final window sizes; " % num(r.booked)
-    split = ", ".join(_part(r, n, name) for n, name in ((r.exact, glossary.EXACT), (
-        r.ambiguous, schema.AMBIGUOUS), (r.shrink, schema.SHRINK)))
-    return style.tag("%s checks%s: %s%s (%s - %s): %s"
-                         % (tables.OK_MARK, scope, mass, gaps(r.intervals), count(r.calls, "call"),
-                            count(r.windows, "window"), split), style.GOOD)
+    fact`` included: the tokens added less the shrinks, the booked total
+    (against the final sizes unless a cause table's total row already said
+    it), then the gaps between calls (one fewer than a window's calls; a
+    change is one booked part of a gap) split into those booked to one
+    source (``exact``), ambiguous and shrank, each with its rate (R4).
+    ``scope`` names the whole windows a drill sits in."""
+    shrink = r.by_cause[schema.SHRINK]
+    mass = "%s added" % num(r.booked - shrink) + (
+        " - %s %s = %s" % (num(-shrink), schema.SHRINK, num(r.booked)) if shrink else "") + (
+        "" if totalled else " = the final window sizes")
+    split = ", ".join(_part(r, n, name) for n, name in ((r.exact, ONE_SOURCE), (
+        r.ambiguous, schema.AMBIGUOUS), (r.shrink, SHRANK)))
+    return style.tag("%s checks%s: %s; %s (%s - %s): %s"
+                     % (tables.OK_MARK, scope, mass, gaps(r.intervals), count(r.calls, "call"),
+                        count(r.windows, "window"), split), style.GOOD)
+
+
+ONE_SOURCE, SHRANK = "to one source", "shrank"  # the checks' plain words for exact and shrink gaps
 
 
 def _part(r: query.Reconciliation, n: int, name: str) -> str:

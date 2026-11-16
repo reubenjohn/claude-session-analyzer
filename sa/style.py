@@ -53,17 +53,21 @@ class Line(str):
     role = ""
     share: Optional[float] = None
     cells: Tuple[Span, ...] = ()  # the figures the heatmap colours
+    values: Tuple[Span, ...] = ()  # data values (a project, a tool): never a glossary term
 
 
-def tag(text: str, role: str, share: Optional[float] = None, cells: Sequence[Span] = ()) -> str:
+def tag(text: str, role: str, share: Optional[float] = None, cells: Sequence[Span] = (),
+        values: Sequence[Span] = ()) -> str:
     line = Line(text)
-    line.role, line.share, line.cells = role, share, tuple(cells)
+    line.role, line.share, line.cells, line.values = role, share, tuple(cells), tuple(values)
     return line
 
 
-def retag(line: str, text: str) -> str:
-    """``text`` in ``line``'s role, share and cells."""
-    return tag(text, getattr(line, "role", ""), getattr(line, "share", None), getattr(line, "cells", ()))
+def retag(line: str, text: str, values: Sequence[Span] = None) -> str:
+    """``text`` in ``line``'s role, share and cells, and its value spans
+    unless ``values`` replaces them."""
+    return tag(text, getattr(line, "role", ""), getattr(line, "share", None), getattr(line, "cells", ()),
+               getattr(line, "values", ()) if values is None else values)
 
 
 # The gradient: green at FLOOR or less, amber at their geometric middle (about

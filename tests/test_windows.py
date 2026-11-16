@@ -7,7 +7,7 @@ import re
 import time
 
 import fixtures as fx
-from sa import corpus, glossary, query, render, schema, walk
+from sa import corpus, glossary, query, render, schema, tables, walk
 from sa.schema import CALL, INCREMENT, WindowKey
 
 CAUSE = schema.CAUSE_DIM
@@ -122,18 +122,20 @@ def test_the_inherited_breakdown_is_the_parent_window_through_the_branch_call(tm
         assert part[-1].kind == INCREMENT and query.through(facts, parent, inc.locator) == []  # guard
 
 
-def test_the_cli_states_inherited_once_on_the_headline_and_the_footer(tmp_path):
+def test_the_cli_states_inherited_once_on_the_total_row_and_the_footer(tmp_path):
     root = fx.window_corpus(tmp_path)
     label, mass = render.INHERITED_LABEL, format(sum(fx.W_INHERITED.values()), ",d")
     code, out, err = fx.run_cli("context", "--root", str(root), "--limit", "1")
     assert code == 0, err
-    assert fx.headline(out).split(";")[0].endswith("summed less %s %s (%% of this total)" % (mass, label))
+    assert re.search(r"^%s .* final window sizes less %s %s$" % (tables.TOTAL_LABEL, mass, re.escape(label)),
+                     out, re.M)
     assert re.search(r"^%s: %s .* in 2 windows" % (re.escape(label), mass), out, re.M)  # --limit 1
     assert not re.search(r"^%s\s+[\d,]+\s" % schema.INHERITED, out, re.M)  # not a row: never in a share
     code, out, err = fx.run_cli("context", "--root", str(root), "--where", "=".join(_pin(fx.W_FORK)))
     assert code == 0, err
     assert label not in out  # the parent is out of scope: counted in full, as a row
     assert re.search(r"^%s\s+1,500\s+1\s" % schema.INHERITED, out, re.M)
+    assert fx.headline(out).split("; ")[1].endswith(" + %s 1,500" % schema.INHERITED)  # its own term
 
 
 

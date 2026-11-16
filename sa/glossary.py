@@ -49,12 +49,14 @@ GLOSSARY: Dict[str, Term] = {
     schema.REPLAYED: Term("a main window whose file opens by repeating another file's records"
                           " (a branched or continued session), then goes on",
                           "the repeated records count once, in the file that holds them first;"
-                          " the copy is one inherited change"),
+                          " the copy is one inherited change", True,
+                          "a session that opens by repeating another's records (resumed or branched)"),
     schema.CALL: Term("one assistant message, its split records merged: what spend is read from",
                       "a message written as several records counts once"),
     schema.INCREMENT: Term("one booked change of a window's context between two calls:"
                            " what context tokens are read from",
-                           "one ambiguous change can name several tool results"),
+                           "one ambiguous change can name several tool results", True,
+                           "one change of a window's context between two calls, booked to its cause"),
     schema.CONTEXT_DELTA: Term(
         "context tokens booked to what put them in a window; summed, they equal the"
         " windows' final sizes",
@@ -77,7 +79,8 @@ GLOSSARY: Dict[str, Term] = {
                              "a long name prints as its tail in a default table; --by prints it whole"),
     schema.SESSION_DIM: Term("a session id: its main window and every subagent window",
                              "--where session= keeps the subagents too; --where window= isolates one"),
-    schema.SUBAGENT_DIM: Term("a subagent's id; a main window has none",
+    schema.SUBAGENT_DIM: Term("a subagent: its type and the first 8 of its id where the transcripts"
+                              " record the type, else its id; --where takes either; a main window has none",
                               "main windows are the unassigned row of by subagent"),
     schema.CAUSE_DIM: Term("what kind of thing put the tokens in the context",
                            "starting_context is often the largest and cannot be split further"),
@@ -91,7 +94,8 @@ GLOSSARY: Dict[str, Term] = {
         "the context a window's first call already had, less what it inherited: system prompt,"
         " tools, CLAUDE.md and first message, or a compaction's summary",
         "often the largest cause; the transcript does not record its contents, so it is"
-        " not split further", True, "already in the first call, not assigned to any tool"),
+        " not split further", True, "what each window's first call already held: system prompt, tools,"
+        " CLAUDE.md, first message"),
     schema.INHERITED: Term("what a fork or replayed window copied: its parent window's size at"
                            " the branch call",
                            "counted once: left out of the total when the parent window is kept;"
@@ -109,10 +113,12 @@ GLOSSARY: Dict[str, Term] = {
                                     (schema.UNEXPLAINED, "none did")))
         + "; never spread over them",
         "it still names a tool when every candidate came from one; --by fact lists the"
-        " candidates", True, "growth with no one contributor, left undivided"),
+        " candidates", True, "growth with no one contributor, left undivided; a tool's row"
+        " counts it when every candidate is that tool's"),
     schema.SHRINK: Term("a window that got smaller between two calls (often, not always, a"
                         " compaction): a negative row",
-                        "excluded from every share, always in the checks"),
+                        "excluded from every share, always in the checks", True,
+                        "the window got smaller (often a compaction); negative, in no share"),
     schema.SEVERAL: Term("several results or texts entered between two calls",
                          "the tokens are not split between them"),
     schema.LESS_THAN_REPLY: Term("the window grew by less than the previous call's reply",
@@ -136,7 +142,8 @@ _KEYS = {printed: key for key, printed in PRINTED.items()}
 def key_of(term: str) -> str:
     """The internal key of a term as printed or as keyed, marker stripped."""
     term = term.rstrip(MARKER)
-    return _KEYS.get(term, term)
+    term = _KEYS.get(term, term)
+    return term if term in GLOSSARY else term.replace(" ", "_")  # ``starting context`` as printed
 
 
 def explain(term: str) -> Term:
