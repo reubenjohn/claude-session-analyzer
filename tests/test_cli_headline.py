@@ -176,7 +176,7 @@ def test_headline_share_is_of_the_added_while_the_table_share_is_of_its_base(tmp
     assert re.search(r"^%s\s+84,552\s+\d+\s+-  no tool: " % re.escape(tables.RESIDUAL_ROW), out, re.M)
     assert re.search(r"^%s \(signed\)\s+-57\s" % re.escape(glossary.marked(schema.SHRINK)), out, re.M)
     assert " 84,333 99.5% " in fx.headline(out) and " 433 0.5% " in fx.headline(out)  # of the 84,766
-    assert "; 254,860 added - 300 %s = 254,560" % schema.SHRINK in out.splitlines()[-1]  # the summed check
+    assert "; 254,860 tokens added - 300 %s = 254,560" % schema.SHRINK in fx.checks(out)  # the summed check
     assert " from Bash 214" in fx.headline(out)
     assert re.search(r"^by %s\s.*\s+%s\s+share of 214 \(all but unassigned\)$" % (TOOL, fx.count_column(CONTEXT.metric)), out, re.M)
     assert re.search(r"^Bash\s+214\s+3\s+100\.0%$", out, re.M)

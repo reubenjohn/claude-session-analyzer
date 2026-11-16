@@ -204,6 +204,11 @@ def headline(out):
     return "; ".join([first] + [re.sub(r" +", " ", line.strip()) for line in rest if line.startswith("  ")])
 
 
+def checks(out):
+    """The checks, last: its lines joined, the identities then the gaps."""
+    return "\n".join(sections(out)[-1])
+
+
 def average(out):
     return [line for line in sections(out)[1] if line.startswith(AVERAGE)]
 

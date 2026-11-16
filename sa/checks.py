@@ -1,4 +1,4 @@
-"""The checks, last: the line that says the reconciliation held (each
+"""The checks, last: the two lines that say the reconciliation held (each
 change times the calls that held it against the calls' sizes, the tokens
 added less the shrinks against the final window sizes, the gaps between
 calls split by how each was booked), the reconciliation in full when it
@@ -44,27 +44,30 @@ def _rate(r: reconciliation.Reconciliation, n: int) -> str:
     return "%s (%.1f%%)" % (num(n), 100.0 * n / r.intervals) if r.intervals else "0"
 
 
-def _checks(r: reconciliation.Reconciliation, scope: str = "") -> str:
-    """The one line a holding reconciliation prints, a drill and ``--by
-    fact`` included: each change times the calls that held it, summed,
+def _checks(r: reconciliation.Reconciliation, scope: str = "") -> List[str]:
+    """The two lines a holding reconciliation prints, a drill and ``--by
+    fact`` included. First the identities, each in its unit: each change's
+    tokens times the calls that held it, summed (``tokens × calls``),
     against the calls' sizes summed (the average's rows against the mean
     call, D-PER-CALL); the tokens added less the shrinks against the final
-    window sizes; then the gaps between calls (one fewer than a window's
+    window sizes. Then the gaps between calls (one fewer than a window's
     calls; a change is one booked part of a gap) split into those booked to
     one source (``exact``), ambiguous and shrank, each with its rate of the
     gaps (R4). ``scope`` names the whole windows a drill sits in."""
     shrink = r.by_cause[schema.SHRINK]
-    held = "%s held by calls (each change x the calls that held it) = the calls' sizes summed" % num(r.held)
-    mass = "%s added" % num(r.booked - shrink) + (
+    held = "%s %s (each change's tokens × the calls that held it) = the calls' sizes summed" % (
+        num(r.held), HELD_UNIT)
+    mass = "%s tokens added" % num(r.booked - shrink) + (
         " - %s %s = %s" % (num(-shrink), schema.SHRINK, num(r.booked)) if shrink else "") + (
         " = the final window sizes")
     split = ", ".join(_part(r, n, name) for n, name in ((r.exact, ONE_SOURCE), (
         r.ambiguous, schema.AMBIGUOUS), (r.shrink, SHRANK)))
-    return style.tag("%s checks%s: %s; %s; %s (%s - %s): %s"
-                     % (tables.OK_MARK, scope, held, mass, gaps(r.intervals), count(r.calls, "call"),
-                        count(r.windows, "window"), split), style.GOOD)
+    return [style.tag(line, style.GOOD) for line in (
+        "%s checks%s: %s; %s" % (tables.OK_MARK, scope, held, mass),
+        "  %s (%s - %s): %s" % (gaps(r.intervals), count(r.calls, "call"), count(r.windows, "window"), split))]
 
 
+HELD_UNIT = "tokens × calls"  # the held sum's unit: a token counted once per call that held it
 ONE_SOURCE, SHRANK = "to one source", "shrank"  # the checks' plain words for exact and shrink gaps
 
 
@@ -75,7 +78,7 @@ def _part(r: reconciliation.Reconciliation, n: int, name: str) -> str:
 
 
 def footer(view, sel: Selection) -> List[str]:
-    """The closing lines: for a view that reconciles, one checks line when
+    """The closing lines: for a view that reconciles, the two checks lines when
     the reconciliation holds (over the whole windows when a drill is shown)
     and the reconciliation in full when it fails; for one that does not,
     every other additive call total over the population named."""
@@ -90,4 +93,4 @@ def footer(view, sel: Selection) -> List[str]:
         return _reconciliation(r)
     scope = (" over the %s (a drill is not reconciled)" % count(sel.n_windows, "whole window")
              if sel.drill else "")
-    return [_checks(r, scope)]
+    return _checks(r, scope)

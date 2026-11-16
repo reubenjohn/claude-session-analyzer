@@ -42,12 +42,12 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     assert orphan == " " * len("in view: ") + "1 fork whose parent is missing: its copy counts as its own"
     assert out.count(str(root)) == 1  # locators are root-relative
     # The cause table closes with its rows' sum, the average, against the
-    # mean call; the summed total and the gaps collapse to one checks line, last.
+    # mean call; the summed total, then the gaps, are the two checks lines, last.
     assert re.search(r"^%s\s+84,709\s+%d\s+%s = mean call size$" % (
         tables.TOTAL_LABEL, sum(f.kind == INCREMENT for f in facts), tables.OK_MARK), out, re.M)
-    assert out.splitlines()[-1] == (
-        "%s checks: %s held by calls (each change x the calls that held it) = the calls' sizes summed;"
-        " 254,860 added - 300 shrink = %s = the final window sizes; 18 gaps between calls"
+    assert fx.checks(out) == (
+        "%s checks: %s tokens × calls (each change's tokens × the calls that held it) = the calls' sizes"
+        " summed; 254,860 tokens added - 300 shrink = %s = the final window sizes\n  18 gaps between calls"
         " (21 calls - 3 windows): 6 to one source (33.3%% of gaps), 9 ambiguous (50.0%% of gaps),"
         " 3 shrank (16.7%% of gaps)" % (tables.OK_MARK, tables.num(sum(held)),
                                         format(3 * fx.FINAL_OCCUPANCY + 250000, ",d")))

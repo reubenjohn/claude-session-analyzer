@@ -87,16 +87,17 @@ prints it whole. A `*` term is explained in one clause below the tables,
 in full by `python3 -m sa explain TERM`.
 
 Unnarrowed, the `context` cause table ends with `= average N  ✓ = mean
-call size`; the last line checks the per-call and summed identities and
-gives this run's attribution quality over the gaps between calls:
+call size`; the checks state the per-call and summed identities, then
+this run's attribution quality over the gaps between calls:
 
 <!-- example: context | ✓ checks -->
 ```
-✓ checks: 1,778,890 held by calls (each change x the calls that held it) = the calls' sizes summed; 254,860 added - 300 shrink = 254,560 = the final window sizes; 18 gaps between calls (21 calls - 3 windows): 6 to one source (33.3% of gaps), 9 ambiguous (50.0% of gaps), 3 shrank (16.7% of gaps)
+✓ checks: 1,778,890 tokens × calls (each change's tokens × the calls that held it) = the calls' sizes summed; 254,860 tokens added - 300 shrink = 254,560 = the final window sizes
+  18 gaps between calls (21 calls - 3 windows): 6 to one source (33.3% of gaps), 9 ambiguous (50.0% of gaps), 3 shrank (16.7% of gaps)
 ```
 
 A failure prints `MISMATCH` in full, a bug in this tool, exit 1. A
-drill's checks line names the whole windows it applies to.
+drill's checks name the whole windows it applies to.
 
 ## Refusals
 

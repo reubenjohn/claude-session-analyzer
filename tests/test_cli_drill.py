@@ -46,9 +46,9 @@ def test_a_drill_prints_the_whole_window_checks_with_their_mass(tmp_path):
     assert code == 0, err
     assert fx.headline(out).startswith("%s214 %s, over 21 calls in 3 windows, from 3 changes where %s=%s in 3" % (
         fx.total_line(CONTEXT.metric), fx.unit(CONTEXT.metric), CAUSE, schema.TOOL_RESULT))
-    last = out.splitlines()[-1]
+    last = fx.checks(out)
     assert last.startswith("%s checks over the 3 whole windows (a drill is not reconciled): " % tables.OK_MARK)
-    assert "; 254,860 added - 300 %s = %s = the final window sizes; " % (
+    assert "; 254,860 tokens added - 300 %s = %s = the final window sizes\n " % (
         glossary.marked(schema.SHRINK), "254,560") in last
     assert " %d gaps between calls (" % (3 * fx.INTERVALS) in last
     assert tables.TOTAL_LABEL not in out  # no total row on a drill
@@ -60,8 +60,8 @@ def test_by_fact_prints_the_checks_with_their_mass(tmp_path):
     root = fx.cli_corpus(tmp_path)
     code, out, err = fx.run_cli("context", "--root", str(root), "--by", "fact", "--limit", "1")
     assert code == 0, err
-    last = out.splitlines()[-1]
-    assert last.startswith("%s checks: " % tables.OK_MARK) and "; 254,860 added - 300 %s = %s = the final window sizes; " % (
+    last = fx.checks(out)
+    assert last.startswith("%s checks: " % tables.OK_MARK) and "; 254,860 tokens added - 300 %s = %s = the final window sizes\n " % (
         glossary.marked(schema.SHRINK), "254,560") in last
     assert " %d gaps between calls (" % (3 * fx.INTERVALS) in last
 
@@ -126,8 +126,8 @@ def test_a_main_window_is_selected_by_its_window_value_alone(tmp_path):
         fx.total_line(CONTEXT.metric), mean, fx.unit(CONTEXT.metric)))
     assert "\nin view where %s=%s: 1 window*, 11 changes*\n" % (schema.WINDOW_DIM, main) in out
     assert re.search(r"^%s\s+%s\s.*%s = mean call size$" % (tables.TOTAL_LABEL, mean, tables.OK_MARK), out, re.M)
-    assert "; 1,620 added - 100 shrink = %s = the final window sizes; 6 gaps between calls (7 calls - 1 window): " % (
-        format(fx.FINAL_OCCUPANCY, ",d")) in out.splitlines()[-1]
+    assert "; 1,620 tokens added - 100 shrink = %s = the final window sizes\n  6 gaps between calls (7 calls - 1 window): " % (
+        format(fx.FINAL_OCCUPANCY, ",d")) in fx.checks(out)
     for view in cli.VIEWS:
         assert schema.WINDOW_DIM not in cli.VIEWS[view].tables
         code, out, err = fx.run_cli(view, "--root", str(root), "--by", schema.WINDOW_DIM)
