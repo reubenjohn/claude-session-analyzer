@@ -12,13 +12,16 @@ dark and a light background: bold for the answer and a table's total,
 underline for a table's header (a rule under it), dim for
 the scope and the key (captions), italic for the rows that are no one
 value (``∅``, ``+N more rows``, a signed row). A regular row's figures
-are a heatmap by its share of the table's base: red from ``HOT``, yellow
-from ``WARM``, green below; brightness repeats it for a colour-blind
+are a heatmap by its share of the table's base: a log-scale gradient,
+green to amber to red (``rgb``), in 24-bit or the 256-colour cube as the
+terminal allows (``depth``), else red from ``HOT``, yellow from ``WARM``,
+green below; brightness repeats it for a colour-blind
 reader (bold from ``HOT``, the row dimmed under ``COLD``). Red, yellow and
 green mean a share and nothing else: the checks are bold on failure only,
 their ``✓``/``✗`` saying the rest. Each of the top two tools gets one
 hue outside the heatmap's and the cyan of a command the key names, kept wherever its name prints: a table label,
 the ``Bash`` of ``Bash:sed``, the headline's walk."""
+import math
 import os
 import re
 from typing import Dict, Optional, Sequence, Tuple
@@ -63,12 +66,44 @@ def retag(line: str, text: str) -> str:
     return tag(text, getattr(line, "role", ""), getattr(line, "share", None), getattr(line, "cells", ()))
 
 
-def heat(share: float) -> Tuple[str, str]:
-    """A share's SGR (on, off): red and bold from ``HOT``, yellow from
-    ``WARM``, green below."""
-    if share >= HOT:
-        return RED + ";" + BOLD[0], "39;22"
-    return (YELLOW if share >= WARM else GREEN), "39"
+# The gradient: green at FLOOR or less, amber at their geometric middle (about
+# 7%), red at CEILING or more, on a log scale, as shares are skewed: 1%, 5%
+# and 25% sit at 0, 0.41 and 0.82 of it. Mid-saturation stops read on a
+# dark and a light background (a pure yellow on white would not).
+FLOOR, CEILING = 0.01, 0.5
+STOPS = ((40, 160, 40), (205, 150, 0), (215, 20, 0))
+TRUE, CUBE, BASIC = 24, 256, 16  # colour depths
+
+
+def depth(environ: Dict[str, str] = None) -> int:
+    """24-bit when ``COLORTERM`` says so, the 256-colour cube when ``TERM``
+    does, else the 16 basic colours."""
+    env = os.environ if environ is None else environ
+    if env.get("COLORTERM", "").lower() in ("truecolor", "24bit"):
+        return TRUE
+    return CUBE if "256" in env.get("TERM", "") else BASIC
+
+
+def rgb(share: float) -> Tuple[int, int, int]:
+    """The gradient's colour for a share, on the log scale."""
+    span = math.log(CEILING / FLOOR)
+    t = min(1.0, max(0.0, math.log(max(share, FLOOR) / FLOOR) / span)) * (len(STOPS) - 1)
+    i = min(int(t), len(STOPS) - 2)
+    a, b = STOPS[i], STOPS[i + 1]
+    return tuple(int(round(x + (y - x) * (t - i))) for x, y in zip(a, b))
+
+
+def heat(share: float, bits: int = BASIC) -> Tuple[str, str]:
+    """A share's SGR (on, off): the gradient in 24-bit or the 256-colour
+    cube, or three basic bands (red from ``HOT``, yellow from ``WARM``,
+    green below); bold from ``HOT`` at every depth."""
+    if bits == TRUE:
+        hue = "38;2;%d;%d;%d" % rgb(share)
+    elif bits == CUBE:
+        hue = "38;5;%d" % (16 + sum(int(round(c / 255 * 5)) * k for c, k in zip(rgb(share), (36, 6, 1))))
+    else:
+        hue = RED if share >= HOT else YELLOW if share >= WARM else GREEN
+    return (hue + ";" + BOLD[0], "39;22") if share >= HOT else (hue, "39")
 
 
 def enabled(choice: str, isatty: bool, environ: Dict[str, str] = None) -> bool:
@@ -100,8 +135,8 @@ class Painter:
     """Paints lines: ``tools`` in rank order, the first ``len(TOOL_HUES)``
     each its own hue for the whole report."""
 
-    def __init__(self, tools: Sequence[str] = ()):
-        self.hues = dict(zip(tools, TOOL_HUES))
+    def __init__(self, tools: Sequence[str] = (), bits: int = BASIC):
+        self.hues, self.bits = dict(zip(tools, TOOL_HUES)), bits
         names = "|".join(re.escape(t) for t in sorted(self.hues, key=len, reverse=True))
         # A tool's name standing alone or before ``:``, never inside another word or path.
         self.tool = re.compile(r"(?<![\w./~-])(%s)(?=$|[:\s,)])" % names) if names else None
@@ -112,7 +147,7 @@ class Painter:
         if role == ROW and share is not None:
             for start, end in sorted(getattr(line, "cells", ()), reverse=True):  # right first: offsets hold
                 pad = len(text[start:end]) - len(text[start:end].lstrip())
-                text = text[:start + pad] + sgr(text[start + pad:end], heat(share)) + text[end:]
+                text = text[:start + pad] + sgr(text[start + pad:end], heat(share, self.bits)) + text[end:]
         text = re.sub(r"(\w+)(?=%s)" % re.escape(MARKER), lambda m: sgr(m.group(1), UNDERLINE), text)
         if role == KEY:
             text = re.sub(r"%s\b.*$" % re.escape(PROG), lambda m: sgr(m.group(0), COMMAND), text)

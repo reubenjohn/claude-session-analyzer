@@ -199,6 +199,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     except schema.SchemaError as error:
         print("%s %s: error: %s" % (PROG, args.view, tables.home_text(str(error))), file=sys.stderr)
         return 2
-    paint = style.Painter(render.tools(view, sel)).paint if _colour(args.color) else str
+    paint = style.Painter(render.tools(view, sel), style.depth()).paint if _colour(args.color) else str
     print("\n".join(paint(line) for line in lines))
     return 0 if not view.reconciles or sel.reconciliation.holds else 1

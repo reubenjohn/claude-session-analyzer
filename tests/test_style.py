@@ -123,3 +123,24 @@ def test_the_checks_line_carries_no_heatmap_hue(tmp_path):
     out = fx.run_cli("context", "--root", root, "--color", style.ALWAYS)[1].splitlines()
     checks = [line for line in out if line.startswith("✓ checks")]
     assert checks and ESC not in checks[0]
+
+
+def test_the_gradient_is_monotonic_on_a_log_scale_with_fallbacks():
+    """Green to amber to red as the share grows: red never falls, green
+    never rises; 1%, 5% and 25% differ; the 256-colour cube and the basic
+    bands stand in when the terminal has fewer colours."""
+    shares = [style.FLOOR * (style.CEILING / style.FLOOR) ** (i / 40) for i in range(41)]
+    colours = [style.rgb(s) for s in shares]
+    assert colours[0] == style.STOPS[0] and colours[-1] == style.STOPS[-1]
+    assert all(a[0] <= b[0] and a[1] >= b[1] for a, b in zip(colours, colours[1:]))
+    assert len({style.rgb(s) for s in (0.01, 0.05, 0.25)}) == 3
+    assert style.rgb(0.001) == style.rgb(style.FLOOR) and style.rgb(1.0) == style.rgb(style.CEILING)
+    assert style.heat(0.3, style.TRUE)[0] == "38;2;%d;%d;%d;1" % style.rgb(0.3)  # bold from HOT
+    assert re.fullmatch(r"38;5;\d+", style.heat(0.05, style.CUBE)[0])
+    assert style.heat(0.005, style.CUBE)[0] != style.heat(0.5, style.CUBE)[0].split(";1")[0]
+    assert [style.heat(s, style.BASIC)[0] for s in (0.005, 0.05, 0.3)] == [
+        style.GREEN, style.YELLOW, style.RED + ";1"]
+    assert style.depth({"COLORTERM": "truecolor"}) == style.TRUE
+    assert style.depth({"COLORTERM": "24bit", "TERM": "xterm"}) == style.TRUE
+    assert style.depth({"TERM": "xterm-256color"}) == style.CUBE
+    assert style.depth({"TERM": "xterm"}) == style.BASIC == style.depth({})
