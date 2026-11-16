@@ -24,7 +24,7 @@ PEAK = "peak"
 CALL = "call"
 INCREMENT = "increment"
 KINDS = (CALL, INCREMENT)
-# What the output calls a fact of each kind (D-PLAIN-TERMS): an increment
+# What the output calls a fact of each kind: an increment
 # is a change of a window's context.
 PLURAL = {CALL: "calls", INCREMENT: "changes"}
 

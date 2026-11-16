@@ -54,7 +54,7 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     for dim in CONTEXT.tables:
         assert "by " + dim in out
     drillable = set(schema.KIND_DIMENSIONS[INCREMENT]) - set(CONTEXT.tables)
-    assert schema.WINDOW_DIM in drillable  # D-WINDOW-DIM: one row per file is never a default table
+    assert schema.WINDOW_DIM in drillable  # D-CONTEXT-WINDOW: one row per window is never a default table
     for dim in drillable:
         assert not re.search(r"^by %s\s" % dim, out, re.M)
         assert re.search(r"^by %s\s" % dim, fx.run_cli("context", "--root", str(root), "--by", dim)[1], re.M)
@@ -122,7 +122,7 @@ def test_a_reconciliation_mismatch_is_exit_status_1(tmp_path, monkeypatch, capsy
     assert ": MISMATCH" in out and tables.OK_MARK + " checks" not in out  # full detail on failure
     assert out.splitlines()[-1] == "it holds by construction (walk.py), so a mismatch is a bug in this tool"
     first = fx.headline(out)
-    assert "final size" not in first  # the headline no longer claims the sum it failed to match
+    assert "final size" not in first  # the headline never claims the sum it failed to match
     if not drill:
         assert " booked over 3 windows (reconciliation MISMATCH below)" in first
         assert "%s does not match the final window sizes (below)" % tables.BAD_MARK in out

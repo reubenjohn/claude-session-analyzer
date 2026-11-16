@@ -153,7 +153,7 @@ def test_a_top_tool_with_no_head_still_names_the_top_head_under_its_tool():
 
 
 def test_the_cause_table_prints_whole_whatever_the_limit(tmp_path):
-    """D-PLAIN-TERMS: ``--limit 1`` folds the tool table but never the cause
+    """``--limit 1`` folds the tool table but never the cause
     table, whose starting_context and ambiguous rows keep their notes; the
     folded line counts only the rows it hides."""
     root = fx.cli_corpus(tmp_path)
@@ -189,7 +189,7 @@ def test_a_row_named_like_a_cause_folds_and_gets_no_note_outside_the_cause_table
 
 
 def test_the_ambiguous_entry_names_every_declared_reason_and_the_key_none():
-    """D-PLAIN-TERMS: the key prints one clause; ``sa explain`` the reasons."""
+    """The key prints one clause; ``sa explain`` the reasons."""
     meaning, note = glossary.GLOSSARY[schema.AMBIGUOUS].meaning, tables.UNSPLITTABLE[schema.AMBIGUOUS]
     assert len(schema.REASONS) > 1 and all(reason in meaning for reason in schema.REASONS)
     assert not any(reason in note for reason in schema.REASONS) and note in glossary.brief(schema.AMBIGUOUS)

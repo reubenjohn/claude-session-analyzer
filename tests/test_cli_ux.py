@@ -67,8 +67,7 @@ def test_sections_read_scope_answer_tables_key_checks(tmp_path):
 
 
 def test_the_key_prints_each_note_once_and_names_the_command_for_its_first_term(tmp_path):
-    """Each label opens with a glossary term, printed bare (``∅ in by
-    tool``), aligned on `` = ``; the header's command explains the first."""
+    """Each label opens with a glossary term, printed bare, aligned on `` = ``; the header's command explains the first."""
     root = fx.cli_corpus(tmp_path)
     out = fx.run_cli("context", "--root", str(root))[1]
     keyed = fx.key(out)

@@ -1,6 +1,6 @@
 """The glossary: every term the output prints, in plain words, and why its
-number might surprise (D-PLAIN-TERMS). It drives ``sa explain``, the key
-under the tables, the ``°`` markers and ``--help``; a test holds that every
+number might surprise. It drives ``sa explain``, the key
+under the tables, the ``*`` markers and ``--help``; a test holds that every
 declared term has an entry.
 
 A term is its internal key (``schema``'s spelling); ``PRINTED`` names the
@@ -13,7 +13,7 @@ from typing import Dict, NamedTuple
 from . import schema
 from .schema import SchemaError
 
-RESIDUAL_LABEL = "unassigned"  # was ∅ (D-UNASSIGNED): a display rename only
+RESIDUAL_LABEL = "unassigned"  # the residual row: never in a share, never hidden
 EXACT = "exact"
 DRILL = "drill"
 MARKER = "*"  # a footnote: the term is explained below

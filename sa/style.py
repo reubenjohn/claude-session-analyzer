@@ -11,7 +11,7 @@ The palette is the basic 16 ANSI colours and intensities, legible on a
 dark and a light background: bold for the answer and a table's total,
 underline for a table's header (a rule under it), dim for
 the scope and the key (captions), italic for the rows that are no one
-value (``∅``, ``+N more rows``, a signed row). A regular row's figures
+value (``unassigned``, ``+N more rows``, a signed row). A regular row's figures
 are a heatmap by its share of the table's base: a log-scale gradient,
 green to amber to red (``rgb``), in 24-bit or the 256-colour cube as the
 terminal allows (``depth``), else red from ``HOT``, yellow from ``WARM``,

@@ -12,7 +12,7 @@ from sa import schema, tables
 
 SCRIPT = REPO / "scripts" / "resync_examples.py"
 # D-OUTPUT-CAP: the default `context --since 7d` output at ux-pass HEAD (decc4fe),
-# before A1, on this corpus with the root printed as `~`. No headroom.
+# on this corpus with the root printed as `~`. No headroom.
 CAP_LINES, CAP_CHARS = 46, 3228
 
 

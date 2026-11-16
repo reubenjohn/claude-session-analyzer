@@ -1,6 +1,5 @@
 # session-analyzer v2 — decision log history, part 2: rows moved verbatim
-out of `DECISION_LOG.md` (2026-11-15) to make room; the pointer line there
-keeps each ruling's verdict.
+out of `DECISION_LOG.md`.
 
 **R5-BUILTINS — output-less shell builtins are skipped like keywords.**
 RULED 2026-10-01, closing R5-BASENAME's logged gap: a loop body that opens
@@ -82,3 +81,47 @@ Same pass: `cd` joined `BUILTINS` in place of its own branch (`cd -P /x
 && make` -> `Bash:make`; a lone `cd /x` -> `Bash:other`, like `echo
 done`); `query.Selection` dropped the CLI's root, since and corpus,
 which `cli` now hands to `render.population`.
+
+## Rows moved from `DECISION_LOG.md`, 2026-11-16 (verbatim)
+
+**R5 — `tool_input_head` normalization.** RULED: option (a) with a mechanical
+guard. Bash head = first token after stripping leading `VAR=value`
+assignments and `cd <dir>` prefixes ended by `&&`, `;` or `||`; kept only if it matches
+`^[A-Za-z0-9_.+-]{1,32}$` and contains no slash, else `other`. File tools ->
+extension only. One declared extractor mapping. Rationale: output goes to the
+user's own terminal from their own transcripts; the privacy gate governs
+tracked files.
+
+**D-START-CAUSE — `start` names what began a window.** RULED. A window
+dimension on both kinds, constant per window: `session_start`,
+`subagent`, `fork`, `replayed`, `compaction`; fork beats subagent (forks
+live under `subagents/`). `start`, not `trigger`: it names the line it
+heads; `replayed`, not `resume`: the record, not a guessed intent.
+Measured 68 / 513 / 10 / 0 / 5; `replayed` declared, 0 observed. [W][O]
+
+**D-PLAIN-TERMS — user-facing terms explain themselves.** RULED, owner
+directive (UX_FEEDBACK 6, 7, 10); [O] an independent opus review,
+2026-11-15, agreed with the changes as folded in. Supersedes
+D-START-CAUSE's spellings and every older row's. Key and CLI spelling
+renamed together: cause `feed_forward` -> `replies`, `window_head` ->
+`starting_context`; dimension `start` -> `started_by` (values unchanged),
+`head` -> `command` (table "by command / file type"), `agent` ->
+`subagent` (spend's lever too); reasons `multi_contributor` ->
+`several`, `negative_remainder` -> `less_than_reply`, `no_contributor` ->
+`unexplained`. Display only: `context_delta` prints as "context
+tokens", increments as `changes`, calls as `calls`, spend's unit as
+price-weighted input tokens; `-h` says subcommand and pin. Markers only
+on `ambiguous`, `∅`, `window`, `starting_context`. Never more verbose
+than pre-A1: default `--limit` 10 -> 5, the cause table always whole,
+`∅` and signed rows never hidden; key entries one clause, the full text
+in `sa explain`. Unchanged: ambiguous, ∅, window, inherited, replayed,
+shrink, exact, tool_result, user_text, spend, drill.
+
+**D-UNASSIGNED — the residual row prints `unassigned*`; `*` footnotes.**
+RULED, owner directive, 2026-11-16. A display rename only: the residual
+row (was `∅`) means what it meant, never in a share, never hidden. `*`
+replaces `°` and marks a glossary term at its first appearance (every
+residual row carries it); the key lists exactly the marked terms, one
+clause each. The per-table `∅ by X` lines go; `sa explain unassigned`
+gives each table's cases. `--where` never took `∅` as a value, nor
+takes `unassigned`. Amends D-PLAIN-TERMS' markers; no second opinion yet.

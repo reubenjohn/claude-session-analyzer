@@ -25,7 +25,7 @@ def window_value(name, line=1):
 
 def metric_named(**spec):
     """The one declared metric whose spec has these fields, e.g. the only
-    metric carried by increments; fails if the schema no longer has exactly one."""
+    metric carried by increments; fails unless the schema has exactly one."""
     names = [name for name, s in schema.METRICS.items()
              if all(getattr(s, field) == value for field, value in spec.items())]
     assert len(names) == 1, (spec, names)

@@ -85,7 +85,7 @@ def test_tools_take_distinct_hues_and_only_whole_names_are_painted():
 
 
 def test_rows_a_table_never_hides_are_never_dimmed_nor_heated(tmp_path):
-    """``∅``, ``+N more rows`` and the signed rows print italic, whatever
+    """``unassigned``, ``+N more rows`` and the signed rows print italic, whatever
     their share, outside the heatmap; so does the total row."""
     root = str(fx.cli_corpus(tmp_path))
     out = fx.run_cli("context", "--root", root, "--color", style.ALWAYS)[1].splitlines()

@@ -1,4 +1,4 @@
-"""The ruled head-extraction table (DECISION_LOG R5, R5-BASENAME, R5-BUILTINS):
+"""The ruled head-extraction table (DECISION_LOG R5):
 ``<tool>:<summary>``, the summary of a Bash command its first command word."""
 import pytest
 
@@ -80,7 +80,7 @@ CASES = [
     ("Bash", {"command": "grep -c it's f"}, "Bash:grep"),
     ("Bash", {"command": "python3 - <<'EOF'\n# don't\nx = 1\nEOF"}, "Bash:python3"),
     ("Bash", {"command": "cd x # to x\nmake"}, "Bash:make"),  # a comment is not modelled: a word
-    # R5-BUILTINS: an output-less builtin and its arguments, to the next separator.
+    # An output-less builtin and its arguments, to the next separator.
     ("Bash", {"command": 'for f in a b; do echo "== $f"; cat "$f"; done'}, "Bash:cat"),
     ("Bash", {"command": "echo hi && pytest"}, "Bash:pytest"),
     ("Bash", {"command": "echo done"}, "Bash:other"),
@@ -100,7 +100,7 @@ CASES = [
     ("Bash", {"command": "test -f x"}, "Bash:other"),
     ("Bash", {"command": ": > f; make"}, "Bash:make"),  # `:` is skipped before HEAD_SHAPE could reject it
     ("Bash", {"command": ":"}, "Bash:other"),
-    # R5-BUILTINS extended: a common silent command is skipped the same way.
+    # A common silent command is skipped the same way.
     ("Bash", {"command": "mkdir -p x && cat > f <<EOF\nhello\nEOF"}, "Bash:cat"),
     ("Bash", {"command": "touch f && make"}, "Bash:make"),
     ("Bash", {"command": "mv a b; make"}, "Bash:make"),
@@ -144,7 +144,7 @@ CASES = [
     ("Bash", {"command": "-n1 wc -l"}, "Bash:other"),
     ("Bash", {"command": "--version"}, "Bash:other"),
     ("Bash", {"command": "exit 0"}, "Bash:other"),
-    # R5-BASENAME: a path-shaped command word is its basename, never a directory.
+    # A path-shaped command word is its basename, never a directory.
     ("Bash", {"command": "./check.sh"}, "Bash:check.sh"),
     ("Bash", {"command": "/usr/bin/python3 -V"}, "Bash:python3"),
     ("Bash", {"command": "cd /x && ./check.sh"}, "Bash:check.sh"),

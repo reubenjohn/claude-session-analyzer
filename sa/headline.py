@@ -25,9 +25,8 @@ def headline(view, sel: Selection, forest: List[Fact] = ()) -> List[str]:
     """The total and how it was taken, then two lines over that one total
     (D-HEADLINE-TWO-LINES): the starting context by what started each
     window, then the growth walked down the view's levers, whatever ``--by``
-    shows: a category (``cause``) or a population row is never the answer
-    (D-HEADLINE-SPECIFIC as amended). Shares are of the mass added, named
-    once on the total's line: the signed rows stay out of them, as out of
+    shows: a category (``cause``) or a population row is never the answer.
+    Shares are of the mass added, named once on the total's line: the signed rows stay out of them, as out of
     every table's. A pinned window that inherited shows each copy's
     breakdown in its parent (``copied``)."""
     spec, name = schema.metric(view.metric), glossary.printed(view.metric)

@@ -1,6 +1,6 @@
-"""The ``command`` dimension (a head, before D-PLAIN-TERMS):
+"""The ``command`` dimension (a head, internally):
 ``<tool>:<summary>``, a low-cardinality summary of a tool call's input
-that carries its tool so a table over heads needs no second column. Ruled (DECISION_LOG R5, R5-BASENAME, R5-BUILTINS): a head is
+that carries its tool so a table over heads needs no second column. Ruled (DECISION_LOG R5): a head is
 never a full command line and never a file path. For Bash the summary is
 the basename of the first COMMAND word (a path-shaped word is classed by
 its basename, so ``/usr/bin/env`` is a wrapper), the first ``shlex`` token (quotes
@@ -51,7 +51,7 @@ VALUED = {  # a wrapper's options that take the next word; any other option is s
 }
 OPERANDS = {"timeout": 1}  # positional words a wrapper takes before the command
 TESTS = {"[": "]", "[[": "]]"}  # a condition, closed by its bracket; no output
-# Negligible output, skipped by ruling R5-BUILTINS (before HEAD_SHAPE could reject ``:``).
+# Negligible output, skipped with their arguments ahead of HEAD_SHAPE (so ``:`` is skipped).
 BUILTINS = ("cd", "echo", "printf", "read", "true", "false", "test", ":", "set", "export",
             "unset", "shift", "exit", "source", ".")
 SILENT = ("mkdir", "touch", "mv", "cp", "rm", "chmod", "sleep", "ln")  # common commands that print nothing
@@ -91,7 +91,7 @@ def _words(command: str) -> List[str]:
 def bash_head(tool_input: dict) -> str:
     words = _words(str(tool_input.get("command", "")))
     while words:
-        word = words[0].rpartition("/")[2]  # R5-BASENAME: every class is tested against the basename
+        word = words[0].rpartition("/")[2]  # every class is tested against the basename
         if _ASSIGNMENT.match(words[0]) or word in RESERVED or _separator(word):  # ``A=/x`` is one word
             del words[0]
         elif word in WRAPPERS:

@@ -1,5 +1,5 @@
 """The doc caps CLAUDE.md states, in bytes like the pre-commit size gates
-(the docs print multi-byte marks such as ∅ and ✓, so bytes are the stricter
+(the docs print multi-byte marks such as ✓ and →, so bytes are the stricter
 and unambiguous count)."""
 import pytest
 

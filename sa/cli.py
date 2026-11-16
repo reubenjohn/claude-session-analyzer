@@ -33,7 +33,7 @@ from . import corpus, glossary, query, render, schema, style, tables, walk
 from .render import View
 
 DEFAULT_DAYS = 7.0
-DEFAULT_LIMIT = 5  # D-PLAIN-TERMS: never more verbose than pre-A1
+DEFAULT_LIMIT = 5  # rows per table
 ALL = "all"
 
 PROG = glossary.PROG

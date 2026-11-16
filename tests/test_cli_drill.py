@@ -103,8 +103,8 @@ def test_a_drill_reports_the_peak_over_the_whole_windows_it_names(tmp_path):
 
 
 def test_a_main_window_is_selected_by_its_window_value_alone(tmp_path):
-    """D-WINDOW-DIM as amended by D-CONTEXT-WINDOW: a main window carries no
-    agent and its session keeps every subagent, so ``window`` (its key's
+    """D-CONTEXT-WINDOW: a main window carries no
+    subagent and its session keeps every subagent, so ``window`` (its key's
     hash) is the one filter that isolates it; it keeps a whole window, so
     the view still reconciles."""
     root = fx.cli_corpus(tmp_path)

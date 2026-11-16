@@ -15,7 +15,7 @@ capabilities emerge. The ported ranking engine is RETIRED (D-ENGINE).
 Package `sa/`, one module per stage (`corpus` read+dedup, `windows`
 the cut, `walk` attribution, `heads`, `schema` METRICS, vocabularies,
 `glossary`, `query`, `headline`, `tables`, `render`, `cli`, `usage` the ported helpers); each
-docstring is its spec. The parser IS the product: probes import it, never copy it.
+docstring is its spec. The parser IS the product: `sa.sweep` imports it, never copies it.
 
 One data model, `Fact`, specified in `schema.py`: `kind` is `call` or
 `increment`; `metrics`; `dims`; `locator` `file:line:uuid` with `file`
@@ -29,8 +29,8 @@ its file's end or the next compaction; cut after dedup, never by marking
 records; identity (file, start line). Window dimensions `project`,
 `session`, `subagent` (none on a main window), `window` (8 hex of the key:
 display and `--where` only) and `started_by` are on both kinds; `cause`,
-`tool`, `command`, `reason` on increments only. Spellings: D-PLAIN-TERMS
-(an increment prints as a change). A command is `<tool>:<summary>`: a
+`tool`, `command`, `reason` on increments only. An increment prints as
+a change. A command is `<tool>:<summary>`: a
 Bash command's first COMMAND word (past keywords, wrappers, builtins) as
 a basename (`Bash:pytest`), or a file tool's extension (`Read:py`);
 never a path (R5). Unknown names, undeclared values and a `--where`
@@ -74,8 +74,9 @@ exit 1.
 `sa/usage.py` docstrings carry these (D-USAGE-DOCSTRINGS);
 `tests/test_usage.py` pins the bodies. Any engine-level choice changes
 only via a logged ruling in `references/DECISION_LOG.md` (argument or
-measurement, plus an opus second opinion). The recorded failure mode: a
-confident in-place "improvement" that deletes a measured correction.
+measurement, plus an opus second opinion). Display labels, phrasing and
+styling need no ruling. The recorded failure mode: a confident in-place
+"improvement" that deletes a measured correction.
 
 - Split `message.id`s are MAX-MERGED field-wise: 80.5% of ids split,
   73% of those disagree on `output_tokens`.
@@ -120,5 +121,5 @@ SKILL.md 6,000, this file 7,000); examples = fixture output, synced by
 ## Pointers, never copies
 
 `references/`: `DESIGN_BRIEF.md` §2 (the attribution walk, the spec),
-`DECISION_LOG.md` (rulings; `_HISTORY.md` as proposed),
+`DECISION_LOG.md` (`_HISTORY*`: the archive),
 `PHASE0_MEASUREMENT.md`, `PUBLISHING_PLAN.md`, `DESIGN_COMPETITION.md`.
