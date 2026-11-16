@@ -61,9 +61,23 @@ def values(facts: Iterable[Fact], dim: str, metric: str) -> List[str]:
 
 def total(facts: List[Fact], metric: str) -> float:
     """The metric summed once, in fact order, over its carrier kind: the one
-    figure a headline and every table's base are taken from."""
+    figure a headline and every table's base are taken from. A peak refuses,
+    as in ``group``: its sum counts a token once per call that re-read it."""
+    spec = schema.metric(metric)
+    if spec.aggregation == schema.PEAK:
+        raise schema.SchemaError("%s is a peak; it has no sum. Use largest() or mean()." % metric)
+    return sum(f.metrics[metric] for f in facts if f.kind == spec.carrier)
+
+
+def mean(facts: Iterable[Fact], metric: str) -> Tuple[float, int]:
+    """The metric averaged over its carrier facts, and their count: for
+    ``context_tokens``, what a call held, averaged over the calls (the
+    average context per call, D-MEAN-CONTEXT). One population's figure,
+    printed beside its count: a mean is never summed, nor merged with
+    another population's; a combined one is recomputed from its facts."""
     carrier = schema.metric(metric).carrier
-    return sum(f.metrics[metric] for f in facts if f.kind == carrier)
+    values = [f.metrics[metric] for f in facts if f.kind == carrier]
+    return (sum(values) / len(values) if values else 0.0), len(values)
 
 
 def window_count(facts: Iterable[Fact]) -> int:
@@ -123,7 +137,7 @@ def group(facts: List[Fact], dim: str, metric: str) -> Table:
     """
     spec = schema.metric(metric)
     if spec.aggregation == schema.PEAK:
-        raise schema.SchemaError("%s is a peak; it has no sum. Use largest()." % metric)
+        raise schema.SchemaError("%s is a peak; it has no sum. Use largest() or mean()." % metric)
     schema.check_dimension(dim, spec.carrier)
     mass: Dict[Tuple[Optional[str], str], float] = {}
     count: Dict[Tuple[Optional[str], str], int] = {}

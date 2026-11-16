@@ -48,12 +48,24 @@ def test_group_refuses_every_peak_and_sums_every_additive(facts):
     for name in peaks:
         with pytest.raises(schema.SchemaError, match="peak"):
             query.group(facts, schema.CAUSE_DIM, name)
+        with pytest.raises(schema.SchemaError, match="peak"):
+            query.total(facts, name)
         assert query.largest(facts, name).metrics[name] == fx.FINAL_OCCUPANCY
     for name, spec in schema.METRICS.items():
         if spec.aggregation == schema.ADDITIVE:
             table = query.group(facts, schema.SESSION_DIM, name)
             assert sum(r.mass for r in table.rows) == query.total(facts, name) == sum(
                 f.metrics[name] for f in facts if f.kind == spec.carrier)
+
+
+def test_a_mean_is_over_its_carrier_facts_never_a_sum(facts):
+    """The average context per call: the calls' occupancies over their
+    count, one population; every metric's mean reads its carrier only."""
+    for name, spec in schema.METRICS.items():
+        carried = [f.metrics[name] for f in facts if f.kind == spec.carrier]
+        assert carried  # vacuity guard: the mean is over some facts
+        assert query.mean(facts, name) == (sum(carried) / len(carried), len(carried))
+    assert query.mean([], fx.PEAK) == (0.0, 0)
 
 
 def test_unknown_names_fail_closed(facts):
