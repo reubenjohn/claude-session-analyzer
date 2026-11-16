@@ -19,6 +19,7 @@ DRILL = "drill"
 GROWTH = "growth"  # the headline's line for what the windows added after their start
 GAP = "gap"  # the checks' unit: one call to the next
 AVERAGE = "average_context_per_call"  # the headline's level: what a call held, averaged
+AVG_CALL = "avg_call"  # a window row's own average call size, beside its part of the average
 # D-NO-VERDICT: where to start, in plain words; no measured rot threshold exists, so no number.
 FULLEST = "Larger windows are where models are most likely to lose track, so start with the fullest band"
 MARKER = "*"  # a footnote: the term is explained below
@@ -26,7 +27,8 @@ PROG = "python3 -m sa"  # the real invocation, wherever a runnable command print
 
 # The output's spelling of a key, where it differs: the column and the
 # total say "context tokens", the counts "changes" and "calls".
-PRINTED = {schema.CONTEXT_DELTA: "context tokens", schema.CONTEXT_HELD: "avg per call", schema.INCREMENT: schema.PLURAL[schema.INCREMENT],
+PRINTED = {schema.CONTEXT_DELTA: "context tokens", schema.CONTEXT_HELD: "part of avg", AVG_CALL: "avg call",
+           schema.INCREMENT: schema.PLURAL[schema.INCREMENT],
            schema.CALL: schema.PLURAL[schema.CALL], GAP: "gaps between calls"}
 
 
@@ -86,13 +88,18 @@ GLOSSARY: Dict[str, Term] = {
         " change times the calls that held it, over those calls, so a table's rows add up to it",
         "not what a call added: every call re-reads its whole window, so long windows hold most"
         " calls; a mean of one population, never summed or averaged with another's", True,
-        "what a call held, averaged over these calls; never added per call, never summed"),
+        "what a call held, averaged over these calls; never added per call, never summed"
+        " across populations"),
     schema.CONTEXT_HELD: Term(
-        "a row's part of the average context per call: its changes' tokens times the calls"
-        " that held them (from the call each entered at to the window's end), over the calls"
-        " in view; a table's rows add up to the average",
+        "a row's part of the average context per call, not its own average: its changes'"
+        " tokens times the calls that held them (from the call each entered at to the window's"
+        " end), over ALL the calls in view; a table's rows add up to the average",
         "a change early in a long window weighs most: every later call held it. Per call of"
         " this view only: never summed or compared with another view's, whose calls differ"),
+    AVG_CALL: Term("a window row's own average call size: its calls' sizes over its own calls;"
+                   " its part of avg divides the same tokens by every call in view instead",
+                   "a mean: never summed, so a +N more row prints -; under a drill, of the whole"
+                   " windows with a matching change"),
     schema.CONTEXT_TOKENS: Term("one call's context size: what it held; shown averaged over the"
                                 " calls and as each window's peak band",
                                 "never summed: a sum counts a token once per call that re-read it"),

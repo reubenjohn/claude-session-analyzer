@@ -28,15 +28,14 @@ Pin, then drill:
 ## What each command answers
 
 **`context`** books every change of a window's context (a *change*)
-with one `cause`, and prints it per call (`avg per call`): its tokens
-times the calls that held it, over the calls in view, so a table's rows
-add up to the average context per call. Causes:
-`starting_context` (what a window held at its first call; a fork's
+with one `cause`, and prints its `part of avg`: its tokens times the
+calls that held it, over ALL calls in view, so a table's rows add up
+to the average context per call. Causes: `starting_context` (what a window held at its first call; a fork's
 copy is `inherited` apart), `replies` (Claude's replies, tool-call inputs included),
 `tool_result`, `user_text`, `ambiguous` (no one contributor; `reason`:
 `several`, `less_than_reply`, `unexplained`) and `shrink` (a window that
 got smaller, signed). Default tables: cause, tool, command, subagent,
-peak (with windows, calls, each band's avg call), session, project.
+peak, session, project; a window table adds windows, calls, own `avg call`.
 
 **`spend`** sums each call's price-weighted input tokens: uncached
 input, cache writes (1h 2.0x, 5m 1.25x), cache reads 0.1x; output
@@ -80,7 +79,7 @@ The scope is
 corpus-wide) and `in view where <window pins>:` (windows, `changes` or
 `calls`); a compaction a call follows starts a window (`N compactions
 unpriced`). Quote both with a figure. Table columns: the metric
-(`avg per call`, `spend`), its count (`changes`, `calls`) and `share
+(`part of avg`, `spend`), its count (`changes`, `calls`) and `share
 of <base>`, naming its base. Tables end with `unassigned*` (facts
 lacking the grouped dimension) and any `(signed)` rows; neither has a
 share. A default table cuts a label over 40 chars to `…tail`; `--by`

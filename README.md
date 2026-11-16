@@ -36,10 +36,10 @@ average context per call* 84,709 tokens, over 21 calls in 3 windows
 
 <!-- example: context | by peak -->
 ```
-by peak          avg per call  windows  calls  avg call  share of 84,766 before shrink
-200K+                  83,811        1      7   251,376   98.9%
-0-50K                     955        2     14     1,376    1.1%
-shrink (signed)           -57        -      -         -       -
+by peak          part of avg  windows  calls  avg call  share of 84,766 before shrink
+200K+                 83,811        1      7   251,376   98.9%
+0-50K                    955        2     14     1,376    1.1%
+shrink (signed)          -57        -      -         -       -
 by session, project: the rows above, labelled sess-0002 / ~-work-lib, sess-0001 / ~-work-app
 ```
 

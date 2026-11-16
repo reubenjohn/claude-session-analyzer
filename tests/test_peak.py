@@ -72,3 +72,35 @@ def test_under_a_drill_the_peak_counts_say_they_are_whole_windows(tmp_path):
                      "--by", PEAK)[1]
     assert render.WHOLE_WINDOWS in out
     assert render.WHOLE_WINDOWS not in fx.run_cli("context", "--root", str(root), "--by", PEAK)[1]  # guard
+
+
+def _cells(line):
+    return re.split(r"\s{2,}", line.strip())
+
+
+def test_a_window_rows_avg_call_is_its_own_average_when_pinned(tmp_path):
+    """Every window dimension of a per-call view (D-PER-CALL, second
+    opinion): a row's ``avg call`` is the headline average its pin prints,
+    not its part of the average, which divides by every call in view."""
+    root, checked = fx.every_corpus(tmp_path), 0
+    facts = fx.load_facts(root)[1]
+    for dim in schema.WINDOW_DIMENSIONS:
+        values = {f.dims[dim] for f in facts if dim in f.dims}
+        if len(values) < 2:
+            continue
+        out = fx.run_cli("context", "--root", str(root), "--since", "all", "--by", dim)[1]
+        lines = out.splitlines()
+        header = next(line for line in lines if line.startswith(tables.title(dim) + " "))
+        at = _cells(header).index(tables.AVG_CALL)
+        for row in (_cells(line) for line in _rows(out, dim)):
+            value = row[0].rstrip("*")
+            if value not in values:
+                continue
+            pinned = fx.run_cli("context", "--root", str(root), "--since", "all", "--where",
+                                "%s=%s" % (dim, value))[1]
+            assert fx.average(pinned)[0].split()[4] == row[at], (dim, value)
+            checked += 1
+            assert row[1] != row[at]  # the part is not the own average
+    assert checked >= 6  # vacuity guard: several dimensions, several rows each
+    spend = fx.run_cli("spend", "--root", str(root), "--since", "all", "--by", schema.SESSION_DIM)[1]
+    assert tables.AVG_CALL not in spend and tables.title(schema.SESSION_DIM) in spend  # context only

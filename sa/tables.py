@@ -62,7 +62,7 @@ def home_text(text: str) -> str:
 
 marked = glossary.marked
 TOTAL_LABEL = "= average"  # the row a whole-window cause table closes with: its rows add up to it
-AVG_CALL = "avg call"  # a count column that is a mean (a band's own call size): never summed
+AVG_CALL = glossary.printed(glossary.AVG_CALL)  # a count column that is a mean: never summed
 
 
 def key(entries: List[Tuple[str, str]]) -> List[str]:
@@ -183,7 +183,7 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
     The mass column is named for the metric as printed (its unit is stated
     once, on the headline), the count column for the carrier kind it
     counts, or ``counts`` names the count columns and counts each value
-    (``-`` on the residual and signed rows). The share column is as wide as a share; its
+    (on the residual row its windows', ``-`` on a signed row). The share column is as wide as a share; its
     header names the base after it (``share_header``), and a table with no
     base prints ``share`` alone. ``total``, when given, closes the table
     with a row of every row's sum and that text in the share column. The
@@ -204,8 +204,9 @@ def table(grouped: query.Table, metric: str, limit: int, whole: bool,
     columns = counts or [(schema.PLURAL[schema.metric(metric).carrier], None)]
 
     def cell(name: str, per: Optional[Dict[str, float]], i: int, r: query.Row) -> str:
-        if per is None or r.kind != query.REGULAR:
-            return "-" if per else num(r.count)
+        if per is None or r.kind != query.REGULAR:  # the residual's own windows count; a signed row's do not
+            return num(per[None]) if per and r.kind == query.RESIDUAL and None in per else (
+                "-" if per else num(r.count))
         if i == values:  # the rest: a mean is never summed
             return "-" if name == AVG_CALL else num(sum(per.get(h.value, 0) for h in hidden))
         return num(per.get(r.value, 0))

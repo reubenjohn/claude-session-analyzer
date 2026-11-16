@@ -61,7 +61,7 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
             elif grouped.rows:
                 above, repeats = grouped, []
                 total = _total(view, sel) if dim == schema.CAUSE_DIM else None
-                counts = window_counts(sel, dim)
+                counts = window_counts(sel, dim, view.metric)
                 body += table(grouped, view.metric, limit, whole=bool(by), total=total, names=names,
                               counts=counts) + ([WHOLE_WINDOWS] if counts and sel.drill else []) + [""]
     scope = [style.tag(line, style.SCOPE, values=getattr(line, "values", ()))
@@ -87,19 +87,22 @@ def subagent_names(loaded_types: Dict[str, str], facts: Iterable[Fact]) -> Dict[
     return {i: label for i, label in named.items() if seen[label] == 1}
 
 
-def window_counts(sel: Selection, dim: str) -> Optional[tables.Counts]:
-    """A ``peak`` table's count columns: per band, the windows the view's
-    facts come from and the calls they hold (a window has one band, so
-    each adds up), then those calls' own average size (``tables.AVG_CALL``,
-    a mean: never summed); None for any other table, which counts its
+def window_counts(sel: Selection, dim: str, metric: str) -> Optional[tables.Counts]:
+    """A window dimension's count columns, ``peak``'s in every view, every
+    one's in a per-call view: per value, the windows the view's facts come
+    from and the calls they hold (a window has one value, so each adds up;
+    the residual's under ``None``), then those calls' own average size
+    (``tables.AVG_CALL``, a mean: never summed), which the row's part of
+    the average is not; None for any other table, which counts its
     carrier."""
-    if dim != schema.PEAK_DIM:
+    per_call = schema.metric(metric).aggregation == schema.PER_CALL
+    if dim != schema.PEAK_DIM and not (per_call and dim in schema.WINDOW_DIMENSIONS):
         return None
     shown = {f.window for f in sel.facts}
-    per: Dict[str, Tuple[set, List[Fact]]] = {}
+    per: Dict[Optional[str], Tuple[set, List[Fact]]] = {}
     for f in sel.window_facts:
         if f.window in shown:
-            keys, calls = per.setdefault(f.dims[dim], (set(), []))
+            keys, calls = per.setdefault(f.dims.get(dim), (set(), []))
             keys.add(f.window)
             calls += [f] if f.kind == schema.CALL else []
     return [("windows", {v: len(k) for v, (k, _) in per.items()}),
@@ -107,8 +110,9 @@ def window_counts(sel: Selection, dim: str) -> Optional[tables.Counts]:
             (tables.AVG_CALL, {v: query.mean(c, schema.CONTEXT_TOKENS)[0] for v, (_, c) in per.items()})]
 
 
-# Under a drill, a band's counts are still of whole windows: those with a change the pins kept.
-WHOLE_WINDOWS = "windows, calls, avg call: whole windows with a matching change, and all their calls"
+# Under a drill, a window row's counts are of whole windows: those with a change the pins kept.
+WHOLE_WINDOWS = ("windows, calls, avg call: the whole windows with a matching change and all their"
+                 " calls; part of avg divides by every call in view")
 NEXT = "→ next: add "
 
 
