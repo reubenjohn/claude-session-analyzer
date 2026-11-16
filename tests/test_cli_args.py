@@ -8,6 +8,7 @@ import time
 import pytest
 
 import fixtures as fx
+import fixtures_edge as fe
 from sa import checks, cli, corpus, query, render, schema
 
 CONTEXT = cli.VIEWS["context"]
@@ -90,7 +91,7 @@ def test_a_declared_value_no_fact_carries_is_a_measured_zero(tmp_path):
     """The batched corpus books one ambiguous increment, a several:
     the other declared reasons are present in no fact, which is a measured
     zero over the population named, like ``--since 0d``, not a typo."""
-    root = fx.batched_corpus(tmp_path)
+    root = fe.batched_corpus(tmp_path)
     facts = fx.load_facts(root)[1]
     absent = [r for r in schema.REASONS if not query.select(facts, [(schema.REASON_DIM, r)])]
     assert absent and len(absent) < len(schema.REASONS)  # vacuity guard: one is carried

@@ -2,6 +2,7 @@
 corpus is non-zero on another, so the figure a docstring cites is read by
 code that has been seen to count."""
 import fixtures as fx
+import fixtures_edge as fe
 from sa import schema, sweep, sweep_mean
 
 
@@ -21,16 +22,16 @@ def test_counts_over_the_cli_corpus(tmp_path):
 
 
 def test_each_zero_count_is_non_zero_on_the_corpus_built_for_it(tmp_path):
-    loaded, facts = fx.load_facts(fx.remint_corpus(tmp_path / "remint")[0])
+    loaded, facts = fx.load_facts(fe.remint_corpus(tmp_path / "remint")[0])
     (call,) = [f for f in facts if f.kind == schema.CALL]
     assert sweep.reminted(loaded) == (1, call.metrics[schema.SPEND])
     # The fork's only call is the replay, so its live records carry no sessionId.
     assert sweep.key_disagreements(loaded) == (1, 2)
-    loaded, facts = fx.load_facts(fx.batched_corpus(tmp_path / "batched"))
+    loaded, facts = fx.load_facts(fe.batched_corpus(tmp_path / "batched"))
     assert sweep.batched_results(loaded) == (1, 1)
     assert sweep.shared(facts) == [(1, fx.EXACT_FIRST_DELTA), (1, fx.EXACT_FIRST_DELTA), (0, 0)]
     loaded, facts = fx.load_facts(fx.corpus(tmp_path / "interleaved",
-                                            {"proj-a/sess-0001.jsonl": fx.interleaved_records()}))
+                                            {"proj-a/sess-0001.jsonl": fe.interleaved_records()}))
     assert sweep.inside_spans(loaded) == (1, 1, 2)  # the first result sits inside the split call
     assert sweep.shared(facts) == [(1, fx.EXACT_FIRST_DELTA)] * 3
     # A chain of parentUuid links within the file, its first naming a uuid outside it.

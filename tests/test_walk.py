@@ -4,6 +4,7 @@ import json
 import pytest
 
 import fixtures as fx
+import fixtures_edge as fe
 from sa import query, reconciliation, schema, walk
 from sa.schema import CALL, INCREMENT
 
@@ -59,7 +60,7 @@ def test_a_call_split_across_files_is_one_call_owned_by_the_earlier_file(tmp_pat
     uuid. The parent owns it, the fork's copy is a duplicate the population
     line counts, its usage still max-merges into the one call, and spend is
     counted once; the same fork under its own id is a second call."""
-    root, fork_ref, parent, copy = fx.remint_corpus(tmp_path / "shared")
+    root, fork_ref, parent, copy = fe.remint_corpus(tmp_path / "shared")
     loaded, facts = fx.load_facts(root)
     assert {s.path.stem: [r.duplicate for r in s.records] for s in loaded.files} == {
         "sess-0001": [False], "agent-fake1": [False, True]}
@@ -135,9 +136,9 @@ def _exact(facts):
 
 
 def test_a_result_interleaved_with_a_split_call_is_a_second_contributor(tmp_path):
-    """Both results of ``fx.interleaved_records`` sit between the call's
+    """Both results of ``fe.interleaved_records`` sit between the call's
     first constituent and the next call."""
-    records = fx.interleaved_records()
+    records = fe.interleaved_records()
     facts = _one_window(tmp_path / "interleaved", records)
     (closing,) = [f for f in facts if f.dims.get(schema.REASON_DIM)]
     assert closing.dims[schema.REASON_DIM] == schema.SEVERAL
