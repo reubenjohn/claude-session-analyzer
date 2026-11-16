@@ -278,7 +278,7 @@ W_FINALS = {(W_PARENT, 1): 1600, (W_PARENT, 8): 500, (W_FORK, 1): 1700, (W_REPLA
 W_INHERITED = {W_FORK: 1500, W_REPLAY: 1300}
 W_STARTS = {(W_PARENT, 1): schema.SESSION_START, (W_PARENT, 8): schema.COMPACTION,
             (W_FORK, 1): schema.FORK, (W_REPLAY, 1): schema.REPLAYED,
-            (W_ENDED, 1): schema.SESSION_START, (W_SUB, 1): schema.SUBAGENT}
+            (W_ENDED, 1): schema.SESSION_START, (W_SUB, 1): schema.SUBAGENT_START}
 W_DUPLICATES = 6 + 1 + 4  # F's replayed prefix and re-mint, R's prefix
 
 

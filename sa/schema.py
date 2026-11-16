@@ -95,14 +95,14 @@ COMMAND_DIM = "command"
 REASON_DIM = "reason"
 DIMENSIONS = WINDOW_DIMENSIONS + (CAUSE_DIM, TOOL_DIM, COMMAND_DIM, REASON_DIM)
 KIND_DIMENSIONS = {CALL: WINDOW_DIMENSIONS, INCREMENT: DIMENSIONS}
-# Starts: fork beats subagent; ``replayed``: a main file opening with
+# Starts: fork beats subagent_start; ``replayed``: a main file opening with
 # another file's records (a resume or /branch).
 SESSION_START = "session_start"
-SUBAGENT = "subagent"
+SUBAGENT_START = "subagent_start"
 FORK = "fork"
 REPLAYED = "replayed"
 COMPACTION = "compaction"
-STARTS = (SESSION_START, SUBAGENT, FORK, REPLAYED, COMPACTION)
+STARTS = (SESSION_START, SUBAGENT_START, FORK, REPLAYED, COMPACTION)
 VOCABULARY = {CAUSE_DIM: CAUSES, REASON_DIM: REASONS, STARTED_BY_DIM: STARTS}  # declared values
 
 # Evidence keys: an ambiguous increment lists its contributors; a fork's
