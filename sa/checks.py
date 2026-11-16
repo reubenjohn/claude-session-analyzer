@@ -91,7 +91,7 @@ def context(sel: Selection, more: Optional[Callable[[str], str]] = None,
     split = " + ".join("%s %s" % (what, name) for what, name in (
         (_rate(r, r.exact), "one source"), (_rate(r, r.ambiguous), schema.AMBIGUOUS), (num(r.shrink), "shrank")))
     worked = _worked([
-        ("each change × the calls that held it", num(r.held), ""),
+        ("each change's tokens × calls held", num(r.held), ""),
         ("÷ calls in view", num(r.calls), ""),
         ("= %s" % tables.TOTAL_LABEL[2:], num(r.held / max(r.calls, 1)),
          "%s same as the mean measured call size" % tables.OK_MARK),

@@ -81,8 +81,8 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], inv: g
              for line in population(view, sel, loaded, inv.since_text is None, forest, names)]
     above = (scope + [""] + headline.headline(view, sel, forest, names) + next_step(view, sel, by, inv, names)
              + [""] + body)
-    if view.reconciles:  # a trigger's command keeps the pins; none when the cause is pinned already
-        closing, worked = checks.context(sel, None if schema.CAUSE_DIM in dict(inv.pins) else (
+    if view.reconciles:  # a trigger's command keeps the pins; none when the pins leave one cause
+        closing, worked = checks.context(sel, None if len(query.values(sel.facts, schema.CAUSE_DIM, view.metric)) < 2 else (
             lambda c: inv.command(add=[(schema.CAUSE_DIM, c)])),
             said=not sel.drill and any(t.dim == schema.CAUSE_DIM for t, _ in shown))
     else:
@@ -123,9 +123,9 @@ def window_counts(sel: Selection, dim: str, metric: str) -> Optional[tables.Coun
     """A window dimension's count columns, ``peak``'s in every view, every
     one's in a per-call view: per value, the windows the view's facts come
     from and the calls they hold (a window has one value, so each adds up;
-    the residual's under ``None``), then those calls' own average size
-    (``tables.AVG_CALL``, a mean: never summed), which the row's part of
-    the average is not; None for any other table, which counts its
+    the residual's under ``None``), then, in a per-call view, those calls'
+    own average size (``tables.AVG_CALL``, a mean: never summed), which the
+    row's part of the average is not (spend prints none: a size is no cost); None for any other table, which counts its
     carrier. One window a row: no windows column."""
     per_call = schema.metric(metric).aggregation == schema.PER_CALL
     if dim != schema.PEAK_DIM and not (per_call and dim in schema.WINDOW_DIMENSIONS):
@@ -139,8 +139,8 @@ def window_counts(sel: Selection, dim: str, metric: str) -> Optional[tables.Coun
             calls += [f] if f.kind == schema.CALL else []
     windows = {v: len(k) for v, (k, _) in per.items()}
     return [("windows", windows)] * any(n > 1 for v, n in windows.items() if v is not None) + [  # 1 a row: none
-            (schema.PLURAL[schema.CALL], {v: len(c) for v, (_, c) in per.items()}),
-            (tables.AVG_CALL, {v: query.mean(c, schema.CONTEXT_TOKENS)[0] for v, (_, c) in per.items()})]
+            (schema.PLURAL[schema.CALL], {v: len(c) for v, (_, c) in per.items()})] + [
+            (tables.AVG_CALL, {v: query.mean(c, schema.CONTEXT_TOKENS)[0] for v, (_, c) in per.items()})] * per_call
 
 
 # Under a drill, a window row's counts are of whole windows: those with a change the pins kept.
@@ -177,16 +177,6 @@ def next_step(view: View, sel: Selection, by: Optional[str], inv: grammar.Invoca
     lines = tables.command_lines(NEXT, inv.command(by=facts_by if by == facts_by or not add else None, add=add))
     return [style.tag(line, style.HINT, values=((line.find(glossary.PROG), len(line)),) if glossary.PROG in line else ())
             for line in lines]
-
-
-def tools(view: View, sel: Selection) -> List[str]:
-    """The selection's tools by mass, largest first: the order their hues
-    are dealt in (``style.Painter``); none for a view whose carrier has no
-    tool."""
-    if schema.TOOL_DIM not in schema.KIND_DIMENSIONS[schema.metric(view.metric).carrier]:
-        return []
-    return [r.value for r in query.group(sel.facts, schema.TOOL_DIM, view.metric, sel.calls).rows
-            if r.kind == query.REGULAR]
 
 
 def _total(view: View, sel: Selection) -> Optional[str]:

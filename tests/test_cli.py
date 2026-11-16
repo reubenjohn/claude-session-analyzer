@@ -50,14 +50,16 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
         tables.TOTAL_LABEL, sum(f.kind == INCREMENT for f in facts), tables.OK_MARK), out, re.M)
     assert fx.checks(out) == (  # what is checked, in plain words; the ambiguous share is the cause table's row
         "%s over 3 windows in view: rows to the average call, changes to final window sizes" % checks.OK)
-    assert fx.checks(fx.run_cli("context", "--root", str(root), "by", schema.TOOL_DIM)[1]).endswith(
-        "\n  %s%s: 0.2%% of the average call over all 21 calls, not traced to one source" % (
-            schema.AMBIGUOUS, glossary.MARKER))  # starred here: no table row above it
+    by_tool = fx.run_cli("context", "--root", str(root), "by", schema.TOOL_DIM)[1]
+    assert fx.checks(by_tool).endswith(  # the * where the word first prints: the catch-all's parts
+        "\n  %s: 0.2%% of the average call over all 21 calls, not traced to one source" % schema.AMBIGUOUS)
+    assert re.search(r"^%s .* \+ %s\%s \d" % (residual.label(schema.TOOL_DIM), schema.AMBIGUOUS,
+                                               glossary.MARKER), by_tool, re.M)
     worked = fx.run_cli("context", "--root", str(root), "-v")[1].splitlines()
     added = "tokens added 254,860 - tokens shrunk 300"  # the widest label sets the figures' column
     row = lambda label, figure, after="": ("  %-*s  %9s  %s" % (len(added), label, figure, after)).rstrip()
     assert worked[-6:] == [  # -v: the vertical worked equation, in this run's numbers
-        row("each change × the calls that held it", tables.num(sum(held))),
+        row("each change's tokens × calls held", tables.num(sum(held))),
         row("÷ calls in view", len(held)),
         row("= average call", "84,709", "✓ same as the mean measured call size"),
         row(added, "= " + format(3 * fx.FINAL_OCCUPANCY + 250000, ",d"), "✓ same as the final window sizes"),
@@ -101,7 +103,8 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
               if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE
               and name != SPEND.metric]
     assert others  # vacuity guard
-    totals = dict(fx.key(verbose))[notes.OTHERS]  # -v works them, over the calls in view
+    totals = " ".join(text for label, text in fx.key(verbose)  # -v works them, a plain line each
+                      if label in [o % SPEND.metric for o in notes.OTHERS])
     assert all(re.search(r"\b%s [\d,]+\b" % glossary.printed(name), totals) for name in others), totals
     assert all(glossary.printed(name) not in out and name not in totals for name in others)
     assert "\nin view where project=proj-a: 2 windows%s, 14 calls\n" % glossary.MARKER in out  # spend reads calls only

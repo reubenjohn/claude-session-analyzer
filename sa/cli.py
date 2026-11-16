@@ -1,4 +1,7 @@
-"""``sa context`` and ``sa spend``: read the words (``grammar``), select
+"""``sa context`` and ``sa spend``: read the words (``grammar``), read
+each pin against the facts (``resolve``: case-insensitive for a closed
+vocabulary, a catch-all row's label, a subagent's printed name, ``~`` for
+home; a word no row prints is refused with the nearest that does), select
 the facts, print the view, exit 1 if the reconciliation did not hold.
 
 Every figure prints with the population it was counted over, every table
@@ -24,13 +27,14 @@ stdout is a TTY or ``FORCE_COLOR`` is set, never while ``NO_COLOR`` is; a
 progress line goes to stderr only when it is a TTY. No arguments, or
 ``-h``, print ``grammar.HELP`` and exit 0.
 """
+import difflib
 import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Sequence, Tuple
 
-from . import corpus, glossary, grammar, query, render, schema, style, tables, walk
+from . import corpus, glossary, grammar, query, render, residual, schema, style, tables, walk
 from .grammar import UsageError
 from .render import View
 from .tables import WIDTH
@@ -91,6 +95,74 @@ def fit(line: str, hint: str) -> List[str]:
     return [_elide(text) for text in (line, hint) if text]
 
 
+def refuse_bare(word: str, view: str, values: Dict[str, List[str]]) -> UsageError:
+    """A bare word: what replaced it if retired, the pin it would be if a
+    row prints it (case aside), else the grammar."""
+    if word in grammar.RETIRED:
+        return UsageError("%s is retired: %s" % (word, grammar.RETIRED[word]), "e.g. " + grammar.run(view, "-v"))
+    for dim, present in values.items():
+        hit = [v for v in present if v.lower() == word.lower()]
+        if hit:
+            return UsageError("%r is a %s row: pin it as %s" % (word, dim, grammar.quote("%s=%s" % (dim, hit[0]))),
+                              "a pin is DIM=VALUE; a table is by DIM")
+    return UsageError("%r is neither a pin (DIM=VALUE) nor by DIM" % word,
+                      "dimensions: " + ", ".join(schema.KIND_DIMENSIONS[grammar.carrier(view)]))
+
+
+def resolve(dim: str, text: str, view: str, present: List[str],
+            names: Optional[Dict[str, str]] = None) -> Tuple[Optional[str], str]:
+    """A pin's value as the facts carry it (None: the catch-all row, the
+    facts that lack ``dim``) and as the tables print it. ``present`` is
+    every value of ``dim`` the view's facts carry, as printed."""
+    text = text.rstrip(glossary.MARKER) or text  # a label pasted with its footnote marker
+    if text.lower() == residual.label(dim).lower() and dim in residual.RESIDUAL_NOTES:
+        return None, residual.label(dim)
+    if dim in schema.VOCABULARY:
+        declared = schema.VOCABULARY[dim]
+        hit = [v for v in declared if v.lower() == text.lower()] or [
+            v for v in declared if v.lower().startswith(text.lower())]
+        if len(hit) == 1:
+            return hit[0], hit[0]
+        raise UsageError("unknown %s %r; declared: %s" % (dim, text, ", ".join(declared)),
+                         "every %s in view: %s" % (dim, grammar.run(view, grammar.BY, dim)))
+    printed = {tables.value(dim, v, names): v for v in present}
+    value = tables.unhome(text)
+    if dim in tables.NAMED:
+        value = {label: i for i, label in (names or {}).items() if i in present}.get(text, value)
+    if dim == schema.SESSION_DIM and value not in present:  # a session by any unique prefix
+        hits = [v for v in present if v.lower().startswith(text.lower())]
+        if len(hits) > 1:
+            raise UsageError("%s=%s names %d sessions; type more of it, e.g. %s" % (
+                dim, text, len(hits), grammar.quote("%s=%s" % (dim, tables.value(dim, hits[0], names)))),
+                "every %s: %s" % (dim, grammar.run(view, grammar.BY, dim)))
+        value = hits[0] if hits else value
+    if value in present:
+        return value, tables.value(dim, value, names)
+    raise no_match(view, dim, text, list(printed), grammar.run(view, grammar.BY, dim))
+
+
+def no_match(view: str, dim: str, text: str, printed: Sequence[str], every: str, given: bool = False) -> UsageError:
+    """The refusal of a pin no fact carries (``given`` the pins before it):
+    the nearest value as a pin, and the command listing every one."""
+    lacking = text.lower() in ("", "none", "no", "-") and dim in residual.RESIDUAL_NOTES  # the catch-all
+    near = [residual.label(dim)] if lacking else difflib.get_close_matches(text, list(printed), 1, 0.5) or [
+        p for p in printed if p.lower() == text.lower()][:1] or list(printed)[:1]
+    return UsageError("no %s has %s=%s%s%s" % (
+        schema.PLURAL[grammar.carrier(view)][:-1], dim, text, " with the pins before it" if given else "",
+        "; nearest: %s" % grammar.quote("%s=%s" % (dim, near[0])) if near else "; none present"),
+        "every %s: %s" % (dim, every))
+
+
+def tools(view: View, sel: query.Selection) -> List[str]:
+    """The selection's tools by mass, largest first: the order their hues
+    are dealt in (``style.Painter``); none for a view whose carrier has no
+    tool."""
+    if schema.TOOL_DIM not in schema.KIND_DIMENSIONS[schema.metric(view.metric).carrier]:
+        return []
+    return [r.value for r in query.group(sel.facts, schema.TOOL_DIM, view.metric, sel.calls).rows
+            if r.kind == query.REGULAR]
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     try:
         args = grammar.parse(sys.argv[1:] if argv is None else argv)
@@ -116,12 +188,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         where, printed = [], []
         for dim, text in args.pins:
             present = query.values(forest, dim, view.metric)
-            value, shown = grammar.resolve(dim, text, args.view, present, names)
+            value, shown = resolve(dim, text, args.view, present, names)
+            if (dim, value) in where:  # the same pin twice is one pin, echoed once
+                continue
             where.append((dim, value))
             printed.append((dim, shown))
         if args.bare:
             dims = schema.KIND_DIMENSIONS[grammar.carrier(args.view)]
-            raise grammar.refuse_bare(args.bare[0], args.view, {
+            raise refuse_bare(args.bare[0], args.view, {
                 d: [tables.value(d, v, names) for v in query.values(forest, d, view.metric)] for d in dims})
         root_text = None if args.root is None or root == corpus.default_root() else tables.tilde(root)
         inv = grammar.Invocation(args.view, tuple(printed), args.since_text, root_text)
@@ -138,10 +212,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         shown = [tables.value(error.dim, v, names) for v in error.present]
         value = dict(printed).get(error.dim, error.value)
         every = grammar.Invocation(args.view, before, inv.since_text, inv.root).command(by=error.dim)
-        return refuse(args.view, grammar.no_match(args.view, error.dim, value, shown, every, given=True))
+        return refuse(args.view, no_match(args.view, error.dim, value, shown, every, given=True))
     except (UsageError, schema.SchemaError) as error:
         return refuse(args.view, error)
-    paint = style.Painter(render.tools(view, sel), style.depth()).paint if _colour(args.color) else str
+    paint = style.Painter(tools(view, sel), style.depth()).paint if _colour(args.color) else str
     try:
         print("\n".join(paint(line) for line in lines))
     except BrokenPipeError:  # a pager or head closed early: quiet, as a shell tool is

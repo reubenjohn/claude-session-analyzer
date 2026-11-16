@@ -203,7 +203,8 @@ ERRORS = [(word,) for word in sorted(grammar.RETIRED)] + [(CONTEXT, word) for wo
     (CONTEXT, "%s=%s" % (schema.CAUSE_DIM, _mangled(schema.REPLIES))),  # a closed vocabulary's typo
     (CONTEXT, "%s=%s" % (schema.PEAK_DIM, "999K")),
     (SPEND, "%s=%s" % (schema.CAUSE_DIM, schema.REPLIES)),             # a dimension the view lacks
-    (CONTEXT, "--since", "week"), (CONTEXT, schema.TOOL_DIM), (CONTEXT, grammar.BY)]
+    (CONTEXT, "--since", "week"), (CONTEXT, schema.TOOL_DIM), (CONTEXT, grammar.BY),
+    (CONTEXT, grammar.BY, schema.TOOL_DIM, grammar.BY, schema.COMMAND_DIM)]     # J4: its example runs
 
 
 @pytest.mark.parametrize("args", ERRORS + [(CONTEXT, "%s=zzz" % schema.PROJECT_DIM, "%s=Bash" % schema.TOOL_DIM),

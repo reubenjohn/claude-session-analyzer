@@ -169,7 +169,7 @@ def _fit(text: str, indent: int) -> List[str]:
 
 
 def _sigma(carried: List[Fact], metric: str, calls: Optional[int], total: float) -> str:
-    """``Σ 33 changes: 1,778,890 tokens × held ÷ 21 calls = 84,709 ✓``: the
+    """``Σ 33 changes: 1,778,890 tokens × calls held ÷ 21 calls = 84,709 ✓``: the
     rows' figures summed from their printed operands, against the
     headline's; ``✗`` when they differ."""
     noun = schema.PLURAL[schema.metric(metric).carrier]
@@ -177,7 +177,7 @@ def _sigma(carried: List[Fact], metric: str, calls: Optional[int], total: float)
     if schema.metric(metric).aggregation == schema.PER_CALL:
         product = sum(f.metrics[schema.CONTEXT_DELTA] * (held(f) or 0) for f in carried)
         figure = product / max(calls, 1)
-        text = "Σ %s: %s tokens × held ÷ %s = %s" % (n, num(product), count(calls, "call"), num(figure))
+        text = "Σ %s: %s tokens × %s ÷ %s = %s" % (n, num(product), HELD, count(calls, "call"), num(figure))
     else:
         figure = sum(f.metrics[metric] for f in carried)
         text = "Σ %s: %s %s" % (n, glossary.printed(metric), num(figure))
@@ -233,4 +233,4 @@ def figure_names(metric: str) -> List[Tuple[str, str, str]]:
     if schema.metric(metric).aggregation != schema.PER_CALL:
         return [("Σ", "the rows' %s summed" % glossary.printed(metric), "the Σ line: the headline's figure")]
     return [(HELD, "the calls of its window from the one it entered at to the window's end", "a row's held column"),
-            (glossary.printed(metric), "tokens × held ÷ the calls in view", "the Σ line: the rows, = the headline")]
+            (glossary.printed(metric), "tokens × %s ÷ the calls in view" % HELD, "the Σ line: the rows, = the headline")]

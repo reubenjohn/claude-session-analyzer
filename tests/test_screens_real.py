@@ -98,6 +98,16 @@ def test_a_pinned_cause_prints_no_trigger_command(homes):
     out = ok(homes["realistic"], CONTEXT, "%s=%s" % (schema.CAUSE_DIM, schema.AMBIGUOUS))
     assert "ambiguous" in out.rstrip("\n").split("\n\n")[-1] and "!" not in out.rstrip("\n").split("\n\n")[-1]
     assert "!" in ok(homes["realistic"], CONTEXT).rstrip("\n").split("\n\n")[-1]  # vacuity guard
+    for reason in schema.REASONS:  # J3: a reason pin leaves one cause, ambiguous: the trigger is this screen too
+        code, out, _ = sa(homes["realistic"], CONTEXT, "%s=%s" % (schema.REASON_DIM, reason))
+        assert code == 2 or "!" not in out.rstrip("\n").split("\n\n")[-1], out
+    assert sa(homes["realistic"], CONTEXT, "%s=%s" % (schema.REASON_DIM, schema.REASONS[0]))[0] == 0  # vacuity
+
+
+def test_a_pin_typed_twice_is_one_pin(homes):
+    """J2: every pin holds, so the same pin twice is one pin, echoed once."""
+    pin = "%s=Bash" % schema.TOOL_DIM
+    assert ok(homes["realistic"], CONTEXT, pin, pin) == ok(homes["realistic"], CONTEXT, pin)
 
 
 def test_a_catch_all_whose_parts_fold_names_the_pin_that_lists_them(homes):

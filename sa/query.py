@@ -26,7 +26,7 @@ def _holds(f: Fact, dim: str, value: Optional[str]) -> bool:
 
 class NoMatch(schema.SchemaError):
     """A pin no fact carries given the pins before it: its dimension, its
-    value and the values present (``grammar.no_match`` words it)."""
+    value and the values present (``cli.no_match`` words it)."""
 
     def __init__(self, dim: str, value: Optional[str], present: List[str]):
         super().__init__("no fact carries %s=%s given the pins before it" % (dim, value))

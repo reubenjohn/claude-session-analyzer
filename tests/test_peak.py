@@ -101,5 +101,6 @@ def test_a_window_rows_avg_call_is_its_own_average_when_pinned(tmp_path):
             checked += 1
             assert row[1] != row[at]  # the part is not the own average
     assert checked >= 6  # vacuity guard: several dimensions, several rows each
-    spend = fx.run_cli("spend", "--root", str(root), "--since", "all", "by", schema.SESSION_DIM)[1]
-    assert tables.AVG_CALL not in spend and tables.title(schema.SESSION_DIM) in spend  # context only
+    for dim in (schema.SESSION_DIM, schema.PEAK_DIM):  # J1: a call's size is no cost, so context only
+        spend = fx.run_cli("spend", "--root", str(root), "--since", "all", "by", dim)[1]
+        assert tables.AVG_CALL not in spend and tables.title(dim) in spend

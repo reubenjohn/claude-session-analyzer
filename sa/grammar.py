@@ -5,18 +5,17 @@ pin: repeatable, every one holds. ``by DIM`` prints that one table whole;
 the only keyword: any other bare word is refused with the nearest valid
 input. No arguments, or ``-h``, prints ``HELP`` and exits 0.
 
-``parse`` reads the words; ``resolve`` reads a pin's value against the
-facts (case-insensitive for a closed vocabulary, a catch-all row's label,
-a subagent's printed name, ``~`` for home) after loading; ``Invocation``
-prints any command back, pins as the tables print them, so a suggested
-next step pastes and runs. A refusal is a ``UsageError``: at most two
+``parse`` reads the words, before any file is (``cli.resolve`` reads a
+pin's value against the facts after loading); ``Invocation`` prints any
+command back, pins as the tables print them, so a suggested next step
+pastes and runs. A refusal is a ``UsageError``: at most two
 lines, the nearest valid input and where the choices live.
 """
 import difflib
 import shlex
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from . import glossary, residual, schema, tables
+from . import glossary, residual, schema
 
 PROG = glossary.PROG
 VIEWS = ("spend", "context")  # cost first, then cost aside
@@ -46,7 +45,7 @@ with its checks (✓): what it verified, in plain words.
   %(p)s context by tool                     one table, every row
   %(p)s context tool=Bash command=Bash:cat  pin rows you saw (DIM=VALUE); all pins hold
   %(p)s context tool=Bash by change         the changes, file:line (spend: by call)
-  %(p)s context tool=Bash -v                -v on any screen: how it's computed, * words
+  %(p)s context tool=Bash -v                -v: how any screen is computed, what * marks
   %(p)s spend by subagent                   what each subagent cost
 
 DIM: %(w)s;
@@ -162,12 +161,14 @@ def parse(argv: Sequence[str]) -> Args:
         elif word.startswith("-"):
             near = difflib.get_close_matches(flag, list(RETIRED) + list(GLOBAL), 1, 0.6)
             if near and near[0] in RETIRED:  # the retired flag it was meant as teaches the fix
-                raise UsageError("unknown flag %s (like %s, retired): drop it" % (word, near[0]), RETIRED[near[0]])
+                raise UsageError("unknown flag %s; %s, its nearest, is retired" % (word, near[0]), RETIRED[near[0]])
             raise UsageError("unknown flag %s%s" % (word, "; did you mean %s?" % near[0] if near else ""),
                              "flags: -v, --since, --root, --color; see %s -h" % PROG)
         elif word == BY:
             if "by" in found:
-                raise UsageError("one by per command: by %s already" % found["by"])
+                then = [w for w in words[:1] if w in schema.KIND_DIMENSIONS[carrier(view)] + (FACTS[view],)]
+                raise UsageError("one by per command: by %s already" % found["by"], (
+                    "the next table, on its own: " if then else "e.g. ") + run(view, BY, (then or [found["by"]])[0]))
             if not words:
                 raise UsageError("by needs a table: by DIM, or by %s" % FACTS[view],
                                  "dimensions: " + ", ".join(schema.KIND_DIMENSIONS[carrier(view)]))
@@ -206,65 +207,6 @@ def _global_flags(words: Sequence[str]) -> int:
         else:
             break
     return min(i, len(words))
-
-
-def refuse_bare(word: str, view: str, values: Dict[str, List[str]]) -> UsageError:
-    """A bare word: what replaced it if retired, the pin it would be if a
-    row prints it (case aside), else the grammar."""
-    if word in RETIRED:
-        return UsageError("%s is retired: %s" % (word, RETIRED[word]), "e.g. " + run(view, "-v"))
-    for dim, present in values.items():
-        hit = [v for v in present if v.lower() == word.lower()]
-        if hit:
-            return UsageError("%r is a %s row: pin it as %s" % (word, dim, quote("%s=%s" % (dim, hit[0]))),
-                              "a pin is DIM=VALUE; a table is by DIM")
-    return UsageError("%r is neither a pin (DIM=VALUE) nor by DIM" % word,
-                      "dimensions: " + ", ".join(schema.KIND_DIMENSIONS[carrier(view)]))
-
-
-def resolve(dim: str, text: str, view: str, present: List[str],
-            names: Optional[Dict[str, str]] = None) -> Tuple[Optional[str], str]:
-    """A pin's value as the facts carry it (None: the catch-all row, the
-    facts that lack ``dim``) and as the tables print it. ``present`` is
-    every value of ``dim`` the view's facts carry, as printed."""
-    text = text.rstrip(glossary.MARKER) or text  # a label pasted with its footnote marker
-    if text.lower() == residual.label(dim).lower() and dim in residual.RESIDUAL_NOTES:
-        return None, residual.label(dim)
-    if dim in schema.VOCABULARY:
-        declared = schema.VOCABULARY[dim]
-        hit = [v for v in declared if v.lower() == text.lower()] or [
-            v for v in declared if v.lower().startswith(text.lower())]
-        if len(hit) == 1:
-            return hit[0], hit[0]
-        raise UsageError("unknown %s %r; declared: %s" % (dim, text, ", ".join(declared)),
-                         "every %s in view: %s" % (dim, run(view, BY, dim)))
-    printed = {tables.value(dim, v, names): v for v in present}
-    value = tables.unhome(text)
-    if dim in tables.NAMED:
-        value = {label: i for i, label in (names or {}).items() if i in present}.get(text, value)
-    if dim == schema.SESSION_DIM and value not in present:  # a session by any unique prefix
-        hits = [v for v in present if v.lower().startswith(text.lower())]
-        if len(hits) > 1:
-            raise UsageError("%s=%s names %d sessions; type more of it, e.g. %s" % (
-                dim, text, len(hits), quote("%s=%s" % (dim, tables.value(dim, hits[0], names)))),
-                "every %s: %s" % (dim, run(view, BY, dim)))
-        value = hits[0] if hits else value
-    if value in present:
-        return value, tables.value(dim, value, names)
-    raise no_match(view, dim, text, list(printed), run(view, BY, dim))
-
-
-def no_match(view: str, dim: str, text: str, printed: Sequence[str], every: str, given: bool = False) -> UsageError:
-    """The refusal of a pin no fact carries (``given`` the pins before it):
-    the nearest value as a pin, and the command listing every one."""
-    lacking = text.lower() in ("", "none", "no", "-") and dim in residual.RESIDUAL_NOTES  # the catch-all
-    near = [residual.label(dim)] if lacking else difflib.get_close_matches(text, list(printed), 1, 0.5) or [
-        p for p in printed if p.lower() == text.lower()][:1] or list(printed)[:1]
-    return UsageError("no %s has %s=%s%s%s" % (
-        schema.PLURAL[carrier(view)][:-1], dim, text, " with the pins before it" if given else "",
-        "; nearest: %s" % quote("%s=%s" % (dim, near[0])) if near else "; none present"),
-        "every %s: %s" % (dim, every))
-
 
 
 def quote(word: str) -> str:

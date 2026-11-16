@@ -23,6 +23,7 @@ WIDTH = 100  # every line's budget (UX_PRINCIPLES)
 BASE_LABEL = "= 100%"  # the row every share is of
 TOTAL_LABEL = "= average call"  # the row a whole-window cause table closes with: its rows add up to it
 OK_MARK, BAD_MARK = "✓", "✗"
+HOME_NOTE = "~: your home; a project is its directory, every character but a letter or digit as -"
 BASE_NOTE = "shares' base: the rows above, not the %s row"  # beside a base its catch-all is out of
 
 
@@ -209,7 +210,7 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
         text = line(label, i + 1, last)
         note = ""
         if r.kind == query.RESIDUAL:
-            note = parts_text(parts, WIDTH - len(text) - 2)
+            note = parts_text(parts, WIDTH - len(text) - 3)  # room for a term's first ``*``
         elif i == values and hidden:
             note = more
         elif r.kind == BASE_LABEL:
@@ -220,20 +221,23 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
         role = style.ROW if i < values else (style.TOTAL if r.kind == BASE_LABEL else style.OTHER)
         if note and len(text) + 2 + len(note) > WIDTH:  # a long note: its own line, under its row
             if r.kind == query.RESIDUAL:
-                note = parts_text(parts, WIDTH - 4)
+                note = parts_text(parts, WIDTH - 5)
             lines.append(style.tag(text, role, share, ((mass, mass + widths[0]), (at, at + 6))))
-            lines += [style.tag(part, style.HINT if i == values else "", values=((4, len(part)),))
+            lines += [style.tag(part, style.HINT if i == values else "", values=((4, len(part)),) * (i == values))
                       for part in (command_lines("    ", note) if i == values else ["    " + note])]
         else:
             text = text + "  " + note if note else text
             lines.append(style.tag(text, role, share, ((mass, mass + widths[0]), (at, at + 6)),
-                                   ((0, width),) if free else ((len(text) - len(note), len(text)),) if note else ()))
+                                   ((0, width),) if free else ((len(text) - len(note), len(text)),) * (
+                                       r.kind != query.RESIDUAL) if note else ()))  # a part's term takes its *
         if r.kind == query.RESIDUAL and pin and FOLDED.search(note):
             lines += [style.tag(part, style.HINT, values=((4, len(part)),)) for part in command_lines("    ", pin)]
     if total is not None:  # its verdict alone where a long label leaves no room for its words
         text = line(TOTAL_LABEL, -1, "      " + total)
         lines.append(style.tag(text if len(text) <= WIDTH else line(TOTAL_LABEL, -1, "      " + OK_MARK),
                                style.TOTAL))
+    if grouped.dim == schema.PROJECT_DIM and any(label.startswith("~") for label in labels):
+        lines.append(style.tag(HOME_NOTE, style.KEY))  # the ``~`` read once, where it prints
     return lines
 
 
@@ -271,7 +275,7 @@ UUID = re.compile(r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
 def session_names(facts: Iterable[Fact]) -> Dict[str, str]:
     """Each uuid session id as its first 8 hex, like a subagent's and a
     window's (UX_PRINCIPLES 1: one identity style), unless those 8 name
-    two sessions: those keep their whole id. ``grammar.resolve`` reads
+    two sessions: those keep their whole id. ``cli.resolve`` reads
     either back, and any unique prefix."""
     ids = {f.dims[schema.SESSION_DIM] for f in facts if schema.SESSION_DIM in f.dims}
     short = [i[:8] for i in ids if UUID.match(i)]

@@ -76,7 +76,7 @@ GLOSSARY: Dict[str, Term] = {
                        " context times calls; it is never quoted in dollars", True),
     AVERAGE: Term(
         "what a call held (its context size), averaged over the calls in view",
-        "every context figure is a part of it: each change times the calls that held it, over"
+        "every context figure is a part of it: each change's tokens × calls held, over"
         " those calls, so a table's rows add up to it; not what a call added: every call re-reads"
         " its whole window, so long windows hold most calls; never summed across populations", True),
     schema.CONTEXT_HELD: Term(

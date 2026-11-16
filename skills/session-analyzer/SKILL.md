@@ -39,7 +39,7 @@ replies, tool-call inputs included), `tool_result`, `user_text`,
 
 **`spend`** sums each call's price-weighted input tokens: uncached
 input, cache writes (1h 2.0x, 5m 1.25x), cache reads 0.1x; output
-apart (`-v`: `also counted`). Context shares are not cost shares.
+apart (`-v`: `not in spend`). Context shares are not cost shares.
 
 The `context` headline opens with `average context per call* N tokens,
 over C calls in W windows` (what a call held; never summed, never "added
@@ -60,7 +60,7 @@ python3 -m sa context peak=200K+ tool=Bash   # all pins hold: Bash in the fulles
 `by change` names the directory the files share once, then groups the
 changes by window (its file under it, `window=`), each row
 `part of avg  tokens  calls held  :line` and its dims as pins; an ambiguous
-one's `candidates:` under it. It ends `Σ N changes: X tokens × held ÷ C
+one's `candidates:` under it. It ends `Σ N changes: X tokens × calls held ÷ C
 calls = Y ✓ the headline's Y`. A `command` is a Bash call's first
 command word (`Bash:pytest`) or a file tool's extension (`Read:py`);
 never a path. A mistake exits 2 in two lines, naming the nearest valid
@@ -85,7 +85,7 @@ average (what could not be traced); `-v` works them in this run's numbers:
 <!-- example: context -v | ✓ numbers add up -->
 ```
 ✓ numbers add up over 3 windows in view: rows to the average call, changes to final window sizes
-  each change × the calls that held it      1,778,890
+  each change's tokens × calls held         1,778,890
   ÷ calls in view                                  21
   = average call                               84,709  ✓ same as the mean measured call size
   tokens added 254,860 - tokens shrunk 300  = 254,560  ✓ same as the final window sizes

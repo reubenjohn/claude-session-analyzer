@@ -81,7 +81,7 @@ def test_the_v_footer_says_what_v_prints_and_v_prints_it_in_its_place(tmp_path):
     out = fx.run_cli("context", "--root", str(root))[1]
     verbose = fx.run_cli("context", "--root", str(root), "-v")[1]
     footer = fx.pointer_v(out)
-    m = re.match(r"^%s -v +how it's computed and checked, \* words \(\+(\d+) lines\)$" % (
+    m = re.match(r"^%s -v +how it's computed and checked, what \* marks \(\+(\d+) lines\)$" % (
         re.escape(grammar.run("context", "--root", str(root)))), footer)
     lines = int(m.group(1))
     block, worked = fx.verbose(verbose), fx.worked(verbose)
@@ -179,6 +179,7 @@ def test_an_encoded_home_prints_as_a_tilde_and_selects_as_printed(tmp_path, monk
     out = capsys.readouterr().out
     assert encoded in "".join(p.name for p in root.iterdir())  # vacuity guard: the name is encoded
     assert encoded not in out and re.search(r"^~-work\s", out, re.M)
+    assert out.count(tables.HOME_NOTE) == 1  # J6: the ~ read once, where it prints
     assert cli.main(["context", "--root", str(root), "by", grammar.FACTS["context"]]) == 0
     out = capsys.readouterr().out  # a file prints as on disk, under the directory named once: it opens
     (listed,) = fx.listed(out)  # the directory as deep as its line holds, the rest on the path: it opens

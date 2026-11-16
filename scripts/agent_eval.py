@@ -160,7 +160,7 @@ def grade(persona, task, m, session, truth, args, bin_, cwd):
     try:
         res = json.loads(r.stdout)
         text = res.get("result", "")
-        g = json.loads(text[text.index("{"):text.rindex("}") + 1])
+        g = json.JSONDecoder().raw_decode(text[text.index("{"):])[0]
         g["cost"] = res.get("total_cost_usd", 0)
         return g
     except (ValueError, KeyError) as exc:

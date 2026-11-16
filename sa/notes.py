@@ -15,7 +15,8 @@ from . import glossary, headline, leaves, query, residual, schema, style, tables
 from .tables import WIDTH, count, num, pct, value
 
 HEAD = "-v: "  # each part of the block opens with it
-OTHERS = "also counted"  # spend's -v: the call totals beside it, never in it
+# spend's -v: the call totals beside it, each line plain: what spend leaves out, what it weighs
+OTHERS = ("not in %s", "weighed in %s above")
 INDENT = "    "  # a wrapped line's continuation
 
 
@@ -75,7 +76,8 @@ def block(figures: Sequence[Tuple[str, str, str]], terms: Sequence[str],
     if figures:
         lines.append(HEAD + "how the figures are computed, in this run's numbers")
         for name, how, working in figures:  # the formula, then this run's numbers on a line of their own
-            lines += _wrapped("%s = %s" % (name, how)) + _wrapped(working, INDENT)
+            lines += _wrapped("%s = %s" % (name, how)) + _wrapped(working, INDENT) if how else _wrapped(
+                "%s: %s" % (name, working))
     if terms or catch_alls:
         lines.append(HEAD + "what the marked words and the catch-all rows mean")
         for term in terms:
@@ -87,7 +89,7 @@ def block(figures: Sequence[Tuple[str, str, str]], terms: Sequence[str],
 
 def footer(words: bool, lines: int) -> str:
     """What ``-v`` adds to this screen, and what it costs, in lines."""
-    return "how it's computed and checked%s (+%s)" % (", * words" if words else "",
+    return "how it's computed and checked%s (+%s)" % (", what * marks" if words else "",
                                                                 count(lines, "line"))
 
 
@@ -106,7 +108,7 @@ def figures(view, sel: query.Selection, shown: Sequence[Tuple[query.Table, objec
         what = glossary.printed(glossary.AVERAGE).replace("_", " ") if not sel.drill else (
             "the pinned part, %s" % ", ".join("%s=%s" % (d, residual.label(d) if v is None else value(d, v, names))
                                               for d, v in sel.drill))
-        out.append((what, "its changes' tokens × held, summed, ÷ the calls in view",
+        out.append((what, "its changes' tokens × calls held, summed, ÷ the calls in view",
                     "%s ÷ %s = %s" % (num(mass), num(sel.calls), num(sel.total))))
     else:
         out.append((glossary.printed(view.metric), "a call's input + cache reads × 0.1 + 5m cache writes × 1.25"
@@ -114,8 +116,9 @@ def figures(view, sel: query.Selection, shown: Sequence[Tuple[query.Table, objec
                                                                            num(sel.total))))
         others = [n for n, m in schema.METRICS.items()
                   if m.carrier == schema.CALL and m.aggregation == schema.ADDITIVE and n != view.metric]
-        out.append((OTHERS, "output, not in %s, and the cache writes %s weighs" % (view.metric, view.metric), ", ".join(
-                        "%s %s" % (glossary.printed(n), num(query.total(carried, n))) for n in others)))
+        for label, weighed in zip(OTHERS, (False, True)):  # a cache write is in spend's formula above
+            out += [(label % view.metric, "", ", ".join("%s %s" % (glossary.printed(n), num(query.total(carried, n)))
+                                                        for n in others if ("cache" in n) == weighed))]
     if facts:
         return out + leaves.figure_names(view.metric)
     first = next(((t, c) for t, c in shown if any(r.kind == query.REGULAR for r in t.rows)), None)
@@ -123,7 +126,7 @@ def figures(view, sel: query.Selection, shown: Sequence[Tuple[query.Table, objec
         grouped, _ = first
         top = next(r for r in grouped.rows if r.kind == query.REGULAR)
         if spec.aggregation == schema.PER_CALL:
-            out.append((glossary.printed(view.metric), "a row's changes' tokens × held, summed, ÷ the calls"
+            out.append((glossary.printed(view.metric), "a row's changes' tokens × calls held, summed, ÷ the calls"
                         " in view", "%s: %s ÷ %s = %s" % (value(grouped.dim, top.value, names),
                                                           num(top.mass * sel.calls), num(sel.calls), num(top.mass))))
         out.append(("share", "a row ÷ its table's = 100% row", "%s: %s ÷ %s = %s" % (

@@ -5,7 +5,7 @@ import re
 import pytest
 
 import fixtures as fx
-from sa import grammar, query, schema
+from sa import cli, query, schema
 from sa.schema import Locator
 
 
@@ -156,7 +156,7 @@ def test_a_refusal_carries_every_value_present_by_mass_for_the_cli_to_word():
         query.narrow(many, [(schema.TOOL_DIM, "bogus")], fx.DELTA)
     assert refused.value.dim == schema.TOOL_DIM and refused.value.value == "bogus"
     assert refused.value.present == ["t%02d" % i for i in range(12)]  # every one, largest first
-    message = grammar.no_match("context", schema.TOOL_DIM, "t00x", refused.value.present, "x", given=True)
+    message = cli.no_match("context", schema.TOOL_DIM, "t00x", refused.value.present, "x", given=True)
     assert "nearest: %s=t00" % schema.TOOL_DIM in str(message) and "pins before it" in str(message)
 
 
