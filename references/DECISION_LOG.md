@@ -167,8 +167,9 @@ cause `inherited`, carrying `context_delta` (one carrier kind); evidence
 names the parent window key and the branch call. A window's own
 reconciliation includes it; corpus totals exclude it only when the
 parent window is in the selected population (query selection decides),
-else count it in full: the fallback for the 1 fork inheriting by
-reference only. Footer "inherited (counted in parent)", like shrink. The
+else count it in full. (Amended 2026-11-16: the one fork with a
+`fork-context-ref` carries one copied call, its parent's last,
+re-minted, not none; `PROPOSAL_MEAN_CONTEXT.md` §3.4.) Footer "inherited (counted in parent)", like shrink. The
 window keeps the tokens and one total prints. [W][O]
 
 **D-NO-START-SPLIT — starting context is never split by content.**
@@ -189,3 +190,81 @@ RULED. A test caps it at 46 lines, 3,228 chars: the fixture baseline at
 ux-pass HEAD, on the resync corpus with root and projects as `~`. No
 headroom. Doc caps count BYTES, as the pre-commit gates do
 (`tests/test_doc_caps.py`). [W][O]
+
+**D-PLAIN-TERMS, D-UNASSIGNED — display terms.** RULED (owner
+directives, 2026-11-15 and -16); the rows, verbatim, are in
+`DECISION_LOG_HISTORY_2.md`. Causes, dimensions and reasons print in
+plain words (`replies`, `starting_context`, `started_by`, `command`,
+`subagent`, `several`, ...); the residual row prints `unassigned*`, and
+`*` marks a glossary term at its first appearance, the key listing
+exactly the marked terms. Display only: no figure changes.
+
+## Rulings — 2026-11-16
+
+Owner-approved. [M]: `PROPOSAL_MEAN_CONTEXT.md`, measured by
+`python3 -m sa.sweep` (`LOCAL SWEEP 2026-11-16T01:14Z`: 610 windows,
+24,517 calls; the fork marks `LOCAL SWEEP 2026-11-16T02:29Z`: 614
+windows, 24,771 calls). [O]: its `## Second opinion` (an independent
+opus review, `LOCAL SWEEP 2026-11-16T01:21Z`). The purpose they serve:
+were inference free, is context rotting the model's intelligence, what
+causes it, how to fix it; the path is `sa context` -> `--where
+peak=200K+` -> `--by session` -> `--where command=... --by fact`.
+
+**D-MEAN-CONTEXT — the average context per call.** RULED. What a call
+held (its `context_tokens`), averaged over the calls of the whole
+windows in view, printed with that population: `average context per
+call* N tokens, over C calls in W windows`. It replaces the `largest
+single-call context` line; never phrased "added per call". A FUNCTION,
+`query.mean(facts, metric)`, over the existing PEAK metric, not a new
+metric on every call fact and not a `MEAN` class (the proposal's
+`context_mean` and D-PEAK-NOT-MEAN are not built) [O]. A mean is one
+population's: never summed nor merged; a combined population is
+recomputed from its facts. `query.total` refuses a PEAK metric as
+`query.group` did, closing the hole [O] found. Measured: 110,119 tokens
+over 24,517 calls; main 120,545, subagent 108,309 [M][O].
+
+**D-PEAK-BAND — `peak`, a window dimension.** RULED. On both kinds,
+constant per window: the band of the window's largest call
+`context_tokens` over the whole window, independent of `--since` like
+its identity. Declared, ASCII, shell-safe: `0-50K`, `50-100K`,
+`100-200K`, `200K+` (K = 1,000; each band includes its lower edge). A
+label, never a summed peak. `--by peak` and `--where peak=200K+` use the
+existing grammar; `spend --where peak=` too. Basis: a window filter by
+peak moves the cause table 17.7 points where the call-weighted
+breakdown moves it 2.3: 49 windows peaking above 200,000 hold 5,794
+calls, tool_result first (37.0%), starting_context 34.1% -> 16.4% [O].
+
+**D-PEAK-DEFAULT — the default output leads with the band.** RULED.
+`context`'s default tables gain `by peak` (context tokens, windows,
+calls, share), bands fullest first, before `session` (the path's
+order). The hint pins the fullest band present while the windows in
+view span more than one, before the tool drill. Tables that repeat one
+table row for row share its one relabel line (`by session, project:`),
+which keeps the fixture output at 46 lines / 2,764 chars, D-OUTPUT-CAP
+unchanged. The "calls holding over 200K" figure (1,860 of 24,563 [O])
+is not printed: it counts calls, not windows, so it has no pin to act
+on (the call filter is deferred, D-OCCUPANCY-FILTER), the 200K+ row's
+calls column already sizes the exposure, and the cap has no room; it
+stays a sweep line.
+
+**D-MISSING-PARENT — a fork without its parent is counted, not
+fixed.** RULED, amended from the proposal (force-reading the parent is
+not built: a deleted parent cannot be read, and the copies cannot be
+told from live records without a detector [O]). A fork says so in its
+own file: a `fork-context-ref` record, or an `api-request` whose
+`querySource` is `agent:builtin:fork` (`windows.marked_fork`); either
+labels the window `fork` with its parent absent. A fork window in view
+with no `inherited` change prints one scope line, `N fork(s) whose
+parent is missing: their copy counts as their own`. Measured: 10 of 10
+fork windows marked (api-request 9, ref 1), 10 of 10 with their parent
+found, so 0 warned [M]. A replay with its parent absent is known only by
+that parent: it reads as a session start, unwarned (`sa explain
+replayed`).
+
+**Deferred.** D-HELD-WEIGHT (option B: call-weighted tables; corpus-wide
+no top cause, tool or started_by changes rank, max swing 5.8 points, and
+8 of 11 per-session flips are near-ties [M][O]); D-INHERITED-HELD
+(option C: expanding `inherited` by reference in tables, 0.60% of the
+held sum [M]); copy detection for a parentless fork; D-OCCUPANCY-FILTER
+(a call-level `--where`); D-PEAK-SHAPE (window-peak percentiles: they
+are percentiles of the final sizes the total already sums [O]).
