@@ -248,7 +248,7 @@ or not: one band prints no `by peak`. The hint pins the fullest band
 before the tool drill, and only before any drill pin: a pinned command
 hints `--by fact`. Tables that repeat one
 table row for row share its one relabel line (`by session, project:`),
-which keeps the fixture output at 46 lines / 2,858 chars, D-OUTPUT-CAP
+which keeps the fixture output at 46 lines / 2,872 chars, D-OUTPUT-CAP
 unchanged. The "calls holding over 200K" figure (1,860 of 24,563 [O])
 is not printed: it counts calls, not windows, so it has no pin to act
 on (the call filter is deferred, D-OCCUPANCY-FILTER), the 200K+ row's
