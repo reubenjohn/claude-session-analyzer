@@ -1,11 +1,11 @@
-"""The doc caps CLAUDE.md states, in bytes like the pre-commit size gates
+"""The doc caps AGENTS.md states, in bytes like the pre-commit size gates
 (the docs print multi-byte marks such as ✓ and →, so bytes are the stricter
 and unambiguous count)."""
 import pytest
 
 from fixtures import REPO
 
-CAPS = {"README.md": 5000, "skills/session-analyzer/SKILL.md": 6000, "CLAUDE.md": 7000}
+CAPS = {"README.md": 5000, "skills/session-analyzer/SKILL.md": 6000, "AGENTS.md": 7000, "CLAUDE.md": 100}
 
 
 @pytest.mark.parametrize("name", sorted(CAPS))

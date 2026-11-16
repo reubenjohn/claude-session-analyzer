@@ -316,3 +316,8 @@ an estimate: no figure is labelled good or bad. `sa explain peak` says
 in plain words, with no number, that larger windows are where models
 are most likely to lose track, so start with the fullest band. [O]
 second opinion 2026-11-16: AGREE.
+
+**D-UX-PRINCIPLES — three principles bind every screen.** RULED by the
+owner 2026-11-16: learnable, legible, trustworthy
+(`references/UX_PRINCIPLES.md`). Rules are instances; one met by breaking
+a principle fails. Per-screen budgets are hard, ratcheting gates.
