@@ -95,9 +95,9 @@ replay or compaction to its file's end or the next compaction. Its
 `200K+`, lower edge inclusive. The average context per call is what a
 call held, averaged over the calls in view; never summed. A fork's
 copied context is one `inherited` change, left out of the total when
-its parent window is kept; with the parent's file missing (deleted, or
-outside `--since`) the copy counts as the fork's own, and the scope
-says how many forks.
+its parent window is kept; with the parent missing (deleted, or
+outside `--since`) or its branch call not found, the copy counts as the
+fork's own, and the scope says how many marked forks, and why.
 
 ## Layout
 

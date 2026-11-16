@@ -30,8 +30,8 @@ Pin, then drill:
 
 **`context`** books every change of a window's context (a *change*;
 the metric prints as `context tokens`) with one `cause`:
-`starting_context` (the first call's context, less what a fork or replay
-`inherited`), `replies` (Claude's replies, tool-call inputs included),
+`starting_context` (what a window held at its first call; a fork's
+copy is `inherited` apart), `replies` (Claude's replies, tool-call inputs included),
 `tool_result`, `user_text`, `ambiguous` (no one contributor; `reason`:
 `several`, `less_than_reply`, `unexplained`) and `shrink` (a window that
 got smaller, signed). Default tables: cause, tool, command, subagent,
@@ -52,7 +52,8 @@ its tool, a window its subagent, session, project). A drill's headline
 names its pins and the windows hit (`… in 1 of 2 windows`); then
 `average context per call* N tokens, over C calls in W windows`: what a
 call held, over the whole windows in view, never summed. A fork whose
-parent file is missing counts its copy as its own; the scope says how many.
+parent (or branch call) is missing counts its copy as its own; the scope
+says how many, and why.
 
 ## The path: is it a problem -> what -> where -> what to fix
 
