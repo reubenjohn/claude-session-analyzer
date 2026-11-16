@@ -92,4 +92,4 @@ def test_a_fork_read_without_its_parent_walks_the_copied_calls_as_its_own(tmp_pa
         fx.W_FORK: [json.loads(line) for line in
                     (every / fx.W_FORK).read_text(encoding="utf-8").splitlines()]}))
     (window,) = m.windows.cut(alone.files[0], alone.usages)
-    assert len(window.calls) > with_parent and window.start == schema.SUBAGENT
+    assert len(window.calls) > with_parent and window.start == schema.SUBAGENT_START
