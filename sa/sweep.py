@@ -11,7 +11,7 @@ from bisect import bisect_left, bisect_right
 from collections import Counter
 from typing import Dict, List, Tuple
 
-from . import query, schema, usage, walk, windows
+from . import query, schema, sweep_mean, usage, walk, windows
 from .corpus import Corpus, Record, default_root, load, message_id
 from .schema import Fact
 
@@ -167,7 +167,7 @@ def report(loaded: Corpus) -> List[str]:
          fork_heads(loaded, cuts)),
     ]
     return [text % tuple(c if isinstance(c, str) else format(int(round(c)), ",d") for c in counts)
-            for text, counts in lines]
+            for text, counts in lines] + sweep_mean.report(loaded, facts, cuts)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 corpus is non-zero on another, so the figure a docstring cites is read by
 code that has been seen to count."""
 import fixtures as fx
-from sa import schema, sweep
+from sa import schema, sweep, sweep_mean
 
 
 def test_counts_over_the_cli_corpus(tmp_path):
@@ -14,7 +14,9 @@ def test_counts_over_the_cli_corpus(tmp_path):
     assert sweep.key_disagreements(loaded) == (0, 4)
     assert sweep.cross_file_parents(loaded) == (0, 0)
     lines = sweep.report(loaded)
-    assert lines[0] == "4 files, 3 windows, 21 calls, 18 intervals" and len(lines) == 11
+    assert lines[0] == "4 files, 3 windows, 21 calls, 18 intervals"
+    assert lines[11:] == sweep_mean.report(loaded, facts, sweep.cut(loaded))
+    assert "holds in 3 of 3 windows" in lines[11]
 
 
 def test_each_zero_count_is_non_zero_on_the_corpus_built_for_it(tmp_path):
