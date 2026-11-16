@@ -2,7 +2,7 @@
 dimensions and, indented under it, its evidence."""
 from typing import Iterator, List, Optional
 
-from . import glossary, schema, style
+from . import glossary, query, schema, style
 from .schema import Fact
 from .tables import at, num, tags, uuid
 
@@ -21,7 +21,7 @@ def leaves(facts: List[Fact], metric: str, limit: int, calls: Optional[int] = No
                      key=lambda f: -abs(f.metrics[metric]))[:limit]
     columns = [metric] + ([schema.CONTEXT_DELTA] if per_call else [])
     widths = [max(16, len(glossary.printed(m))) for m in columns]
-    divisor = max(calls or 1, 1) if per_call else 1
+    divisor = query.per(metric, calls)  # a per-call metric without its population raises
 
     def figures(values) -> str:
         return "  ".join("%*s" % (w, v) for w, v in zip(widths, values))
@@ -44,14 +44,19 @@ def recorded(candidate: schema.Candidate) -> str:
     return "%s characters%s  " % (num(candidate.chars), other)
 
 
+HEAVIEST = " largest first, in characters as recorded"  # the candidates line: which one is heavy
+
+
 def _evidence(evidence: dict) -> Iterator[str]:
-    """Each key once; the candidates one per line under theirs, each with
-    its line, uuid, its size as recorded (``recorded``) and the dimensions
-    it would have booked."""
+    """Each key once; the candidates one per line under theirs, largest
+    recorded size first (an unknown size last), each with its line, uuid,
+    its size as recorded (``recorded``) and the dimensions it would have
+    booked: the order says which is heavy, the change stays undivided."""
     for key, value in evidence.items():
         if key == schema.CANDIDATES:
-            yield "%18s%s:%s" % ("", key, "" if value else " none")
-            for candidate in value:
+            yield "%18s%s:%s" % ("", key, HEAVIEST if any(c.chars for c in value) else (
+                "" if value else " none"))
+            for candidate in sorted(value, key=lambda c: -(c.chars or -1)):
                 yield "%20s%s %s  %s%s" % ("", at(candidate.locator), uuid(candidate.locator),
                                            recorded(candidate), tags(candidate.dims))
         elif isinstance(value, schema.WindowKey):  # a parent window: its --where value

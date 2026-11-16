@@ -5,6 +5,7 @@ import re
 
 import fixtures as fx
 from sa import cli, glossary, query, schema, tables
+from sa.leaves import HEAVIEST
 
 CONTEXT = cli.VIEWS["context"]
 CAUSE, TOOL, HEAD = schema.CAUSE_DIM, schema.TOOL_DIM, schema.COMMAND_DIM
@@ -194,10 +195,10 @@ def test_by_fact_lists_leaves_with_their_dimensions_and_evidence(tmp_path):
                           "%s=%s" % (schema.REASON_DIM, schema.SEVERAL),
                           "--where", "project=proj-a", "--limit", "1")
     assert code == 0, err
-    assert re.search(r"^\s+%s:\n"
+    assert re.search(r"^\s+%s:%s\n"
                      r"\s+proj-a/sess-0001\.jsonl:4 uuid-0004  [\d,]+ characters  %s=%s\n"
                      r"\s+proj-a/sess-0001\.jsonl:5 uuid-0005  2 characters  %s=%s %s=Read %s=Read:py$"
-                     % (schema.CANDIDATES, CAUSE, schema.USER_TEXT, CAUSE, schema.TOOL_RESULT,
+                     % (schema.CANDIDATES, HEAVIEST, CAUSE, schema.USER_TEXT, CAUSE, schema.TOOL_RESULT,
                         TOOL, HEAD), out, re.M)
     assert out.count("%s:" % schema.CANDIDATES) == 1
     (leaf,) = [l for l in out.splitlines() if fx.LEAF.match(l)]
