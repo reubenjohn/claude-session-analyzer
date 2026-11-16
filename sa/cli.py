@@ -164,7 +164,7 @@ def explain(term: Optional[str]) -> List[str]:
         lines += ["%s: %s" % (glossary.marked(name), entry.meaning),
                   "  surprise: " + entry.surprise]
         if name == glossary.RESIDUAL_LABEL:  # what it holds in each table
-            lines += ["  by %s: %s" % (d, tables.residual_cases(d)) for d in tables.RESIDUAL_NOTES]
+            lines += ["  by %s: %s" % (d, glossary.residual_cases(d)) for d in glossary.RESIDUAL_NOTES]
     return lines
 
 

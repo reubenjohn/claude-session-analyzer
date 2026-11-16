@@ -31,9 +31,9 @@ def test_table_limit_reports_hidden_rows_and_never_hides_residual_or_shrink():
     assert re.match(r"\+2 more rows\s+40\s+2\s+40\.0%", lines[2])
     assert [l.split()[0] for l in tables.table(table, M, limit=3, whole=False)[1:]] == [
         "a", "b", "c", tables.RESIDUAL_ROW, schema.SHRINK]
-    for dim, (meaning, cases) in tables.RESIDUAL_NOTES.items():  # sa explain unassigned says each
-        assert tables.residual_cases(dim).startswith(meaning) and all(
-            text in tables.residual_cases(dim) for text, _ in cases)
+    for dim, (meaning, cases) in glossary.RESIDUAL_NOTES.items():  # sa explain unassigned says each
+        assert glossary.residual_cases(dim).startswith(meaning) and all(
+            text in glossary.residual_cases(dim) for text, _ in cases)
 
 
 def test_every_dimension_a_view_can_group_with_a_residual_row_has_a_note(tmp_path):
@@ -45,12 +45,12 @@ def test_every_dimension_a_view_can_group_with_a_residual_row_has_a_note(tmp_pat
                for dim in schema.KIND_DIMENSIONS[schema.metric(view.metric).carrier]]
     with_residual = {t.dim for t in grouped if t.residual}
     assert schema.REASON_DIM in with_residual and len(with_residual) > 1  # vacuity guard
-    assert with_residual <= set(tables.RESIDUAL_NOTES), with_residual - set(tables.RESIDUAL_NOTES)
+    assert with_residual <= set(glossary.RESIDUAL_NOTES), with_residual - set(glossary.RESIDUAL_NOTES)
     for t in grouped:
-        cases = tables.RESIDUAL_NOTES.get(t.dim, ("", []))[1]
+        cases = glossary.RESIDUAL_NOTES.get(t.dim, ("", []))[1]
         if cases:
             assert all(any(holds(dims) for _, holds in cases) for dims in t.residual), t.dim
-    note = tables.residual_note(schema.REASON_DIM, next(t.residual for t in grouped
+    note = glossary.residual_note(schema.REASON_DIM, next(t.residual for t in grouped
                                                         if t.dim == schema.REASON_DIM))
     assert all(c in note for c in schema.CAUSES if c not in (schema.AMBIGUOUS, schema.SHRINK))
     assert schema.SHRINK not in note  # it is the signed row, never the residual
