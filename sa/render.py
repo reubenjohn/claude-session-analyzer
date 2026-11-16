@@ -66,7 +66,7 @@ def report(view: View, sel: Selection, loaded: Corpus, by: Optional[str], limit:
                 body += table(grouped, view.metric, limit, whole=bool(by), total=total, names=names,
                               counts=counts) + ([WHOLE_WINDOWS] if counts and sel.drill else []) + [""]
     scope = [style.tag(line, style.SCOPE, values=getattr(line, "values", ()))
-             for line in population(view, sel, loaded, since_default)]
+             for line in population(view, sel, loaded, since_default, forest)]
     above = (scope + [""] + headline.headline(view, sel, forest, names) + next_step(view, sel, by, names)
              + [""] + body)
     lines, terms = tables.footnote(above + checks.footer(view, sel, totalled))
@@ -154,15 +154,22 @@ def _total(view: View, sel: Selection) -> Optional[str]:
     return "%s does not match the final window sizes (below)" % tables.BAD_MARK
 
 
-def population(view: View, sel: Selection, loaded: Corpus, since_default: bool = False) -> List[str]:
+# Why a fork in view inherited nothing (``query.orphan_forks``), and what follows; singular, plural.
+ORPHANED = (("parent is missing", "parents are missing"),
+            ("branch call is not found in its parent", "branch calls are not found in their parents"))
+ORPHAN = ("its copy counts as its own", "their copies count as their own")
+
+
+def population(view: View, sel: Selection, loaded: Corpus, since_default: bool = False,
+               forest: Iterable[Fact] = ()) -> List[str]:
     """The scope, first: the read, one line (the files its ``--since``
     kept, named with that window and the root, then what the read skipped
     or excluded, corpus-wide) and what the window pins kept: the windows (the files with
     a call; a compaction a call follows starts another) and the facts
     the view's metric is read from, its carrier's. The compactions read
     print as one line when there are any: every one is unpriced; the forks in
-    view whose parent was not read, as one line under the kept, when there
-    are any (``query.orphan_forks``). A drill pin is named on the headline,
+    view that inherited nothing, under the kept, a line per reason, when
+    there are any (``query.orphan_forks``). A drill pin is named on the headline,
     the one line that counts what it narrows."""
     carrier, _window = schema.metric(view.metric).carrier, schema.WINDOW_DIM
     since = ("of any age" if loaded.since_days is None else "modified in the last %gd%s"
@@ -177,11 +184,8 @@ def population(view: View, sel: Selection, loaded: Corpus, since_default: bool =
     read = style.tag(head + root + ", %s skipped, %s excluded" % (
         count(loaded.skipped_lines, "line"), count(loaded.duplicate_records, "duplicate")), "",
         values=((len(head), len(head) + len(root)),))
-    orphans = query.orphan_forks(sel.window_facts)
-    orphaned = [" " * (len(KEPT) + 2) + (
-        "%s whose parent is missing: its copy counts as its own" if orphans == 1 else
-        "%s whose parents are missing: their copies count as their own") % count(orphans, schema.FORK)
-        ] if orphans else []
+    orphaned = [" " * (len(KEPT) + 2) + "%s whose %s: %s" % (count(n, schema.FORK), why[n > 1], ORPHAN[n > 1])
+                for n, why in zip(query.orphan_forks(sel.window_facts, forest), ORPHANED) if n]
     return [read] + compacted + [
             "%s%s: %s, %s"
             % (KEPT, headline.pins(sel.window_where), count(sel.n_windows, _window),

@@ -240,7 +240,7 @@ def test_a_marked_fork_without_its_parent_is_counted_and_named_on_the_scope(tmp_
     root = _fork_alone(tmp_path, True)
     _, facts = fx.load_facts(root)
     assert {f.dims[schema.STARTED_BY_DIM] for f in facts} == {schema.FORK}
-    assert query.orphan_forks(facts) == 1 and not [f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED]
+    assert query.orphan_forks(facts, facts) == (1, 0) and not [f for f in facts if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED]
     code, out, err = fx.run_cli("context", "--root", str(root))
     assert code == 0, err
     assert fx.sections(out)[0][-1] == " " * len("in view: ") + warning
@@ -248,5 +248,5 @@ def test_a_marked_fork_without_its_parent_is_counted_and_named_on_the_scope(tmp_
     assert {f.dims[schema.STARTED_BY_DIM] for f in unmarked} == {schema.SUBAGENT_START}
     whole = fx.window_corpus(tmp_path / "whole")  # vacuity guard: with its parent, no warning
     _, facts = fx.load_facts(whole)
-    assert query.orphan_forks(facts) == 0 and [f for f in facts if f.dims.get(schema.STARTED_BY_DIM) == schema.FORK]
+    assert query.orphan_forks(facts, facts) == (0, 0) and [f for f in facts if f.dims.get(schema.STARTED_BY_DIM) == schema.FORK]
     assert "missing" not in fx.run_cli("context", "--root", str(whole), "--since", "all")[1]

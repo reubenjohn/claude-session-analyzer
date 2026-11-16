@@ -225,27 +225,35 @@ over 24,517 calls; main 120,545, subagent 108,309 [M][O].
 
 **D-PEAK-BAND — `peak`, a window dimension.** RULED. On both kinds,
 constant per window: the band of the window's largest call
-`context_tokens` over the whole window, independent of `--since` like
-its identity. Declared, ASCII, shell-safe: `0-50K`, `50-100K`,
+`context_tokens` over its live calls. Measured, not built, to hold under
+`--since`: a dropped parent makes a fork's copies live, each no larger
+than the branch call its first own call exceeds (LOCAL SWEEP
+2026-11-16T02:53Z: 0 of 43 windows of a 7d read differ,
+`sweep_mean.since_bands`). Declared, ASCII, shell-safe: `0-50K`, `50-100K`,
 `100-200K`, `200K+` (K = 1,000; each band includes its lower edge). A
 label, never a summed peak. `--by peak` and `--where peak=200K+` use the
 existing grammar; `spend --where peak=` too. Basis: a window filter by
 peak moves the cause table 17.7 points where the call-weighted
 breakdown moves it 2.3: 49 windows peaking above 200,000 hold 5,794
-calls, tool_result first (37.0%), starting_context 34.1% -> 16.4% [O].
+calls, tool_result first (37.0%), starting_context 34.1% -> 16.4% [O]. Rows print in
+the dimension's declared order, fullest first, in every view
+(`schema.ORDERED`). [O] second opinion 2026-11-16: AGREE-WITH-CHANGE, applied.
 
 **D-PEAK-DEFAULT — the default output leads with the band.** RULED.
 `context`'s default tables gain `by peak` (context tokens, windows,
-calls, share), bands fullest first, before `session` (the path's
-order). The hint pins the fullest band present while the windows in
-view span more than one, before the tool drill. Tables that repeat one
+calls, share; under a drill, whole windows with a matching change),
+before `session` (the path's order). A default table, lever or hint
+opens only when the windows in view carry more than one value, pinned
+or not: one band prints no `by peak`. The hint pins the fullest band
+before the tool drill, and only before any drill pin: a pinned command
+hints `--by fact`. Tables that repeat one
 table row for row share its one relabel line (`by session, project:`),
 which keeps the fixture output at 46 lines / 2,764 chars, D-OUTPUT-CAP
 unchanged. The "calls holding over 200K" figure (1,860 of 24,563 [O])
 is not printed: it counts calls, not windows, so it has no pin to act
 on (the call filter is deferred, D-OCCUPANCY-FILTER), the 200K+ row's
 calls column already sizes the exposure, and the cap has no room; it
-stays a sweep line.
+stays a sweep line. [O] second opinion 2026-11-16: AGREE-WITH-CHANGE, applied.
 
 **D-MISSING-PARENT — a fork without its parent is counted, not
 fixed.** RULED, amended from the proposal (force-reading the parent is
@@ -254,12 +262,18 @@ told from live records without a detector [O]). A fork says so in its
 own file: a `fork-context-ref` record, or an `api-request` whose
 `querySource` is `agent:builtin:fork` (`windows.marked_fork`); either
 labels the window `fork` with its parent absent. A fork window in view
-with no `inherited` change prints one scope line, `N fork(s) whose
-parent is missing: their copy counts as their own`. Measured: 10 of 10
+with no `inherited` change prints a scope line per reason
+(`query.orphan_forks`), each ending `: its copy counts as its own`: no
+main window of its parent session (the ref's, else its own) was read,
+`N fork(s) whose parent is missing`; one was, but not the branch call,
+`... whose branch call is not found in its parent` (said, not hidden:
+the copy then sits in the fork's starting context). An unmarked fork (a
+subagent replaying a prefix only) whose parent is missing reads as
+`subagent_start`, unwarned. Measured: 10 of 10
 fork windows marked (api-request 9, ref 1), 10 of 10 with their parent
 found, so 0 warned [M]. A replay with its parent absent is known only by
 that parent: it reads as a session start, unwarned (`sa explain
-replayed`).
+replayed`). [O] second opinion 2026-11-16: AGREE-WITH-CHANGE, applied.
 
 **Deferred.** D-HELD-WEIGHT (option B: call-weighted tables; corpus-wide
 no top cause, tool or started_by changes rank, max swing 5.8 points, and

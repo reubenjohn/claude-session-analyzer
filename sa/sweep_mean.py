@@ -16,7 +16,7 @@ inherited is 0.60% of the held sum and expands exactly by reference in
 from collections import Counter
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-from . import query, schema, windows
+from . import corpus, query, schema, walk, windows
 from .schema import Fact
 
 CALL, INCREMENT, DELTA = schema.CALL, schema.INCREMENT, schema.CONTEXT_DELTA
@@ -192,6 +192,16 @@ def parents(loaded, cuts) -> Tuple[int, ...]:
             sum(v for n, v in dup.items() if n in refs), sum(v for n, v in dup.items() if n not in refs))
 
 
+def since_bands(loaded, facts: List[Fact], days: float = 7.0) -> Tuple[int, int]:
+    """The windows a ``--since days`` read walks whose ``peak`` band is not
+    the one ``facts`` (every file read) gives the same window, and all of
+    them: a missing parent makes a fork's copies live, so the band is a
+    measurement, not a construction (D-PEAK-BAND)."""
+    recent = {f.window: f.dims[schema.PEAK_DIM] for f in walk.forest(corpus.load(loaded.root, days))}
+    every = {f.window: f.dims[schema.PEAK_DIM] for f in facts}
+    return sum(every.get(k) != v for k, v in recent.items()), len(recent)
+
+
 def report(loaded, facts: List[Fact], cuts) -> List[str]:
     """The average-context lines, each beside its population."""
     check = identity(facts)
@@ -230,6 +240,7 @@ def report(loaded, facts: List[Fact], cuts) -> List[str]:
     for dim in (schema.CAUSE_DIM, schema.TOOL_DIM, schema.COMMAND_DIM):
         lines.append("sessions whose top %s differs, sum vs average: %d of %d" % ((dim,) + leaders(facts, dim)))
     found = peaks(facts)
+    lines.append("peak band under --since 7d vs every file: %d of %d windows differ" % since_bands(loaded, facts))
     lines += ["window peaks %s: %s" % (name, shape(found, sub))
               for name, sub in (("all", None), ("main", False), ("subagent", True))]
     return lines

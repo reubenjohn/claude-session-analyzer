@@ -86,19 +86,34 @@ def window_count(facts: Iterable[Fact]) -> int:
     return len({f.window for f in facts})
 
 
-def orphan_forks(facts: Iterable[Fact]) -> int:
-    """The fork windows among ``facts`` with no ``inherited`` increment: a
-    marked fork (``windows.file_start``) whose parent file was not read,
-    deleted or outside ``--since``. Its copied records are then live, so
-    its copy counts as its own calls and changes (D-MISSING-PARENT); the
-    copies are not detected, only counted here."""
-    forks, inheriting = set(), set()
+def orphan_forks(facts: Iterable[Fact], forest: Iterable[Fact]) -> Tuple[int, int]:
+    """The fork windows among ``facts`` with no ``inherited`` increment, as
+    (parent missing, branch call not found). A fork's parent session is its
+    ``fork-context-ref``'s, else its own; it is missing when no main window
+    of that session, other than the fork, is in ``forest`` (deleted, or
+    outside ``--since``): the copied records are then live. A parent read
+    whose branch call is not found leaves the copy in the fork's starting
+    context. Either way its copy counts as its own (D-MISSING-PARENT);
+    the copies are not detected, only counted here."""
+    forks: Dict[schema.WindowKey, Optional[str]] = {}
+    named, inheriting = {}, set()
     for f in facts:
         if f.dims.get(schema.STARTED_BY_DIM) == schema.FORK:
-            forks.add(f.window)
+            forks.setdefault(f.window, f.dims.get(schema.SESSION_DIM))
+            if f.evidence.get(schema.PARENT_SESSION):
+                named[f.window] = f.evidence[schema.PARENT_SESSION]
         if f.dims.get(schema.CAUSE_DIM) == schema.INHERITED:
             inheriting.add(f.window)
-    return len(forks - inheriting)
+    mains = {(f.dims.get(schema.SESSION_DIM), f.window) for f in forest if schema.SUBAGENT_DIM not in f.dims}
+    missing = unfound = 0
+    for key, session in forks.items():
+        if key not in inheriting:
+            parent = named.get(key, session)
+            if any(s == parent and w != key for s, w in mains):
+                unfound += 1
+            else:
+                missing += 1
+    return missing, unfound
 
 
 def through(facts: List[Fact], key: schema.WindowKey, call: schema.Locator) -> List[Fact]:

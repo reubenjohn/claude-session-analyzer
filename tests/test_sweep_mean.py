@@ -77,9 +77,10 @@ def test_compare_names_rank_and_share_moves():
 
 
 def test_a_fork_read_without_its_parent_walks_the_copied_calls_as_its_own(tmp_path):
-    """Why the proposal force-reads a missing parent: without it the copied
-    prefix is live, so the fork gains the parent's calls (phantoms under the
-    average's denominator) and is no longer recognised as a copy."""
+    """What a missing parent costs (D-MISSING-PARENT counts it; reading the
+    parent anyway was ruled out): the copied prefix is live, so the fork
+    gains the parent's calls (phantoms under the average's denominator) and,
+    unmarked, is no longer recognised as a copy."""
     root = fx.window_corpus(tmp_path / "all")
     for name, when in ((fx.W_PARENT, 2e9), (fx.W_FORK, 1e9), (fx.W_REPLAY, 3e9)):
         os.utime(str(root / name), (when, when))  # the fork is older than its parent, the replay newer
@@ -93,3 +94,18 @@ def test_a_fork_read_without_its_parent_walks_the_copied_calls_as_its_own(tmp_pa
                     (every / fx.W_FORK).read_text(encoding="utf-8").splitlines()]}))
     (window,) = m.windows.cut(alone.files[0], alone.usages)
     assert len(window.calls) > with_parent and window.start == schema.SUBAGENT_START
+
+
+def test_a_since_read_that_drops_the_parent_is_compared_band_for_band(tmp_path):
+    """D-PEAK-BAND is measured, not built: the fork read alone walks its
+    copied calls live, which hold no more than the branch call its own first
+    call exceeds, so its band holds."""
+    root = fx.window_corpus(tmp_path)
+    for path in root.rglob("*.jsonl"):
+        os.utime(str(path), (1e9, 1e9))  # every file old ...
+    os.utime(str(root / fx.W_FORK), None)  # ... but the fork
+    loaded, facts = fx.load_facts(root)
+    assert m.since_bands(loaded, facts) == (0, 1)
+    alone = fx.load_facts(root, 7.0)[1]
+    assert sum(f.kind == schema.CALL for f in alone) > sum(  # vacuity guard: the copies went live
+        f.kind == schema.CALL and f.locator.file == fx.W_FORK for f in facts)

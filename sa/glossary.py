@@ -51,9 +51,10 @@ GLOSSARY: Dict[str, Term] = {
     schema.FORK: Term("a window that began as a copy of another window's context: a forked"
                       " session or subagent, its file opening with the parent's records",
                       "the copy is one inherited change, counted in the parent when the parent"
-                      " is in view; with the parent's file missing (deleted, or outside --since)"
-                      " the copy is not detected and counts as the fork's own calls and changes,"
-                      " which the scope warns of"),
+                      " is in view; with the parent missing (deleted, or outside --since) or its"
+                      " branch call not found, the copy counts as the fork's own, which the scope"
+                      " warns of when the fork's file marks it one; an unmarked fork with its"
+                      " parent missing reads as subagent_start, unwarned"),
     schema.REPLAYED: Term("a main window whose file opens by repeating another file's records"
                           " (a branched or continued session), then goes on",
                           "the repeated records count once, in the file that holds them first;"

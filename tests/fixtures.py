@@ -165,8 +165,8 @@ def load_facts(root, keep=None):
 
 
 def cli_corpus(tmp_path, projects=("proj-a", "proj-b")):
-    """Two projects, three windows: a main window, its forked subagent (a
-    sibling fork, same text, new ids, its parent absent), another
+    """Two projects, three windows: a main window, a forked subagent (same
+    text, new ids; its ref names FORK_PARENT, never read), another
     project's window peaking 200K+, a file with no call. ``projects``
     names the two directories."""
     fork = {"type": "fork-context-ref", "parentSessionId": FORK_PARENT,
