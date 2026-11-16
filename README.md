@@ -1,12 +1,16 @@
 # claude-session-analyzer
 
-Two questions about your Claude Code sessions, from the JSONL
-transcripts under `~/.claude/projects`: **what did it cost?**
-(`sa spend`) and, were inference free, **is context hurting my model,
-what fills it, and how do I fix it?** (`sa context`). Every call reasons
-over its whole window: the more a call holds, the more context rot.
-Every figure names its population; `context` reconciles. A Claude Code
-plugin or plain `python3 -m sa`; stdlib, Python 3.8+.
+Reads your Claude Code transcripts (`~/.claude/projects`) and helps
+answer two questions. **What did my sessions cost?** (`sa spend`):
+each call pays for the context it sends, the cache deciding what is
+paid again (reads discounted), so the calls' costs add up. Then, cost
+aside (were inference free), **is context degrading the model?**
+(`sa context`): every call reasons over its whole window, and a fuller
+window reasons worse (context rot), so it shows what calls held (the
+average context per call), what put it there, and a path to what to
+cut. Both start broad and narrow down. Every figure names its
+population; `context` reconciles. A Claude Code plugin or plain
+`python3 -m sa`; stdlib, Python 3.8+.
 
 ## Install
 
@@ -69,8 +73,7 @@ python3 -m sa context --where cause=ambiguous --by fact --limit 2
 started_by, peak, cause, tool, command, reason), repeatable, exact: the
 first six keep whole windows (`window=<hex>` isolates one; `--by window`
 lists them); the rest drill, named on the headline with the windows
-hit. `cause=bogus` or `tool=bash` (absent) exits 2, naming what is
-declared or present. A command is a Bash call's first command word
+hit; an absent value exits 2, naming what is present. A command is a Bash call's first command word
 (`Bash:pytest`) or a file tool's extension (`Read:py`). Under the
 average the headline's block gives the starting context by `started_by`,
 then the growth: the top tool, `→` its largest command, then a larger
@@ -85,8 +88,7 @@ leaves, each its part of the average then its raw tokens, with
 On a terminal the output is styled (`--color always|never|auto`,
 `NO_COLOR`, `FORCE_COLOR`); a pipe gets the same text, unstyled. A
 row's figures are a heatmap of its share, green to red on a log scale
-(24-bit or 256 colours if the terminal has them; bold from 25%), and
-each of the top two tools keeps one hue.
+(bold from 25%), and each of the top two tools keeps one hue.
 
 A window is one context window: from a session start, subagent, fork,
 replay or compaction to its file's end or the next compaction. Its
@@ -96,9 +98,9 @@ call held, averaged over the calls in view; never summed. Every
 `context` figure is a part of it: each change times the calls that held
 it, over the calls in view (a drill's too), so a table's rows add up to
 it. A fork's copied context is one `inherited` change, held by the
-fork's calls; with the parent missing (deleted, or
-outside `--since`) or its branch call not found, the copy counts as the
-fork's own, and the scope says how many marked forks, and why.
+fork's calls; with the parent missing (or out of
+`--since`) or its branch call not found, the copy counts as the
+fork's own; the scope says how many, and why.
 
 ## Layout
 
