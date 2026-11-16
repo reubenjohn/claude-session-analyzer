@@ -312,3 +312,9 @@ occupancy, checked per window (`reconciliation`, MISMATCH exit 1). Spend
 unchanged. [M] LOCAL SWEEP 2026-11-16T08:30Z: holds in 619 of 619
 windows, 2,787,153,745 both sides, 25,066 calls, average 111,193; `sa
 context --since all` holds, exit 0. [O] second opinion pending.
+
+**D-NO-VERDICT — no numeric "is this hurting you" verdict.** RULED by
+the owner. No rot threshold has been measured, so any cut-off would be
+an estimate: no figure is labelled good or bad. `sa explain peak` says
+in plain words, with no number, that larger windows are where models
+are most likely to lose track, so start with the fullest band.

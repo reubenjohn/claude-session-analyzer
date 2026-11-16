@@ -19,6 +19,8 @@ DRILL = "drill"
 GROWTH = "growth"  # the headline's line for what the windows added after their start
 GAP = "gap"  # the checks' unit: one call to the next
 AVERAGE = "average_context_per_call"  # the headline's level: what a call held, averaged
+# D-NO-VERDICT: where to start, in plain words; no measured rot threshold exists, so no number.
+FULLEST = "Larger windows are where models are most likely to lose track, so start with the fullest band"
 MARKER = "*"  # a footnote: the term is explained below
 PROG = "python3 -m sa"  # the real invocation, wherever a runnable command prints
 
@@ -49,7 +51,7 @@ GLOSSARY: Dict[str, Term] = {
                           + ", ".join(schema.BANDS) + " tokens (K = 1,000; a band includes its lower"
                           " edge, so 200,000 is 200K+)",
                           "a band of the window, not of a call: a 200K+ window's calls are"
-                          " counted there from its first, small ones too"),
+                          " counted there from its first, small ones too. " + FULLEST),
     schema.FORK: Term("a window that began as a copy of another window's context: a forked"
                       " session or subagent, its file opening with the parent's records",
                       "the copy is one inherited change, held by the fork's calls; with the parent missing (deleted, or outside --since) or its"

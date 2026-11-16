@@ -189,3 +189,10 @@ def test_the_answer_and_checks_words_each_explain(tmp_path):
         code, said, err = fx.run_cli("explain", word)
         assert code == 0 and said.startswith(word + ":"), err
     assert " → " in out and "→" in glossary.GLOSSARY[glossary.GROWTH].meaning
+
+
+def test_explain_peak_says_where_to_start_with_no_verdict_number():
+    """D-NO-VERDICT: no rot threshold is measured, so the guidance has no figure."""
+    code, out, err = fx.run_cli("explain", schema.PEAK_DIM)
+    assert code == 0 and glossary.FULLEST in out, err
+    assert glossary.FULLEST and not re.search(r"\d", glossary.FULLEST)
