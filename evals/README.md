@@ -5,7 +5,7 @@ personas, findings per journey and per principle, never one aggregate score.
 
 ```sh
 python3 scripts/agent_eval.py --label try1 --dry-run          # build, print commands
-python3 scripts/agent_eval.py --label try1 --tasks top-filler --personas hurried
+python3 scripts/agent_eval.py --label try1 --tasks top-filler,narrow-peak --personas hurried
 python3 scripts/agent_eval.py --label try2 --baseline evals/runs/<date>-try1
 python3 scripts/agent_eval.py --label final --include-held-out --rev HEAD
 ```
@@ -13,13 +13,23 @@ python3 scripts/agent_eval.py --label final --include-held-out --rev HEAD
 Results land in `evals/runs/<date>-<label>/` (gitignored: they hold real
 transcript output): `scorecard.md`, `results.json`, `truth.json`, and per
 run `<persona>-<journey>-rN.jsonl` (transcript), `.sa.jsonl` (what the CLI
-printed) and `.grade.json`. `--repeat N` runs each cell N times, shown side
-by side, never averaged. The temp dir is deleted at the end unless `--keep`.
+printed) and `.grade.json`. `--repeat N` (default 1) runs each cell N times,
+shown side by side, never averaged. The temp dir is deleted at the end
+unless `--keep`. `scripts/eval_scorecard.py` writes the scorecard.
+
+**Sessions.** Per persona, the journeys run in ONE agent session, in
+`tasks.json` order (the scorecard's run column: `1 s2` = run 1, turn 2):
+an agent that learned the grammar keeps it, as a user does. A `cold`
+journey (first contact: `orient`, `typo`) and every held-out one get a
+fresh agent each; `--fresh` gives every journey one. The first turn gets
+the whole prompt, each later turn (`--resume`) its `Question:` part only.
+The grader is `sonnet` (`--grader-model` to change it).
 
 ## How a run works
 
 1. A temp dir outside the repo, so no project AGENTS.md/CLAUDE.md loads.
-   `claude -p` also runs with no setting sources, MCP, skills or saved session.
+   `claude -p` also runs with no setting sources, MCP or skills; a fresh
+   agent saves no session.
 2. A frozen snapshot: `~/.claude/projects` files modified in `--days`
    (default 7), copied with their mtimes into the temp dir. Eval runs' own
    `claude -p` transcripts land in `~/.claude/projects` too, as temp-dir

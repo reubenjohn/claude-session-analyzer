@@ -1,9 +1,10 @@
 """Can a cold agent learn and use `sa` from its own output alone?
 
-Each (persona, journey) of evals/tasks.json runs as `claude -p` in a temp dir
-outside the repo (Bash(python3 -m sa ...) and Read, a frozen snapshot); the
-wrapper logs what the CLI printed; a second `claude -p` grades the answer.
-Per journey and principle, never one score. See evals/README.md.
+Per persona, the journeys of evals/tasks.json run in ONE `claude -p` session,
+in order; a `cold` or held-out journey gets a fresh agent of its own. A temp
+dir outside the repo, Bash(python3 -m sa ...) and Read, a frozen snapshot; the
+wrapper logs what the CLI printed; a second `claude -p` (sonnet) grades each
+answer. Per journey and principle, never one score. See evals/README.md.
 """
 import argparse
 import concurrent.futures as cf
@@ -17,33 +18,35 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from eval_scorecard import scorecard  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 EVALS = REPO / "evals"
 SA_CMD = re.compile(r"(^|[;&|]\s*)\s*(sa|python3 -m sa)(\s|$)")  # after any `cd X;` prefix
 ISOLATE = ["--setting-sources", "", "--strict-mcp-config",
            "--disable-slash-commands", "--no-session-persistence"]
-MEASURES = ["verdict", "sa_cmds", "error_exits", "denied", "source_reads",
-            "max_lines", "gates"]
-PAIRED = {"verdict": "sa_cmds", "sa_cmds": "verdict", "error_exits": "sa_cmds",
-          "denied": "sa_cmds", "source_reads": "verdict", "max_lines": "sa_cmds",
-          "gates": "verdict"}
-RANK = {"correct": 0, "partial": 1, "wrong": 2, "no_answer": 3}
+
 
 
 def load_tasks(args):
+    """Groups of (persona, task, run): each group is one agent session, its
+    journeys in tasks.json order; a cold or held-out journey (or any, with
+    --fresh) is a group of its own."""
     tasks = json.loads((EVALS / "tasks.json").read_text())["tasks"]
     want = set(args.tasks.split(",")) if args.tasks else None
-    jobs = []
-    for t in tasks:
-        if want is not None and t["id"] not in want:
-            continue
-        if t.get("held_out") and not (args.include_held_out or want):
-            continue
-        jobs += [(p, t, n) for p in t["personas"] if p in args.personas.split(",")
-                 for n in range(1, args.repeat + 1)]
-    return jobs
+    chosen = [t for t in tasks if (want is None or t["id"] in want)
+              and not (t.get("held_out") and not (args.include_held_out or want))]
+    groups = []
+    for p in args.personas.split(","):
+        for n in range(1, args.repeat + 1):
+            mine = [(p, t, n) for t in chosen if p in t["personas"]]
+            alone = [j for j in mine if args.fresh or j[1].get("cold") or j[1].get("held_out")]
+            groups += [[j] for j in alone] + ([[j for j in mine if j not in alone]] if len(alone) < len(mine) else [])
+    return groups
 
 
 def snapshot(home, snap, days):
@@ -78,14 +81,18 @@ def setup(tmp, args):
     return src, bin_, n
 
 
-def agent_cmd(persona, task, args):
-    prompt = (EVALS / "agent_prompt.md").read_text().format(
-        persona=(EVALS / "personas" / (persona + ".md")).read_text().strip(),
-        question=task["question"])
-    cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
+def agent_cmd(persona, task, args, session=None, resume=False):
+    """A fresh agent; in a session, the first journey names the session and
+    each later one resumes it with the question part of the prompt alone."""
+    prompt = (EVALS / "agent_prompt.md").read_text()
+    prompt = prompt[prompt.index("Question:"):] if resume else prompt
+    prompt = prompt.format(question=task["question"], persona=(
+        EVALS / "personas" / (persona + ".md")).read_text().strip())
+    isolate = ISOLATE if session is None else [x for x in ISOLATE if x != "--no-session-persistence"]
+    return ["claude", "-p", prompt] + ([("--resume" if resume else "--session-id"), session] if session else []) + [ "--output-format", "stream-json", "--verbose",
            "--tools", "Bash,Read", "--allowedTools", "Bash(python3 -m sa)", "Bash(python3 -m sa *)", "Read",
-           "--permission-mode", "dontAsk", "--max-budget-usd", str(args.budget)]
-    return cmd + ISOLATE + (["--model", args.model] if args.model else [])
+           "--permission-mode", "dontAsk", "--max-budget-usd", str(args.budget)] + isolate + (
+        ["--model", args.model] if args.model else [])
 
 
 def sh(cmd, bin_, cwd, timeout=None, log=""):
@@ -155,8 +162,7 @@ def grade(persona, task, m, session, truth, args, bin_, cwd):
         question=task["question"], note=task.get("note", ""), truth=truth[:40000],
         session=session, answer=m["reply"][-8000:])
     cmd = ["claude", "-p", prompt, "--output-format", "json", "--tools", ""] + ISOLATE
-    r = sh(cmd + (["--model", args.grader_model] if args.grader_model else []),
-           bin_, cwd, 900)
+    r = sh(cmd + ["--model", args.grader_model], bin_, cwd, 900)
     try:
         res = json.loads(r.stdout)
         text = res.get("result", "")
@@ -168,85 +174,30 @@ def grade(persona, task, m, session, truth, args, bin_, cwd):
                 "findings": [], "raw": r.stdout[-2000:]}
 
 
-def run_one(persona, task, n, args, bin_, src, tmp, out, truths):
-    tag = "%s-%s-r%d" % (persona, task["id"], n)
-    cwd, log = tmp / "work" / tag, out / (tag + ".sa.jsonl")
+def run_group(group, args, bin_, src, tmp, out, truths):
+    """One agent session over the group's journeys, in order, in one cwd."""
+    session = str(uuid.uuid4()) if len(group) > 1 else None
+    cwd = tmp / "work" / ("%s-%s-r%d" % (group[0][0], group[0][1]["id"], group[0][2]))
     cwd.mkdir(parents=True)
-    r = sh(agent_cmd(persona, task, args), bin_, cwd, 1800, log)
+    ms, spent = [], 0.0
+    for i, (p, t, n) in enumerate(group):
+        ms.append(run_one(p, t, n, args, bin_, src, out, truths, cwd, session, i))
+        ms[-1]["cost"], spent = ms[-1]["cost"] - spent, ms[-1]["cost"]  # a resumed run reports the session's
+    return ms
+
+
+def run_one(persona, task, n, args, bin_, src, out, truths, cwd, session, at):
+    tag = "%s-%s-r%d" % (persona, task["id"], n)
+    log = out / (tag + ".sa.jsonl")
+    r = sh(agent_cmd(persona, task, args, session, at > 0), bin_, cwd, 1800, log)
     (out / (tag + ".jsonl")).write_text(r.stdout)
     events = [json.loads(l) for l in r.stdout.splitlines() if l.startswith("{")]
     m, session = measure(events, src, log)
     g = grade(persona, task, m, session, truths[task["id"]], args, bin_, cwd)
     (out / (tag + ".grade.json")).write_text(json.dumps(g, indent=1))
     m.update(verdict=g.get("verdict", "ungraded"), grade=g, persona=persona, run=n,
-             journey=task["id"], principles=task["principles"])
+             journey=task["id"], principles=task["principles"], turn=at + 1 if session else 0)
     return m
-
-
-def cell(v):
-    return str(v).replace("|", "\\|").replace("\n", " ")
-
-
-def scorecard(results, meta, base):
-    L = ["# Agent eval: %s" % meta["label"], "",
-         "rev `%s`, snapshot %d files (%d days), model %s, grader %s. No aggregate "
-         "score by design (UX_PRINCIPLES)." % (meta["rev"], meta["files"], meta["days"],
-                                                 meta["model"], meta["grader"]), ""]
-    for p in sorted({r["persona"] for r in results}):
-        L += ["## %s" % p.upper(), "",
-              "| journey | run | verdict | first command → got | sa cmds | piped by agent | "
-              "error exits | denied | source reads | max lines printed | max width | "
-              "gate fails | turns | s | $ |", "|---" * 15 + "|"]
-        for r in (x for x in results if x["persona"] == p):
-            f = r["first"] or {"cmd": "-", "got": []}
-            L.append("| " + " | ".join(cell(v) for v in (
-                r["journey"], r["run"], r["verdict"],
-                "`%s` → %s" % (f["cmd"], " / ".join(f["got"])[:90]), r["sa_cmds"],
-                r["piped"], r["error_exits"], r["denied"], r["source_reads"],
-                r["max_lines"], r["max_width"], len(r["gates"]), r["turns"], r["secs"],
-                "%.2f" % r["cost"])) + " |")
-        L.append("")
-    L += ["## Findings by principle", ""]
-    for n, name in ((1, "Learnable"), (2, "Legible"), (3, "Trustworthy")):
-        L += ["### %d. %s" % (n, name), ""]
-        for r in results:
-            for f in r["grade"].get("findings", []):
-                if str(f.get("principle")) == str(n):
-                    L.append("- %s/%s r%d: %s «%s»" % (r["persona"], r["journey"], r["run"],
-                                                  f.get("finding"), cell(f.get("quote"))))
-        L.append("")
-    L += ["## Verdicts, friction, source reads, gates", ""]
-    for r in results:
-        g = r["grade"]
-        L += ["**%s/%s r%d** %s: %s «%s»" % (r["persona"], r["journey"], r["run"], r["verdict"],
-                                          g.get("why", ""), cell(g.get("quote", ""))),
-              "- friction: %s" % cell(r["friction"] or "none")]
-        if r["source_reads"]:
-            L.append("- read source (%s): %s" % (r["journey"], ", ".join(r["reads"])))
-        L += ["- GATE: %s" % cell(x) for x in r["gates"]] + [""]
-    if base is not None:
-        L += diff(results, base)
-    return "\n".join(L) + "\n"
-
-
-def worse(k, old, new):
-    if k == "verdict":
-        return RANK.get(new, 9) > RANK.get(old, 9)
-    return len(new or []) > len(old or []) if k == "gates" else (new or 0) > (old or 0)
-
-
-def diff(results, base):
-    old = {(b["persona"], b["journey"], b.get("run", 1)): b for b in base}
-    L = ["## Regressions vs baseline", "",
-         "| persona/journey | measure | was → now | paired: was → now |", "|---|---|---|---|"]
-    for r in results:
-        b = old.get((r["persona"], r["journey"], r["run"]))
-        for k in MEASURES if b else []:
-            if worse(k, b.get(k), r.get(k)):
-                q = PAIRED[k]
-                L.append("| %s/%s r%d | %s | %s → %s | %s: %s → %s |" % (
-                    r["persona"], r["journey"], r["run"], k, b.get(k), r.get(k), q, b.get(q), r.get(q)))
-    return L + ["", "(rows only where a measure got worse; new journeys have no row)", ""]
 
 
 def main():
@@ -259,15 +210,16 @@ def main():
     ap.add_argument("--rev", help="run sa from a worktree of REV")
     ap.add_argument("--baseline", help="a previous run dir")
     ap.add_argument("--model", help="agent model")
-    ap.add_argument("--grader-model", help="grader model")
+    ap.add_argument("--grader-model", default="sonnet", help="grader model (default sonnet)")
+    ap.add_argument("--fresh", action="store_true", help="a fresh agent per journey, no session")
     ap.add_argument("--budget", type=float, default=2.0, help="max USD per agent run")
     ap.add_argument("--repeat", type=int, default=1, help="runs per cell")
     ap.add_argument("--jobs", type=int, default=3, choices=(1, 2, 3))
     ap.add_argument("--keep", action="store_true", help="keep temp dir")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
-    jobs = load_tasks(args)
-    if not jobs:
+    groups = load_tasks(args)
+    if not groups:
         sys.exit("no (persona, journey) selected")
     out = EVALS / "runs" / ("%s-%s" % (datetime.date.today(), args.label))
     base = None
@@ -281,20 +233,24 @@ def main():
     try:
         if args.dry_run:
             print(sh("sa -h", bin_, tmp).stdout.splitlines()[0])
-            for p, t, n in jobs:
-                print("\n# %s/%s r%d (PATH=%s:..., SA_LOG=<run>.sa.jsonl)" % (p, t["id"], n, bin_))
-                print(" ".join(shlex.quote(c) for c in agent_cmd(p, t, args)))
+            for group in groups:
+                session = "<uuid>" if len(group) > 1 else None
+                for i, (p, t, n) in enumerate(group):
+                    print("\n# %s/%s r%d %s (PATH=%s:..., SA_LOG=<run>.sa.jsonl)" % (
+                        p, t["id"], n, "session turn %d" % (i + 1) if session else "cold", bin_))
+                    print(" ".join(shlex.quote(c) for c in agent_cmd(p, t, args, session, i > 0)))
             return
         out.mkdir(parents=True)
-        truths = {t["id"]: truth_of(t, bin_, tmp) for _, t, _ in jobs}
+        truths = {t["id"]: truth_of(t, bin_, tmp) for g in groups for _, t, _ in g}
         (out / "truth.json").write_text(json.dumps(truths, indent=1))
         with cf.ThreadPoolExecutor(args.jobs) as pool:
-            results = list(pool.map(lambda j: run_one(*j, args, bin_, src, tmp, out, truths), jobs))
+            results = [m for ms in pool.map(lambda g: run_group(g, args, bin_, src, tmp, out, truths), groups)
+                       for m in ms]
         rev = subprocess.run(["git", "rev-parse", "--short", args.rev or "HEAD"], cwd=REPO,
                              capture_output=True, text=True).stdout.strip()
         meta = dict(label=args.label, rev=rev + ("" if args.rev else "+tree"), files=files,
                     days=args.days, model=args.model or "default",
-                    grader=args.grader_model or "default")
+                    grader=args.grader_model)
         (out / "results.json").write_text(json.dumps({"meta": meta, "results": results}, indent=1))
         (out / "scorecard.md").write_text(scorecard(results, meta, base))
         print("wrote %s/scorecard.md; agents $%.2f, grader $%.2f" % (

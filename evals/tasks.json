@@ -1,7 +1,7 @@
 {
-  "_doc": "Journeys for scripts/agent_eval.py. truth: sa commands the grader runs on the same snapshot (the wrapper adds --root); update them when the grammar changes. Questions stay grammar-agnostic: no flag or subcommand names, except a task marked gives_command.",
+  "_doc": "Journeys for scripts/agent_eval.py. truth: sa commands the grader runs on the same snapshot (the wrapper adds --root); update them when the grammar changes. Questions stay grammar-agnostic: no flag or subcommand names, except a task marked gives_command. cold: a first-contact journey, a fresh agent of its own (held_out too); the rest run per persona in one session, in this order.",
   "tasks": [
-    {"id": "orient", "personas": ["hurried", "scientific"], "principles": [1, 2],
+    {"id": "orient", "personas": ["hurried", "scientific"], "principles": [1, 2], "cold": true,
      "question": "What does this tool do, and which part of it answers 'what did my sessions cost' versus 'what is filling my context window'?",
      "truth": ["sa -h"],
      "note": "Correct names both views and which question each answers."},
@@ -61,7 +61,7 @@
      "question": "What fraction of context growth is attributed exactly versus ambiguously, and how does that uncertainty affect the Bash figure?",
      "truth": ["sa context -v", "sa context tool=Bash"],
      "note": "Correct quotes the ambiguous share with its population and says ambiguous tokens are not spread onto Bash."},
-    {"id": "typo", "personas": ["hurried"], "principles": [1], "gives_command": true,
+    {"id": "typo", "personas": ["hurried"], "principles": [1], "gives_command": true, "cold": true,
      "question": "A colleague's note says to run `sa contxt --were tol=Bash` to see what Bash put in context. Run it, and recover to the intended result.",
      "truth": ["sa contxt --were tol=Bash", "sa context tool=Bash"],
      "note": "Correct reaches the Bash-pinned view; record how many tries and whether each error named the fix."}

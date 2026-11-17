@@ -112,3 +112,43 @@ def test_every_truth_command_parses_in_the_current_grammar():
             if t.get("gives_command") and command == t["truth"][0]:
                 continue  # the typo the journey recovers from
             grammar.parse(words)  # a UsageError fails the test
+
+
+def test_a_persona_runs_its_journeys_in_one_session_and_first_contact_cold():
+    """Owner 2026-11-16: per persona, one session in tasks.json order; a
+    cold (first-contact) or held-out journey gets a fresh agent; --fresh, all."""
+    import argparse
+    ae = _harness()
+    args = argparse.Namespace(tasks=None, include_held_out=True, personas="hurried,scientific",
+                              repeat=1, fresh=False, budget=1.0, model=None)
+    groups = ae.load_tasks(args)
+    alone = lambda t: bool(t.get("cold") or t.get("held_out"))  # noqa: E731
+    sessions = [g for g in groups if len(g) > 1]
+    assert sessions and any(alone(t) for t in TASKS)  # vacuity guard: both kinds
+    for g in groups:
+        assert len({p for p, _, _ in g}) == 1 and (len(g) == 1 or not any(alone(t) for _, t, _ in g))
+        ids = [t["id"] for _, t, _ in g]
+        assert ids == [t["id"] for t in TASKS if t["id"] in ids]  # in tasks.json order
+    for p in args.personas.split(","):
+        assert sum(len(g) for g in groups if g[0][0] == p) == sum(p in t["personas"] for t in TASKS)
+        assert sum(1 for g in sessions if g[0][0] == p) == 1
+    args.fresh = True
+    assert all(len(g) == 1 for g in ae.load_tasks(args))
+    (p, first, _), (_, later, _) = sessions[0][:2]
+    fresh, opened, resumed = (ae.agent_cmd(p, first, args), ae.agent_cmd(p, first, args, "S"),
+                              ae.agent_cmd(p, later, args, "S", True))
+    assert "--no-session-persistence" in fresh and "--no-session-persistence" not in opened + resumed
+    assert opened[opened.index("--session-id") + 1] == resumed[resumed.index("--resume") + 1] == "S"
+    assert resumed[2].startswith("Question: " + later["question"]) and later["question"] not in opened[2]
+
+
+def test_a_session_turn_costs_only_its_own_share(tmp_path, monkeypatch):
+    """A resumed `claude -p` reports the session's cost so far (smoke run
+    2026-11-16: turn 2's modelUsage held turn 1's output): each turn keeps
+    its own share, so the scorecard's costs add up to the session's."""
+    ae = _harness()
+    cumulative = iter([0.06, 0.18])
+    monkeypatch.setattr(ae, "run_one", lambda *a: {"cost": next(cumulative)})
+    group = [("hurried", {"id": "a"}, 1), ("hurried", {"id": "b"}, 1)]
+    costs = [m["cost"] for m in ae.run_group(group, None, None, None, tmp_path, None, None)]
+    assert [round(c, 2) for c in costs] == [0.06, 0.12]

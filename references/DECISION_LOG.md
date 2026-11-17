@@ -300,6 +300,13 @@ only where it reconciles; the formula and "weighed in spend" lines go.
 `claude-code-session-analyzer` (`claude-session-analyzer` is taken);
 the module stays `sa`, run as `python3 -m sa`; the plugin keeps its name.
 
+**D-EVAL-SESSIONS.** Per persona, the journeys run in ONE agent
+session, in `tasks.json` order (an agent keeps what it learned, as a
+user does); first-contact (`cold`: `orient`, `typo`) and held-out
+journeys get a fresh agent each. The grader is `sonnet` by default
+(`--grader-model`), `--repeat 1`. The scorecard moves to
+`scripts/eval_scorecard.py` (agent_eval.py at its 15K cap).
+
 ## Filed, not built (re-checked 2026-11-16)
 
 - Project names print encoded (`~-work-proj3`), not as paths.
