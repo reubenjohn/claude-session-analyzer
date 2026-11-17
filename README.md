@@ -72,9 +72,9 @@ shrink                  -57        -      -         -       -
 <!-- example: spend by subagent | by subagent -->
 ```
 by subagent    spend  calls  share
-agent-fake1      988      7  100.0%
-= 100%           988      7  shares' base: the rows above, not the main row
-main         176,976     14       -  = session_start 176,976
+agent-fake1      988      7    0.6%
+main         176,976     14   99.4%  = session_start 176,976
+= 100%       177,965     21  shares' base: the rows above
 ```
 
 Spend weights cache reads 0.1x, writes 1.25x (5m) or 2x (1h); no

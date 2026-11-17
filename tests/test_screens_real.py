@@ -98,7 +98,8 @@ def test_the_checks_say_what_is_checked_and_material_uncertainty_its_own(homes):
             bare[1]), bare
     assert seen == {True, False}  # vacuity guard: both arms
     spent = ok(homes["fixture"], grammar.VIEWS[0]).splitlines()
-    assert re.match(r"^%s: = 100%% [\d,]+ \+ .+ = %s ([\d,]+)$" % (checks.OK, schema.SPEND), spent[-1]), spent[-1]
+    assert re.match(r"^%s: rows [\d,]+ \+ %s [\d,]+ = %s ([\d,]+)$" % (  # main is in the base: rows, then it
+        checks.OK, schema.residual_label(schema.SUBAGENT_DIM), schema.SPEND), spent[-1]), spent[-1]
 
 
 def test_a_pinned_cause_prints_no_trigger_command(homes):

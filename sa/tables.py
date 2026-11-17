@@ -156,7 +156,8 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
     (``-`` on a signed row, a mean's never summed). ``glosses`` print
     beside a row's value where the line has room. ``pin``, the command
     that pins the catch-all row, prints under it when its parts fold: that
-    screen lists each part (UX_PRINCIPLES 2, 3)."""
+    screen lists each part (UX_PRINCIPLES 2, 3). A catch-all that is a
+    population (``main``) is in the base: it prints above it, with its share."""
     heading = title(grouped.dim)
     regular = [r for r in grouped.rows if r.kind == query.REGULAR]
     if grouped.dim == schema.CAUSE_DIM or limit is None:
@@ -166,8 +167,9 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
         shown.append(query.Row("+%s more" % format(len(hidden), ",d"), sum(r.mass for r in hidden),
                                sum(r.count for r in hidden), query.REGULAR))
     values = len(shown) - bool(hidden)  # rows of one value each; the rest print italic
-    base = [query.Row(BASE_LABEL, grouped.base, sum(r.count for r in regular), BASE_LABEL)] if regular else []
-    shown += base + [r for r in grouped.rows if r.kind != query.REGULAR]
+    within = [r for r in grouped.rows if r.kind != query.REGULAR and grouped.in_base(r)]  # main: above its base
+    base = [query.Row(BASE_LABEL, grouped.base, sum(r.count for r in regular + within), BASE_LABEL)] if regular else []
+    shown += within + base + [r for r in grouped.rows if r.kind != query.REGULAR and r not in within]
     labels = [_label(r, grouped.dim, names) if i < values or r.kind not in (query.REGULAR, BASE_LABEL)
               else r.value for i, r in enumerate(shown)]
     if total is not None:
@@ -178,7 +180,8 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
 
     def cell(name: str, per: Optional[Dict[str, float]], i: int, r: query.Row) -> str:
         if r.kind == BASE_LABEL:
-            return "-" if name == AVG_CALL else num(sum(per.get(h.value, 0) for h in regular) if per else r.count)
+            return "-" if name == AVG_CALL else num(sum(per.get(h.value, 0) for h in regular) + (
+                per.get(None, 0) if within else 0) if per else r.count)
         if per is None or r.kind != query.REGULAR:  # the residual's own windows count; a signed row's do not
             return num(per[None]) if per and r.kind == query.RESIDUAL and None in per else (
                 "-" if per else num(r.count))
@@ -199,7 +202,7 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
     lines = [style.tag(line(heading, 0, "share" if regular else ""), style.HEADER)]
     mass, at = width + 2, width + sum(w + 2 for w in widths) + 2  # the figures' spans: mass and share
     for i, (label, r) in enumerate(zip(labels, shown)):
-        share = grouped.share(r.mass) if r.kind == query.REGULAR else None
+        share = grouped.share(r.mass) if grouped.in_base(r) else None
         free = r.kind == query.REGULAR and i < values and grouped.dim not in schema.VOCABULARY  # a data value
         last = "%6s" % (pct(share) if r.kind != BASE_LABEL else "")
         text = line(label, i + 1, last)
@@ -210,7 +213,7 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
             note = more
         elif r.kind == BASE_LABEL:
             note = BASE_NOTE % schema.residual_label(grouped.dim) if any(
-                h.kind == query.RESIDUAL for h in grouped.rows) else BASE_NOTE.split(", not")[0]
+                h.kind == query.RESIDUAL and not within for h in grouped.rows) else BASE_NOTE.split(", not")[0]
         elif r.kind in (query.REGULAR, query.SIGNED) and glosses and r.value in glosses:
             note = glosses[r.value] if len(text) + 2 + len(glosses[r.value]) <= WIDTH else ""
         role = style.ROW if i < values else (style.TOTAL if r.kind == BASE_LABEL else style.OTHER)

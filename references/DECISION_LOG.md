@@ -277,6 +277,14 @@ kept: a tenth of what the growth walk attributes is untraced. It fires
 more often (the fixture: 31% of a 433-token growth): by design, small
 growth is no more traceable.
 
+**D-MAIN-IN-BASE (E6).** `main` is windows like any subagent's, a
+population, not a remainder: the subagent table's `= 100%` includes it,
+so a share is of all spend and the headline and table agree (an eval
+agent had computed 6.7% itself from a 7.6% on screen). `main` prints
+above `= 100%` with its share; the check reads `rows + main = spend`.
+One rule per dimension (`schema.IN_BASE`), so context's subagent table
+follows (lead's call: one `main` behaves one way).
+
 ## Filed, not built (re-checked 2026-11-16)
 
 - Project names print encoded (`~-work-proj3`), not as paths.

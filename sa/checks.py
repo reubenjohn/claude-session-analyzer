@@ -153,8 +153,9 @@ def spend(sel: Selection, shown: Sequence[query.Table]) -> Tuple[List[str], List
         others = [(r, r.value) for r in grouped.rows if r.kind != query.REGULAR]
         total = regular + sum(r.mass for r, _ in others)
         ok = num(total) == num(sel.total)
-        holds = holds and ok
-        terms = ["%s %s" % (tables.BASE_LABEL, num(regular))] + [
+        holds = holds and ok  # a base holding its catch-all (main) sums its rows, then it
+        within = any(grouped.in_base(r) for r, _ in others)
+        terms = ["%s %s" % ("rows" if within else tables.BASE_LABEL, num(regular))] + [
             "%s %s" % (schema.residual_label(grouped.dim) if r.kind == query.RESIDUAL else v, num(r.mass)) for r, v in others]
         worked.append(style.tag("%s%s: %s = %s %s  %s" % (
             INDENT, tables.title(grouped.dim), " + ".join(terms), glossary.printed(schema.SPEND), num(total),

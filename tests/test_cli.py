@@ -124,8 +124,8 @@ def test_main_windows_carry_no_agent_and_land_in_the_residual_row(tmp_path):
     assert code == 0, err
     assert re.search(r"; largest %s [\d,]+ agent-fake1$"  # the one subagent, beside a 200K+ window
                      % schema.SUBAGENT_DIM, fx.headline(out))
-    assert re.search(r"^%s\s+[\d,]+\s+14\s+-(  |$)" % re.escape(schema.residual_label(schema.SUBAGENT_DIM)),
-                     out, re.M)  # labelled by what its windows lack
+    assert re.search(r"^%s\s+[\d,]+\s+14\s+[\d.]+%%(  |$)" % re.escape(schema.residual_label(schema.SUBAGENT_DIM)),
+                     out, re.M)  # labelled by what its windows lack; a population: in the share base
     pinned = fx.run_cli("spend", "--root", str(root), "%s=%s" % (schema.SUBAGENT_DIM, schema.residual_label(
         schema.SUBAGENT_DIM)))  # the label as printed is typable input, unquoted
     assert pinned[0] == 0 and "14 calls" in pinned[1] and " " not in schema.residual_label(schema.SUBAGENT_DIM)

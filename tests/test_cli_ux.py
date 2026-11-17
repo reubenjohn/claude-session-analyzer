@@ -105,7 +105,8 @@ def test_the_v_footer_says_what_v_prints_and_v_prints_it_in_its_place(tmp_path):
 
 def test_the_share_column_base_is_on_screen(tmp_path):
     """Every table with a share prints its ``= 100%`` row, the sum of its
-    rows in a share: per call, before shrink; without the catch-all row."""
+    rows in a share: per call, before shrink; without the catch-all row
+    unless it is a population (``main``, D-MAIN-IN-BASE)."""
     root = fx.cli_corpus(tmp_path)
     for args in (("context", "%s=proj-a" % schema.PROJECT_DIM, "by", schema.SESSION_DIM),
                  ("context", "%s=Bash" % schema.TOOL_DIM, "by", schema.SESSION_DIM),
@@ -114,10 +115,12 @@ def test_the_share_column_base_is_on_screen(tmp_path):
         out = fx.run_cli(args[0], "--root", str(root), *args[1:])[1]
         table = fx.sections(out)[2]
         assert table[0].startswith("by %s" % args[-1]) and table[0].endswith(" share"), args
-        rows = [l.split() for l in table[1:] if re.match(r"^\S+\s+[\d,]+\s.*%$", l)]
+        rows = [l.split() for l in table[1:] if re.match(r"^\S+\s+[\d,]+\s.*\d%(  |$)", l)]
         (base,) = [l for l in table if l.startswith(tables.BASE_LABEL)]
         mass = int(base[len(tables.BASE_LABEL):].split()[0].replace(",", ""))
         assert rows and abs(sum(int(r[1].replace(",", "")) for r in rows) - mass) <= len(rows), args
+        main = [r for r in rows if r[0] == schema.residual_label(schema.SUBAGENT_DIM)]
+        assert bool(main) is (args[-1] in schema.IN_BASE), (args, rows)  # vacuity: main's own share, once
 
 
 def test_every_declared_term_has_a_glossary_entry_with_a_surprise():

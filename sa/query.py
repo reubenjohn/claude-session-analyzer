@@ -174,12 +174,16 @@ class Row(NamedTuple):
 class Table(NamedTuple):
     dim: str
     rows: List[Row]  # regular rows by descending mass, then residual, then signed
-    base: float      # the regular rows' mass: the total less the other rows
+    base: float      # the rows' mass in the base: the total less the other rows
     residual: Tuple[dict, ...] = ()  # the dimensions of each fact in the residual row
 
     def share(self, mass: float) -> Optional[float]:
-        """Of the regular rows' mass; None when there is none."""
+        """Of the base's mass; None when there is none."""
         return mass / self.base if self.base else None
+
+    def in_base(self, row: Row) -> bool:
+        """A regular row, or a catch-all that is a population (``schema.IN_BASE``)."""
+        return row.kind == REGULAR or row.kind == RESIDUAL and self.dim in schema.IN_BASE
 
 
 def group(facts: List[Fact], dim: str, metric: str, calls: Optional[int] = None) -> Table:
@@ -191,7 +195,8 @@ def group(facts: List[Fact], dim: str, metric: str, calls: Optional[int] = None)
     (``usage.usage_context`` has the measurement).
     Shrink increments always land in their own signed row whatever ``dim``
     is, so no other row mixes signed mass and every share is a share of mass
-    that was added. The base is the total less the residual and signed rows,
+    that was added. The base is the total less the signed rows and the
+    residual unless it is a population (``schema.IN_BASE``),
     so it and the headline total never disagree by a rounding. A per-call
     metric's rows are over its population's ``calls`` (``per``), so they
     add up to its total.
@@ -216,8 +221,8 @@ def group(facts: List[Fact], dim: str, metric: str, calls: Optional[int] = None)
     regular = sorted((k for k in mass if k[1] == REGULAR), key=lambda k: -mass[k])
     other = [k for k in ((None, RESIDUAL), (schema.SHRINK, SIGNED)) if k in mass]
     rows = [Row(k[0], mass[k] / divisor, count[k], k[1]) for k in regular + other]
-    return Table(dim, rows, total(facts, metric, calls) - sum(mass[k] / divisor for k in other),
-                 tuple(residual))
+    out = [k for k in other if k[1] == SIGNED or dim not in schema.IN_BASE]
+    return Table(dim, rows, total(facts, metric, calls) - sum(mass[k] / divisor for k in out), tuple(residual))
 
 
 def relabels(facts: List[Fact], a: str, b: str, metric: str) -> Optional[Dict[str, str]]:

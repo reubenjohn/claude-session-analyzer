@@ -166,6 +166,11 @@ def residual_cases(dim: str) -> str:
     return ", ".join(text for text, _ in RESIDUAL_NOTES[dim][1])
 
 
+# A catch-all that is a population, not a remainder: ``main`` is windows like
+# any subagent's, so it is in its table's share base (D-MAIN-IN-BASE).
+IN_BASE = (SUBAGENT_DIM,)
+
+
 def residual_label(dim: str) -> str:
     """The catch-all row's label in a table by ``dim``: what its facts lack."""
     return RESIDUAL_NOTES[dim][0] if dim in RESIDUAL_NOTES else "no " + dim
