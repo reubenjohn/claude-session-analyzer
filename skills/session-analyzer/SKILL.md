@@ -42,8 +42,7 @@ input, cache writes (1h 2.0x, 5m 1.25x), cache reads 0.1x; output
 apart (`-v`: `not in spend`). Context shares are not cost shares.
 
 The `context` headline opens with `average context per call* N tokens,
-over C calls in W windows` (what a call held; never summed, never "added
-per call"), then the starting context by `started_by` and the `growth`:
+over C calls in W windows` (what a call held; never summed), then the starting context by `started_by` and the `growth`:
 `largest:` the top tool, `of which` its largest command. A change pin's headline
 says its part: `Bash: 214 of the 84,709-token average call, over 21
 calls in 3 windows`, then its changes. A pin omits tables that would have one row.
@@ -79,12 +78,13 @@ dimension) shows its parts; `shrink` is signed, in no share. The
 default screen shows the cause, tool and command tables, then the
 command for the rest (`by DIM`, `also by` the others) and for `-v`. Sessions print as 8 hex, like
 subagents and windows; `session=` takes any unique prefix. The checks
-say what is checked, in plain words, then the `ambiguous` share of the
-average (what could not be traced); `-v` works them in this run's numbers:
+say what is checked, then the `ambiguous` share of growth (what could
+not be traced); `-v` works them in this run's numbers:
 
 <!-- example: context -v | ✓ numbers add up -->
 ```
 ✓ numbers add up over 3 windows in view: rows to the average call, changes to final window sizes
+  ! 31.1% of growth not traced to one source: python3 -m sa context cause=ambiguous
   each change's tokens × calls held         1,778,890
   ÷ calls in view                                  21
   = average call                               84,709  ✓ same as the mean measured call size
@@ -93,7 +93,7 @@ average (what could not be traced); `-v` works them in this run's numbers:
     = 6 (33.3%) one source + 9 (50.0%) ambiguous + 3 shrank  ✓
 ```
 
-A material `ambiguous` (10%+ of the average) or `shrink` (1%+) gets a
+A material `ambiguous` (10%+ of growth) or `shrink` (1%+) gets a
 `!` line with the command that shows it. A failure prints `MISMATCH` in
 full, a bug in this tool, exit 1. A change pin's checks name the whole
 windows they apply to.

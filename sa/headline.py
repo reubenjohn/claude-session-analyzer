@@ -83,6 +83,10 @@ def level(sel: Selection, spec: schema.Metric, names: Names = None) -> str:
             num(sel.total), num(mean), count(sel.calls, "call"), count(sel.n_windows, "window"),
             count(changes, schema.PLURAL[spec.carrier][:-1], schema.PLURAL[spec.carrier]),
             count(shown, "window") if shown == sel.n_windows else "%s of those windows" % num(shown))
+        if (schema.CAUSE_DIM, schema.AMBIGUOUS) in sel.drill:
+            grown = untraced(sel)[1]
+            line += "\n  = %s (%s): growth %s" % (OF_GROWTH % pct(sel.total / grown if grown else 0),
+                                                 num(grown), UNTRACED)
     else:
         line = "%s %s %s, over %s in %s" % (
             glossary.printed(glossary.AVERAGE).replace("_", " "), num(sel.total), spec.unit,
@@ -176,6 +180,24 @@ def copied(sel: Selection, forest: List[Fact]) -> List[str]:
 
 
 STARTING = (schema.STARTING_CONTEXT, schema.INHERITED)  # the causes that enter as a window starts
+
+
+def untraced(sel: Selection) -> Tuple[float, float]:
+    """The whole windows' ``ambiguous`` and their growth before shrink, each
+    per call (D-AMBIGUOUS-OF-GROWTH): ambiguity is only ever growth, so
+    growth is the base its share is read against."""
+    held = {}
+    for f in sel.window_facts:
+        if f.kind == schema.INCREMENT:
+            cause = f.dims.get(schema.CAUSE_DIM)
+            held[cause] = held.get(cause, 0) + f.metrics.get(schema.CONTEXT_HELD, 0)
+    calls = max(sel.calls or 0, 1)
+    grown = sum(m for c, m in held.items() if c != schema.SHRINK and c not in STARTING)
+    return held.get(schema.AMBIGUOUS, 0) / calls, grown / calls
+
+
+OF_GROWTH = "%s of growth"  # the ambiguous share's base, wherever it prints
+UNTRACED = "not traced to one source"
 
 
 def over(sel: Selection, carrier: str, names: Names = None) -> str:

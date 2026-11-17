@@ -111,19 +111,14 @@ def _label(row: query.Row, dim: str, names: Optional[Dict[str, str]] = None) -> 
 Counts = Sequence[Tuple[str, Optional[Dict[str, int]]]]  # a count column: its name, a count per value
 
 
-def parts_text(parts: Sequence[Tuple[str, float]], room: int) -> str:
-    """``= a 1 + b 2 + 3 more 4``: the catch-all's parts, largest first, as
-    many as ``room`` columns hold, the rest folded as a table folds its
-    rows (``FOLDED`` finds the fold: its row's pin lists them); one part
-    names what the whole row is."""
-    terms = ["%s %s" % (what, num(mass)) for what, mass in parts]
-    for keep in range(len(terms), 0, -1):
-        rest = parts[keep:]
-        text = "= " + " + ".join(terms[:keep] + (["%d more %s" % (len(rest), num(sum(m for _, m in rest)))]
-                                                 if rest else []))
-        if len(text) <= room or keep == 1:
-            return text
-    return ""
+def parts_text(parts: Sequence[Tuple[str, float]]) -> str:
+    """``= a 1 + b 2 + 3 more 4``: the catch-all's two largest parts by
+    name, always (D-TWO-PARTS), the rest folded as a table folds its rows
+    (``FOLDED`` finds the fold: its row's pin lists them); one part names
+    what the whole row is."""
+    named, rest = parts[:2], parts[2:]
+    return "= " + " + ".join(["%s %s" % (what, num(mass)) for what, mass in named]
+                             + (["%d more %s" % (len(rest), num(sum(m for _, m in rest)))] if rest else []))
 
 
 FOLDED = re.compile(r" \d+ more [-\d,]+$")  # a catch-all's parts that fold: its pin lists them
@@ -210,7 +205,7 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
         text = line(label, i + 1, last)
         note = ""
         if r.kind == query.RESIDUAL:
-            note = parts_text(parts, WIDTH - len(text) - 3)  # room for a term's first ``*``
+            note = parts_text(parts)
         elif i == values and hidden:
             note = more
         elif r.kind == BASE_LABEL:
@@ -219,9 +214,8 @@ def table(grouped: query.Table, metric: str, limit: Optional[int], total: Option
         elif r.kind in (query.REGULAR, query.SIGNED) and glosses and r.value in glosses:
             note = glosses[r.value] if len(text) + 2 + len(glosses[r.value]) <= WIDTH else ""
         role = style.ROW if i < values else (style.TOTAL if r.kind == BASE_LABEL else style.OTHER)
-        if note and len(text) + 2 + len(note) > WIDTH:  # a long note: its own line, under its row
-            if r.kind == query.RESIDUAL:
-                note = parts_text(parts, WIDTH - 5)
+        star = r.kind == query.RESIDUAL  # room for a term's first ``*``
+        if note and len(text) + 2 + star + len(note) > WIDTH:  # a long note: its own line, under its row
             lines.append(style.tag(text, role, share, ((mass, mass + widths[0]), (at, at + 6))))
             lines += [style.tag(part, style.HINT if i == values else "", values=((4, len(part)),) * (i == values))
                       for part in (command_lines("    ", note) if i == values else ["    " + note])]

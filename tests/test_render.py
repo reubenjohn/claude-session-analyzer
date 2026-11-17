@@ -224,3 +224,21 @@ def test_a_leaf_and_a_candidate_without_a_uuid_print_their_line():
     assert body[1] == [schema.CANDIDATES + ":"] and body[2] == ["└", ":2"]  # the candidate without one
     assert body[3][:2] == ["30", ":2"]  # the leaf without one
     assert "None" not in "\n".join(lines)
+
+def test_a_catch_all_names_its_two_largest_parts_then_folds_the_rest():
+    """D-TWO-PARTS: whenever a catch-all has two or more parts, the two
+    largest print by name, however short the line; the rest fold into one
+    ``N more`` term carrying their sum, and the pin under the row prints only
+    when something folded."""
+    parts = [("p%d" % i, 1000.0 * (6 - i)) for i in range(6)]
+    for n in range(1, len(parts) + 1):
+        text = tables.parts_text(parts[:n])
+        named = re.findall(r"(p\d) ", text)
+        assert named == [p for p, _ in parts[:min(n, 2)]], text
+        assert bool(tables.FOLDED.search(text)) == (n > 2), text
+        if n > 2:
+            assert text.endswith("%d more %s" % (n - 2, tables.num(sum(m for _, m in parts[2:n])))), text
+    rows = [query.Row("a", 50, 1, query.REGULAR), query.Row(None, 50, 3, query.RESIDUAL)]
+    for n, pinned in ((2, False), (3, True)):  # vacuity: both arms
+        lines = tables.table(query.Table(DIM, rows, 50), M, limit=1, parts=parts[:n], pin="PIN")
+        assert ("    PIN" in lines) == pinned, lines

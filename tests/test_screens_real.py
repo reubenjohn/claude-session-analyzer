@@ -8,7 +8,7 @@ import re
 import shlex
 
 import fixtures as fx
-from sa import checks, grammar, render, schema
+from sa import checks, glossary, grammar, render, schema
 from test_screen_budgets import (CONTEXT, ERROR_LINES, MORE, PROG, SPEND, homes, ok, parsed_tables,  # noqa: F401
                                  runs, sa, suggested)
 
@@ -68,27 +68,35 @@ def test_by_change_says_what_it_cut_and_how_to_see_it(homes):
 
 def test_the_checks_say_what_is_checked_and_material_uncertainty_its_own(homes):
     """P2/P3: ALWAYS one ✓ line saying what is checked, then the ambiguous
-    share of the average (what could not be traced, with its base), unless
-    the cause table above prints that very share (one share a figure); ON
+    share of growth (D-AMBIGUOUS-OF-GROWTH: what could not be traced, with
+    its base), unless the cause table above prints the ambiguous row; ON
     TRIGGER (that share at or over ``checks.AMBIGUOUS_MATERIAL``) a ``!``
-    line whose command shows those changes; ON REQUEST (-v) the worked
-    equation. Spend's one line is its own sum, in its numbers."""
-    for corpus, material in (("fixture", False), ("realistic", True)):
+    line, the share instead, whose command shows those changes; ON REQUEST
+    (-v) the worked equation. Spend's one line is its own sum, in its numbers."""
+    seen = set()
+    for corpus in ("fixture", "realistic", "wide"):
         out = ok(homes[corpus], CONTEXT)
         last = fx.closing(out)
         assert last[0].startswith(checks.OK) and "average call" in last[0] and "window sizes" in last[0]
-        row = re.search(r"^%s\*?\s+[\d,]+\s+[\d,]+\s+([\d.]+)%%" % schema.AMBIGUOUS, out, re.M)
-        share = float(row.group(1))  # the cause table's row: said once
+        row = re.search(r"^%s\*?\s+([\d,]+)\s" % schema.AMBIGUOUS, out, re.M)
+        grown = float(re.search(r"^  %s[^\d]*([\d,]+)" % glossary.GROWTH, out, re.M).group(1).replace(",", ""))
+        share = float(row.group(1).replace(",", "")) / grown if row else 0
+        material = share >= checks.AMBIGUOUS_MATERIAL
+        seen.add(material)
         assert not any(l.lstrip().startswith(schema.AMBIGUOUS) for l in last), last
         flagged = [l for l in last[1:] if l.lstrip().startswith("!")]
-        assert bool(flagged) is material is (share >= 100 * checks.AMBIGUOUS_MATERIAL) and len(last) == 1 + len(
-            flagged), last
+        assert bool(flagged) is material and len(last) == 1 + len(flagged), last
         for line in flagged:
+            said = float(re.search(r"! ([\d.]+)% of growth", line).group(1))
+            assert abs(said - 100 * share) < 0.2, (line, share)  # the screen's own rounded figures
             command = line[line.index(PROG):]
             assert "%s=%s" % (schema.CAUSE_DIM, schema.AMBIGUOUS) in command and grammar.BY not in command
             assert ok(homes[corpus], *shlex.split(command)[len(PROG.split()):])  # a short screen: its tables
         bare = fx.closing(ok(homes[corpus], CONTEXT, grammar.BY, schema.TOOL_DIM))  # no cause table: said here
-        assert re.match(r"^  %s\*?: %s%% of the average call over all " % (schema.AMBIGUOUS, share), bare[1]), bare
+        assert bare[1:] == [] if not share else re.match(
+            r"^  ! [\d.]+% of growth " if material else r"^  %s: [\d.]+%% of growth \(" % schema.AMBIGUOUS,
+            bare[1]), bare
+    assert seen == {True, False}  # vacuity guard: both arms
     spent = ok(homes["fixture"], grammar.VIEWS[0]).splitlines()
     assert re.match(r"^%s: = 100%% [\d,]+ \+ .+ = %s ([\d,]+)$" % (checks.OK, schema.SPEND), spent[-1]), spent[-1]
 
@@ -113,19 +121,18 @@ def test_a_pin_typed_twice_is_one_pin(homes):
 def test_a_catch_all_whose_parts_fold_names_the_pin_that_lists_them(homes):
     """D-FOLDED-PARTS-POINTER: under a catch-all row whose parts fold into
     ``+N more``, the command pinning that row; its screen's cause table
-    lists every part. A row that shows every part names none."""
+    lists every part. (A row that shows every part names none: test_render.)"""
     home = homes["realistic"]
     lines = ok(home, CONTEXT).splitlines()
     folded = [i for i, l in enumerate(lines) if re.search(r" \d+ more [\d,]+$", l) and " = " in l]
     assert folded, lines  # vacuity guard: the realistic default folds a catch-all's parts
     for i in folded:
-        dim = next(d for d in schema.DIMENSIONS if lines[i].startswith(schema.residual_label(d) + " "))
+        row = lines[i - 1] if lines[i].startswith("    = ") else lines[i]  # parts on the row, or under it
+        dim = next(d for d in schema.DIMENSIONS if row.startswith(schema.residual_label(d) + " "))
         command = lines[i + 1].strip()
         assert command == grammar.run(CONTEXT, "%s=%s" % (dim, schema.residual_label(dim))), (lines[i], command)
         causes = dict(parsed_tables(runs(home, command)[1]))[schema.CAUSE_DIM]
         assert len(causes) >= int(re.search(r" (\d+) more ", lines[i]).group(1)) + 1, causes
-    whole = [i for i, l in enumerate(lines) if re.match(r"^no \w+ .* = ", l) and i not in folded]
-    assert whole and all(not lines[i + 1].startswith("    " + PROG) for i in whole)  # vacuity guard: one whole
 
 
 def test_a_mistake_keeps_only_the_words_that_read_right(homes):

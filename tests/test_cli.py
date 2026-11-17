@@ -43,16 +43,17 @@ def test_context_reconciles_and_counts_its_population(tmp_path):
     assert orphan == " " * len("in view: ") + "1 fork whose parent is missing: its copy counts as its own"
     rooted = [line for line in fx.joined(out).splitlines() if str(root) in line]  # locators are root-relative
     assert rooted[0] == read and len(rooted) > 1  # every command keeps --root, wrapped to the line budget
-    assert all(l.lstrip().startswith((grammar.PROG, render.NEXT, "--root")) for l in rooted[1:]), rooted
+    assert all(l.lstrip().startswith((grammar.PROG, render.NEXT, "--root", "!")) for l in rooted[1:]), rooted
     # The cause table closes with its rows' sum, the average, against the
     # mean call; the summed total, then the gaps, are the two checks lines, last.
     assert re.search(r"^%s\s+84,709\s+%d\s+%s = mean call size$" % (
         tables.TOTAL_LABEL, sum(f.kind == INCREMENT for f in facts), tables.OK_MARK), out, re.M)
-    assert fx.checks(out) == (  # what is checked, in plain words; the ambiguous share is the cause table's row
-        "%s over 3 windows in view: rows to the average call, changes to final window sizes" % checks.OK)
+    trigger = "  ! 31.1%% of growth not traced to one source: %s context %s=%s --root %s" % (
+        grammar.PROG, schema.CAUSE_DIM, schema.AMBIGUOUS, root)  # ~135 of the ~433 growth (D-AMBIGUOUS-OF-GROWTH)
+    assert fx.checks(fx.joined(out)) == (  # what is checked, in plain words; the trigger: its share of growth
+        "%s over 3 windows in view: rows to the average call, changes to final window sizes\n" % checks.OK + trigger)
     by_tool = fx.run_cli("context", "--root", str(root), "by", schema.TOOL_DIM)[1]
-    assert fx.checks(by_tool).endswith(  # the * where the word first prints: the catch-all's parts
-        "\n  %s: 0.2%% of the average call over all 21 calls, not traced to one source" % schema.AMBIGUOUS)
+    assert fx.joined(fx.checks(by_tool)).endswith(trigger)
     assert re.search(r"^%s .* \+ %s\%s \d" % (schema.residual_label(schema.TOOL_DIM), schema.AMBIGUOUS,
                                                glossary.MARKER), by_tool, re.M)
     worked = fx.run_cli("context", "--root", str(root), "-v")[1].splitlines()

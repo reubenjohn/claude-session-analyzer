@@ -9,24 +9,25 @@ whole windows: each change times the calls that held it, over the calls,
 is the mean measured call size; the tokens added less the shrinks are the
 final window sizes; and the calls after their window's first (calls -
 windows) split into one source, ambiguous and shrank, the measured rates
-``-v`` prints. ALWAYS too, the ambiguous share of the average: what could
-not be traced, with its base, unless the screen's cause table already
-prints that very share (UX_PRINCIPLES 2: one share per figure a screen). Material, a ``!`` line of its own: an
-``ambiguous`` share of the average at or above ``AMBIGUOUS_MATERIAL``, or a
-``shrink`` at or beyond ``SHRINK_MATERIAL`` (of the average before shrink,
-the cause table's ``= 100%`` row, whole windows), each with the command
-that shows those changes, the pins kept; none when the cause is pinned.
+``-v`` prints. ALWAYS too, the ambiguous share of growth (whole windows,
+D-AMBIGUOUS-OF-GROWTH): what could not be traced, with its base, unless
+the screen's cause table prints the ambiguous row (UX_PRINCIPLES 2).
+Material, a ``!`` line in its place: that share at or above
+``AMBIGUOUS_MATERIAL``, or a ``shrink`` at or beyond ``SHRINK_MATERIAL``
+(of the average before shrink, the cause table's ``= 100%`` row), each
+with the command that shows those changes, the pins kept; none when the
+cause is pinned.
 
 Spend reconciles no window, so it checks what it prints, as its one line:
 each table's rows, its catch-all and signed rows included, sum to the
 headline, in the screen's own numbers."""
 from typing import Callable, List, Optional, Sequence, Tuple
 
-from . import glossary, query, reconciliation, schema, style, tables
+from . import glossary, headline, query, reconciliation, schema, style, tables
 from .query import Selection
 from .tables import count, num
 
-AMBIGUOUS_MATERIAL = 0.10  # of the average before shrink: an ambiguous share worth its own line
+AMBIGUOUS_MATERIAL = 0.10  # of growth (D-AMBIGUOUS-OF-GROWTH): an ambiguous share worth its own line
 SHRINK_MATERIAL = 0.01     # likewise, |shrink|
 OK = "%s numbers add up" % tables.OK_MARK
 INDENT = "  "
@@ -77,8 +78,8 @@ def _worked(rows: Sequence[Tuple[str, str, str]]) -> List[str]:
 def context(sel: Selection, more: Optional[Callable[[str], str]] = None,
             said: bool = False) -> Tuple[List[str], List[str]]:
     """The context view's lines (what is checked, in plain words; the
-    ambiguous share of the average unless ``said``, the cause table having
-    printed it, with its trigger) and its ``-v`` worked equation; a failed
+    ambiguous share of growth unless ``said``, the cause table having
+    printed the row, or its trigger) and its ``-v`` worked equation; a failed
     reconciliation in full instead."""
     r = sel.reconciliation
     if not r.holds:
@@ -104,31 +105,33 @@ def context(sel: Selection, more: Optional[Callable[[str], str]] = None,
 
 
 def _material(sel: Selection, more: Optional[Callable[[str], str]], said: bool = False) -> List[str]:
-    """ALWAYS the ambiguous share of the whole windows' average (the cause
-    table's, the answer to "what could not be traced"; not again when
-    ``said``, the cause table on screen printing it); ON TRIGGER, it or
-    a shrink at or beyond its threshold, ``!`` and the command that shows
-    what it holds (``more``, given the cause; none when the cause is pinned)."""
+    """ALWAYS the ambiguous share of the whole windows' growth (not again
+    when ``said``: a cause table on screen, or the headline of a cause pin,
+    prints it); ON TRIGGER, it at or above ``AMBIGUOUS_MATERIAL`` of growth,
+    or a shrink at or beyond ``SHRINK_MATERIAL`` of the average before
+    shrink, ``!`` and the command that shows what it holds (``more``, given
+    the cause; none when the cause is pinned)."""
+    ambiguous, grown = headline.untraced(sel)
+    lines = []
+    share = ambiguous / grown if grown else 0
+    of = headline.OF_GROWTH % tables.pct(share)
+    if share >= AMBIGUOUS_MATERIAL and more:
+        lines += [style.tag(line, style.HINT) for line in tables.command_lines(
+            "%s! %s %s: " % (INDENT, of, headline.UNTRACED), more(schema.AMBIGUOUS))]
+    elif share and not said and (schema.CAUSE_DIM, schema.AMBIGUOUS) not in sel.drill:
+        lines.append("%s%s: %s (%s), %s" % (INDENT, schema.AMBIGUOUS, of, num(grown), headline.UNTRACED))
     held = {}
     for f in sel.window_facts:
         if f.kind == schema.INCREMENT:
             cause = f.dims.get(schema.CAUSE_DIM)
             held[cause] = held.get(cause, 0) + f.metrics.get(schema.CONTEXT_HELD, 0)
     base = sum(m for c, m in held.items() if c != schema.SHRINK)
-    lines = []
-    for cause, floor in ((schema.AMBIGUOUS, AMBIGUOUS_MATERIAL), (schema.SHRINK, SHRINK_MATERIAL)):
-        share = held.get(cause, 0) / base if base else 0
-        hit = abs(share) >= floor
-        if not (hit or cause == schema.AMBIGUOUS and share):
-            continue
-        if not (said and cause == schema.AMBIGUOUS):
-            lines.append("%s%s: %s of the average call over all %s%s" % (
-                INDENT, cause, tables.pct(share), count(sel.calls, "call"),
-                ", not traced to one source" if cause == schema.AMBIGUOUS else ""))
-        if hit and more:
-            lines += [style.tag(line, style.HINT) for line in tables.command_lines("%s! %s %s %s%.0f%%: " % (
-                INDENT, cause, "over" if share > 0 else "beyond", "" if share > 0 else "-", 100 * floor),
-                more(cause))]
+    shrink = held.get(schema.SHRINK, 0) / base if base else 0
+    if abs(shrink) >= SHRINK_MATERIAL and more:
+        lines.append("%s%s: %s of the average call over all %s" % (
+            INDENT, schema.SHRINK, tables.pct(shrink), count(sel.calls, "call")))
+        lines += [style.tag(line, style.HINT) for line in tables.command_lines("%s! %s beyond -%.0f%%: " % (
+            INDENT, schema.SHRINK, 100 * SHRINK_MATERIAL), more(schema.SHRINK))]
     return lines
 
 
