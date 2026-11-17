@@ -63,12 +63,12 @@ Both identities hold by construction (`walk`): MISMATCH is a bug, exit 1.
   carries ZERO mass. Design output for that first.
 - No estimated attribution: exact by subtracting the previous reply,
   everything else to ONE residual bucket, `ambiguous`, never a silent spread.
-- Every figure names its population; the exact/ambiguous/shrink rates are
-  measured per run, never hard-coded.
+- Every figure names its population; exact/ambiguous/shrink rates are
+  measured per run.
 - Tests derive assertions from the schema (never metric names as
   literals); every negative assertion has a vacuity guard.
 - Never sum a peak, nor a per-call figure across populations. No dollars.
-- Shrink is a signed row, in no share, always in the checks. The
+- Shrink is a signed row, in no share; checks: in `-v`, and on trigger. The
   catch-all row (`schema.residual_label`), signed rows and cause rows never fold
   into `+N more`; a share is of the `= 100%` row.
 

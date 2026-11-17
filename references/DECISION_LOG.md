@@ -285,6 +285,10 @@ above `= 100%` with its share; the check reads `rows + main = spend`.
 One rule per dimension (`schema.IN_BASE`), so context's subagent table
 follows (lead's call: one `main` behaves one way).
 
+**D-SHRINK-CHECKS (E1).** The checks print shrink in `-v` (the worked
+equation) and on trigger (1%+), not on every screen; `AGENTS.md`'s
+"always in the checks" amended to match the code.
+
 ## Filed, not built (re-checked 2026-11-16)
 
 - Project names print encoded (`~-work-proj3`), not as paths.
