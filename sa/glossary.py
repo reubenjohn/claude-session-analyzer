@@ -28,7 +28,8 @@ PROG = "python3 -m sa"  # the real invocation, wherever a runnable command print
 PRINTED = {schema.CONTEXT_DELTA: "context tokens", schema.CONTEXT_HELD: "part of avg", AVG_CALL: "avg call",
            schema.INCREMENT: schema.PLURAL[schema.INCREMENT],
            schema.CALL: schema.PLURAL[schema.CALL], "output_tokens": "output",
-           "cache_write_1h_tokens": "1h cache writes", "cache_write_5m_tokens": "5m cache writes"}
+           "cache_write_1h_tokens": "1h cache writes", "cache_write_5m_tokens": "5m cache writes",
+           "input_tokens": "uncached input", "cache_read_tokens": "cache reads"}
 
 
 class Term(NamedTuple):
@@ -71,7 +72,7 @@ GLOSSARY: Dict[str, Term] = {
         " windows' final sizes",
         "it is net: what a compaction or other shrink removed is not counted, so a window"
         " that grew to 700K and compacted to 70K reports 70K"),
-    schema.SPEND: Term("a call's input tokens, each kind weighted by its price as worked above",
+    schema.SPEND: Term("a call's input tokens, each kind weighted by its price, as worked under the ✓",
                        "output excluded; every call re-reads its whole context, so spend grows with"
                        " context times calls; it is never quoted in dollars", True),
     AVERAGE: Term(
@@ -94,6 +95,10 @@ GLOSSARY: Dict[str, Term] = {
                                 "never summed: a sum counts a token once per call that re-read it"),
     "output_tokens": Term("tokens the calls generated",
                           "the next call reads them back, as replies"),
+    "input_tokens": Term("input tokens neither read from nor written to the prompt cache (billed ×1)",
+                         "full price: ten times a cache read"),
+    "cache_read_tokens": Term("tokens read back from the prompt cache (billed ×0.1)",
+                              "a tenth of an uncached token's price"),
     "cache_write_1h_tokens": Term("tokens written to the 1-hour prompt cache (billed ×2.0)",
                                   "each call writes one cache tier only"),
     "cache_write_5m_tokens": Term("tokens written to the 5-minute prompt cache (billed ×1.25)",

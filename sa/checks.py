@@ -164,4 +164,21 @@ def spend(sel: Selection, shown: Sequence[query.Table]) -> Tuple[List[str], List
     if not holds:
         return [style.tag(line.strip(), style.BAD) for line in worked], []
     return [style.tag("%s: %s" % (OK, line.strip().split(": ", 1)[1].rsplit("  ", 1)[0]), style.GOOD)
-            for line in worked], []
+            for line in worked], priced(sel)
+
+
+def priced(sel: Selection) -> List[str]:
+    """``-v``: spend as its price equation in the run's own numbers, each
+    term a call metric (``schema.SPEND_TERMS``) summed then weighted, their
+    sum against the headline: a ``✓`` only where it reconciles."""
+    calls = [f for f in sel.facts if f.kind == schema.CALL]
+    rows, summed = [], 0.0
+    for i, (name, weight) in enumerate(schema.SPEND_TERMS):
+        tokens = sum(f.metrics.get(name, 0) for f in calls)
+        summed += tokens * weight
+        rows.append(("%s%s ×%s" % ("+ " if i else "", glossary.printed(name), weight), num(tokens * weight),
+                     "= %s × %s" % (num(tokens), weight)))
+    ok = num(summed) == num(sel.total)
+    rows.append(("= %s" % glossary.printed(schema.SPEND), num(summed), "%s the headline's" % tables.OK_MARK if ok
+                 else "%s not the headline's %s" % (tables.BAD_MARK, num(sel.total))))
+    return _worked(rows)

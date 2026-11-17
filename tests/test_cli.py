@@ -102,12 +102,18 @@ def test_spend_prints_totals_over_the_selection_and_the_largest_call(tmp_path):
     assert cli.SPEND_NOTE not in out  # -v adds it
     others = [name for name, spec in schema.METRICS.items()  # footer totals name their population
               if spec.carrier == schema.CALL and spec.aggregation == schema.ADDITIVE
-              and name != SPEND.metric]
+              and name != SPEND.metric and name not in dict(schema.SPEND_TERMS)]
     assert others  # vacuity guard
     totals = " ".join(text for label, text in fx.key(verbose)  # -v works them, a plain line each
-                      if label in [o % SPEND.metric for o in notes.OTHERS])
+                      if label == notes.OTHERS % SPEND.metric)
     assert all(re.search(r"\b%s [\d,]+\b" % glossary.printed(name), totals) for name in others), totals
     assert all(glossary.printed(name) not in out and name not in totals for name in others)
+    # D-SPEND-TERMS: the price equation, worked under the ✓ line, one term a line, summing to the headline
+    equation = verbose.splitlines()[-len(schema.SPEND_TERMS) - 1:]
+    total = re.search(re.escape(fx.total_line(SPEND.metric)) + r"([\d,]+)", first).group(1)
+    for (name, weight), line in zip(schema.SPEND_TERMS, equation):
+        assert re.search(r"%s \S%s\s+[\d,]+  = [\d,]+ \S %s$" % (glossary.printed(name), weight, weight), line), line
+    assert re.match(r"^  = %s\s+%s  %s" % (fx.printed(SPEND.metric), total, tables.OK_MARK), equation[-1]), equation
     assert "\nin view where project=proj-a: 2 windows%s, 14 calls\n" % glossary.MARKER in out  # spend reads calls only
     assert re.search(r"^by %s\s+%s\s+%s\s+share$"
                      % (schema.SUBAGENT_DIM, fx.printed(SPEND.metric), fx.count_column(SPEND.metric)),

@@ -57,10 +57,17 @@ METRICS: Dict[str, Metric] = {
     CONTEXT_HELD: Metric(PER_CALL, INCREMENT, "tokens"),
     SPEND: Metric(ADDITIVE, CALL, "price-weighted input tokens", usage.usage_spend),
     "output_tokens": Metric(ADDITIVE, CALL, "tokens", lambda u: u["output_tokens"]),
+    "input_tokens": Metric(ADDITIVE, CALL, "tokens", lambda u: int(u.get("input_tokens", 0) or 0)),
+    "cache_read_tokens": Metric(ADDITIVE, CALL, "tokens", lambda u: int(u.get("cache_read_input_tokens", 0) or 0)),
     "cache_write_1h_tokens": Metric(ADDITIVE, CALL, "tokens", lambda u: usage.cache_creation_tiers(u)[0]),
     "cache_write_5m_tokens": Metric(ADDITIVE, CALL, "tokens", lambda u: usage.cache_creation_tiers(u)[1]),
     CONTEXT_TOKENS: Metric(PEAK, CALL, "tokens", usage.usage_context),
 }
+# Spend's terms and their weights (D-SPEND-TERMS): each a call metric above,
+# summed and weighted, adds up to spend (``-v`` works it in the run's numbers).
+SPEND_TERMS = (("input_tokens", 1.0), ("cache_read_tokens", usage.CACHE_READ_WEIGHT),
+               ("cache_write_5m_tokens", usage.CACHE_WRITE_WEIGHT["5m"]),
+               ("cache_write_1h_tokens", usage.CACHE_WRITE_WEIGHT["1h"]))
 
 # Causes of an increment. All but ``shrink`` book non-negative mass; ``shrink``
 # books the signed delta of a window that got smaller (``usage.context_delta``

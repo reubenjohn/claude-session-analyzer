@@ -15,8 +15,8 @@ from . import glossary, headline, leaves, query, schema, style, tables
 from .tables import WIDTH, count, num, pct, value
 
 HEAD = "-v: "  # each part of the block opens with it
-# spend's -v: the call totals beside it, each line plain: what spend leaves out, what it weighs
-OTHERS = ("not in %s", "weighed in %s above")
+# spend's -v: the call totals it leaves out (its terms are worked under the checks)
+OTHERS = "not in %s"
 INDENT = "    "  # a wrapped line's continuation
 
 
@@ -111,14 +111,13 @@ def figures(view, sel: query.Selection, shown: Sequence[Tuple[query.Table, objec
         out.append((what, "its changes' tokens × calls held, summed, ÷ the calls in view",
                     "%s ÷ %s = %s" % (num(mass), num(sel.calls), num(sel.total))))
     else:
-        out.append((glossary.printed(view.metric), "a call's input + cache reads × 0.1 + 5m cache writes × 1.25"
-                    " + 1h cache writes × 2.0", "summed over the %s: %s" % (count(len(carried), "call"),
-                                                                           num(sel.total))))
-        others = [n for n, m in schema.METRICS.items()
-                  if m.carrier == schema.CALL and m.aggregation == schema.ADDITIVE and n != view.metric]
-        for label, weighed in zip(OTHERS, (False, True)):  # a cache write is in spend's formula above
-            out += [(label % view.metric, "", ", ".join("%s %s" % (glossary.printed(n), num(query.total(carried, n)))
-                                                        for n in others if ("cache" in n) == weighed))]
+        out.append((glossary.printed(view.metric), "a call's input tokens, each kind × its price: worked"
+                    " under the ✓ line", "summed over the %s: %s" % (count(len(carried), "call"), num(sel.total))))
+        termed = dict(schema.SPEND_TERMS)
+        out += [(OTHERS % view.metric, "", ", ".join(
+            "%s %s" % (glossary.printed(n), num(query.total(carried, n))) for n, m in schema.METRICS.items()
+            if m.carrier == schema.CALL and m.aggregation == schema.ADDITIVE and n != view.metric
+            and n not in termed))]
     if facts:
         return out + leaves.figure_names(view.metric)
     first = next(((t, c) for t, c in shown if any(r.kind == query.REGULAR for r in t.rows)), None)

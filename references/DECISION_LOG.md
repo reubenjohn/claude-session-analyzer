@@ -289,6 +289,13 @@ follows (lead's call: one `main` behaves one way).
 equation) and on trigger (1%+), not on every screen; `AGENTS.md`'s
 "always in the checks" amended to match the code.
 
+**D-SPEND-TERMS (E3).** Two call metrics, `input_tokens` (uncached
+input) and `cache_read_tokens`, join the cache writes in `METRICS`;
+`schema.SPEND_TERMS` pairs each term with its weight from `usage`.
+`spend -v` works the price equation under the ✓ (`uncached input ×1.0 +
+cache reads ×0.1 + 5m ×1.25 + 1h ×2.0 = spend ✓ the headline's`), a ✓
+only where it reconciles; the formula and "weighed in spend" lines go.
+
 ## Filed, not built (re-checked 2026-11-16)
 
 - Project names print encoded (`~-work-proj3`), not as paths.
