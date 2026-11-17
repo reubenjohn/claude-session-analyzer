@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "claude-session-analyzer"
+name = "claude-code-session-analyzer"  # PyPI (D-PYPI-NAME); the module is `sa`
 dynamic = ["version"]
 description = "What did my Claude Code sessions cost, and is context degrading the model: measured, drillable answers from local transcripts."
 readme = "README.md"

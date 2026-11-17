@@ -15,7 +15,7 @@ it there. Stdlib only, Python 3.8+; every figure names its population.
 
 ```
 python3 -m venv .venv && . .venv/bin/activate   # or any environment
-pip install git+https://github.com/reubenjohn/claude-session-analyzer
+pip install claude-code-session-analyzer   # imports as `sa`: python3 -m sa
 ```
 
 Or as a Claude Code plugin (its skill runs the same commands):

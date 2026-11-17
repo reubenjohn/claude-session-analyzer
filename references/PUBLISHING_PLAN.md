@@ -31,13 +31,13 @@ commits might hold session data.
    claude-session-analyzer@reubenjohn`.
 3. [ ] **Tag the release** (CI green on the commit):
    `git tag -a v2.0.0 -m "2.0.0" && git push origin v2.0.0 && gh release create v2.0.0 --notes-file CHANGELOG.md`
-4. [ ] **PyPI — blocked on a name.** `claude-session-analyzer` is taken on
-   PyPI by an unrelated project (2026-11-16: `pypi.org/pypi/<name>/json`
-   200, 0.1.0, another repo). Free that day: `claude-code-session-analyzer`,
-   `cc-session-analyzer`. Owner picks; set `name` in `pyproject.toml`, then
-   `python3 -m pip install build twine && python3 -m build && python3 -m twine upload dist/*`
-   and add `pip install <name>` to the README. Until then the README
-   installs from GitHub.
+4. [ ] **PyPI as `claude-code-session-analyzer`** (RULED by the owner
+   2026-11-16, D-PYPI-NAME; `claude-session-analyzer` is another
+   project's; the new name 404s on `pypi.org/pypi/<name>/json`, 2026-11-16).
+   `pyproject.toml` and the README's install line carry it; the module
+   stays `sa`. Publish: `python3 -m pip install build twine && python3 -m
+   build && python3 -m twine upload dist/*`; until then, `pip install
+   git+https://github.com/reubenjohn/claude-session-analyzer`.
 5. [ ] **Announce.** Visibility is already PUBLIC (2026-11-16, `gh repo view`).
 
 Done: `CLAUDE.md` standalone (2026-09-30), `v2-build` merged into `main`,

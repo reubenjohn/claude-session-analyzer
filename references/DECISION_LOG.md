@@ -296,6 +296,10 @@ input) and `cache_read_tokens`, join the cache writes in `METRICS`;
 cache reads ×0.1 + 5m ×1.25 + 1h ×2.0 = spend ✓ the headline's`), a ✓
 only where it reconciles; the formula and "weighed in spend" lines go.
 
+**D-PYPI-NAME (E10).** The PyPI distribution is
+`claude-code-session-analyzer` (`claude-session-analyzer` is taken);
+the module stays `sa`, run as `python3 -m sa`; the plugin keeps its name.
+
 ## Filed, not built (re-checked 2026-11-16)
 
 - Project names print encoded (`~-work-proj3`), not as paths.
