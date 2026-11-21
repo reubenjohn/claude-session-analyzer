@@ -34,8 +34,8 @@ commits might hold session data.
 4. [ ] **PyPI as `claude-code-session-analyzer`** (RULED by the owner
    2026-11-16, D-PYPI-NAME; `claude-session-analyzer` is another
    project's; the new name 404s on `pypi.org/pypi/<name>/json`, 2026-11-16).
-   `pyproject.toml` and the README's install line carry it; the module
-   stays `sa`. Publish: `python3 -m pip install build twine && python3 -m
+   `pyproject.toml` carries it; the module stays `sa`. The README installs
+   from git until upload; on upload, switch it to `pip install <name>`. Publish: `python3 -m pip install build twine && python3 -m
    build && python3 -m twine upload dist/*`; until then, `pip install
    git+https://github.com/reubenjohn/claude-session-analyzer`.
 5. [ ] **Announce.** Visibility is already PUBLIC (2026-11-16, `gh repo view`).
